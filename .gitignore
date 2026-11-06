@@ -1,0 +1,43 @@
+# Private, local-only material (never committed)
+docs/
+CLAUDE.md
+AGENTS.md
+
+# Signing and local config
+local.properties
+*.jks
+*.keystore
+/captures
+/fixtures-raw
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.kotlin/
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+/release/
+.cxx/
+.externalNativeBuild/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.fleet/
+*.swp
+
+# Xcode (later)
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

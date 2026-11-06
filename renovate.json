@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "groupName": "kotlin, ksp and compose compiler",
+      "matchPackageNames": [
+        "/^org\\.jetbrains\\.kotlin/",
+        "/^com\\.google\\.devtools\\.ksp/",
+        "/^org\\.jetbrains\\.compose\\.compiler/"
+      ]
+    },
+    {
+      "groupName": "androidx",
+      "matchPackageNames": ["/^androidx\\./", "!/^androidx\\.media3/"]
+    },
+    {
+      "groupName": "media3",
+      "matchPackageNames": ["/^androidx\\.media3/"]
+    },
+    {
+      "groupName": "ktor",
+      "matchPackageNames": ["/^io\\.ktor/"]
+    }
+  ]
+}
