@@ -677,14 +677,21 @@ Public License instead of this License.  But first, please read
             ADDITIONAL PERMISSION UNDER GNU GPL VERSION 3 SECTION 7
 
   If you modify Lurk, or any covered work, by linking or combining it with
-  a proprietary Android or iOS library (or a modified version of that
-  library), such as Google ML Kit or the Sentry SDK, the licensors of Lurk
-  grant you additional permission to convey the resulting work.
+  a proprietary Android or iOS library (or a modified version of such a
+  library) that is distributed separately from Lurk under its own non-free
+  licence, the licensors of Lurk grant you additional permission to convey
+  the resulting work. Google ML Kit and the Sentry SDK are examples of such
+  libraries.
 
   Corresponding Source for a non-source form of such a combination does not
   need to include the source code of those libraries. It must still include
   the source code of every part of Lurk that the combination uses, under the
   terms of this License.
 
-  This permission covers only those libraries. It does not change the terms
-  that apply to Lurk's own code or to any other covered work.
+  This permission applies only to libraries of that kind. It does not change
+  the terms for Lurk's own code or for any other covered work. As section 7
+  allows, you may remove this additional permission from your copy of Lurk,
+  or from any part of it.
+
+  Contributions to Lurk are accepted under this License together with this
+  additional permission.
