@@ -10,7 +10,13 @@ dependencies {
     compileOnly(libs.android.gradlePlugin)
     compileOnly(libs.kotlin.gradlePlugin)
     compileOnly(libs.compose.gradlePlugin)
+    implementation(libs.spotless.gradlePlugin)
+    implementation(libs.detekt.gradlePlugin)
+
+    testImplementation(kotlin("test"))
 }
+
+tasks.withType<Test>().configureEach { useJUnit() }
 
 gradlePlugin {
     plugins {

@@ -25,7 +25,7 @@ class LurkAndroidApplicationPlugin : Plugin<Project> {
                 }
             }
             extensions.configure<KotlinAndroidProjectExtension> {
-                jvmToolchain(17)
+                jvmToolchain(LurkSdk.JDK)
             }
         }
 }

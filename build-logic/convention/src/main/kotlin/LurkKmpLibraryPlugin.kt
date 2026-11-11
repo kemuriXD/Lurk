@@ -24,7 +24,7 @@ class LurkKmpLibraryPlugin : Plugin<Project> {
                     withHostTest {}
                 }
                 jvm()
-                jvmToolchain(17)
+                jvmToolchain(LurkSdk.JDK)
 
                 sourceSets.getByName("commonTest").dependencies {
                     implementation(kotlin("test"))
