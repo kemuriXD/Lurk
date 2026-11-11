@@ -10,5 +10,7 @@ kotlin {
     }
     sourceSets.commonTest.dependencies {
         implementation(libs.kotlinx.io.core)
+        implementation(libs.kotlinx.coroutines.test)
+        implementation(libs.turbine)
     }
 }
