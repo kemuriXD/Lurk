@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -20,7 +21,10 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("Lurk")
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Lurk")
+                            Text(BuildInfo.label, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
