@@ -20,6 +20,12 @@ private val PRIORITY: List<EmoteKey> =
     SCOPES.flatMap { scope -> THIRD_PARTY.map { EmoteKey(it, scope) } } +
         SCOPES.flatMap { scope -> NATIVE.map { EmoteKey(it, scope) } }
 
+/** Stores [emotes] under [key]; an empty list removes the key so "nothing" has one representation. */
+private fun Sources.withSource(
+    key: EmoteKey,
+    emotes: List<Emote>,
+): Sources = if (emotes.isEmpty()) this - key else this + (key to emotes)
+
 private fun build(
     generation: Int,
     sources: Map<EmoteKey, List<Emote>>,
@@ -57,12 +63,16 @@ class EmoteRegistry {
     private fun mutate(change: (Sources, Personal) -> Pair<Sources, Personal>) {
         state.update { current ->
             val (sources, personal) = change(current.sources, current.personalLists)
-            build(current.generation + 1, sources, personal)
+            if (sources == current.sources && personal == current.personalLists) {
+                current
+            } else {
+                build(current.generation + 1, sources, personal)
+            }
         }
     }
 
     /** Replaces everything held for [ProviderSet.provider] in [ProviderSet.scope]. */
-    fun put(set: ProviderSet) = mutate { s, p -> (s + (EmoteKey(set.provider, set.scope) to set.emotes)) to p }
+    fun put(set: ProviderSet) = mutate { s, p -> s.withSource(EmoteKey(set.provider, set.scope), set.emotes) to p }
 
     fun addEmote(
         provider: EmoteProvider,
@@ -70,7 +80,7 @@ class EmoteRegistry {
         emote: Emote,
     ) = mutate { s, p ->
         val key = EmoteKey(provider, scope)
-        (s + (key to (s[key].orEmpty().filterNot { it.id == emote.id } + emote))) to p
+        s.withSource(key, s[key].orEmpty().filterNot { it.id == emote.id } + emote) to p
     }
 
     fun removeEmote(
@@ -79,7 +89,7 @@ class EmoteRegistry {
         emoteId: String,
     ) = mutate { s, p ->
         val key = EmoteKey(provider, scope)
-        (s + (key to s[key].orEmpty().filterNot { it.id == emoteId })) to p
+        s.withSource(key, s[key].orEmpty().filterNot { it.id == emoteId }) to p
     }
 
     fun putPersonal(

@@ -162,6 +162,21 @@ class EmoteRegistryTest {
     }
 
     @Test
+    fun noOpMutationDoesNotBumpGeneration() {
+        val registry = EmoteRegistry()
+        val a = emote("a", "A", BTTV, CHANNEL)
+        registry.put(set(BTTV, CHANNEL, a))
+        registry.putPersonal("u1", listOf(emote("p", "P", SEVENTV, PERSONAL)))
+        val before = registry.snapshot.value
+        registry.removeEmote(BTTV, CHANNEL, "unknown")
+        registry.removeEmote(FFZ, GLOBAL, "unknown")
+        registry.removePersonal("nobody")
+        registry.put(set(BTTV, CHANNEL, a))
+        registry.putPersonal("u1", listOf(emote("p", "P", SEVENTV, PERSONAL)))
+        assertTrue(registry.snapshot.value === before)
+    }
+
+    @Test
     fun snapshotEmitsOncePerMutation() =
         runTest {
             val registry = EmoteRegistry()
