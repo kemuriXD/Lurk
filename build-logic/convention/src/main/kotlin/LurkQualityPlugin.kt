@@ -4,7 +4,6 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.configure
@@ -68,16 +67,7 @@ abstract class CheckModuleBoundaries : DefaultTask() {
 
     @TaskAction
     fun check() {
-        val broken =
-            project.allprojects
-                .flatMap { source ->
-                    source.configurations
-                        .filter {
-                            it.name.endsWith("implementation", ignoreCase = true) ||
-                                it.name.endsWith("api", ignoreCase = true)
-                        }.flatMap { it.dependencies.withType(ProjectDependency::class.java) }
-                        .mapNotNull { ModuleRules.violations(source.path, it.path) }
-                }.distinct()
+        val broken = ModuleBoundaryWalker.violations(project.allprojects)
         if (broken.isNotEmpty()) {
             throw GradleException("Module boundary violations:\n" + broken.joinToString("\n") { " - $it" })
         }
