@@ -1,1 +1,32 @@
-{ "schemaVersion": 1 }
+{
+  "schemaVersion": 2,
+  "twitch": {
+    "gqlClientId": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+    "persistedQueries": {
+      "FollowingLive_CurrentUser": "bbfa83064e90280dce3eaa9de3a18eb6647505546336313241afdf569b6b34b6",
+      "FollowButton_User": "1131e2a2138f219d96db8deda8eb06b217c0669e4fd33b8bed47623fc9764b33",
+      "FollowButton_FollowUser": "800e7346bdf7e5278a3c1d3f21b2b56e2639928f86815677a7126b093b2fdd08",
+      "PlaybackAccessToken": "ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be06a04f3cdbe9"
+    },
+    "adCueClasses": ["twitch-maf-ad"],
+    "stitchedAdClasses": ["twitch-stitched-ad"],
+    "recentMessagesUrl": "https://recent-messages.robotty.de/api/v2/recent-messages/{channel}"
+  },
+  "kick": {
+    "apiBase": "https://kick.com/api/",
+    "webApiBase": "https://web.kick.com/api/v1/",
+    "realtimeConnectionPath": "realtime/connection",
+    "realtimeAuthPath": "realtime/auth/connection",
+    "publicChannelTemplates": [
+      "chatroom_{chatroomId}",
+      "channel_{channelId}",
+      "chatrooms.{chatroomId}",
+      "chatrooms.{chatroomId}.v2",
+      "channel.{channelId}"
+    ]
+  },
+  "emotes": {
+    "bttvZeroWidth": ["SoSnowy", "IceCold", "SantaHat", "TopHat", "ReinDeer", "CandyCane", "cvMask", "cvHazmat"]
+  },
+  "killSwitches": {}
+}
