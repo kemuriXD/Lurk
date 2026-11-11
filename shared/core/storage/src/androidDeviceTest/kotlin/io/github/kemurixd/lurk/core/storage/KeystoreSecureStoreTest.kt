@@ -9,9 +9,16 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
+import java.security.KeyStore
+import java.security.KeyStoreException
+import javax.crypto.SecretKey
+import javax.crypto.spec.SecretKeySpec
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
 class KeystoreSecureStoreTest {
@@ -59,4 +66,94 @@ class KeystoreSecureStoreTest {
             assertNull(store.get("session"))
             assertFalse(prefs.contains("session"))
         }
+
+    @Test
+    fun deletedKeyDropsEntry() =
+        runTest {
+            store.put("session", "example-value")
+            KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry("lurk_secure_v1")
+
+            assertNull(store.get("session"))
+            assertFalse(prefs.contains("session"))
+        }
+
+    @Test
+    fun malformedPayloadDropsEntry() =
+        runTest {
+            store.put("session", "example-value")
+            prefs
+                .edit()
+                .putString("bad", "not base64 !!")
+                .putString("short", "AAAA")
+                .commit()
+
+            assertNull(store.get("bad"))
+            assertNull(store.get("short"))
+            assertFalse(prefs.contains("bad"))
+            assertFalse(prefs.contains("short"))
+        }
+
+    @Test
+    fun transientKeystoreErrorKeepsEntry() =
+        runTest {
+            store.put("session", "example-value")
+            val failing = KeystoreSecureStore(context, FailingKeySource(KeyStoreException("busy")))
+
+            assertNull(failing.get("session"))
+            assertTrue(prefs.contains("session"))
+            assertEquals("example-value", store.get("session"))
+        }
+
+    @Test
+    fun keystoreLoadIoErrorKeepsEntry() =
+        runTest {
+            store.put("session", "example-value")
+            val failing = KeystoreSecureStore(context, FailingKeySource(IOException("load failed")))
+
+            assertNull(failing.get("session"))
+            assertTrue(prefs.contains("session"))
+        }
+
+    @Test
+    fun unusableKeyKeepsEntry() =
+        runTest {
+            store.put("session", "example-value")
+            val badKey = SecretKeySpec(ByteArray(5), "AES")
+            val failing = KeystoreSecureStore(context, FixedKeySource(badKey))
+
+            assertNull(failing.get("session"))
+            assertTrue(prefs.contains("session"))
+        }
+
+    @Test
+    fun putDoesNotRegenerateKeyOnTransientError() =
+        runTest {
+            val source = FailingKeySource(KeyStoreException("busy"))
+            val failing = KeystoreSecureStore(context, source)
+
+            assertFails { failing.put("session", "example-value") }
+            assertEquals(0, source.created)
+            assertFalse(prefs.contains("session"))
+        }
+
+    private class FailingKeySource(
+        private val error: Exception,
+    ) : KeySource {
+        var created = 0
+
+        override fun existing(): SecretKey? = throw error
+
+        override fun create(): SecretKey {
+            created++
+            error("A transient failure must not generate a new key")
+        }
+    }
+
+    private class FixedKeySource(
+        private val key: SecretKey,
+    ) : KeySource {
+        override fun existing(): SecretKey = key
+
+        override fun create(): SecretKey = key
+    }
 }
