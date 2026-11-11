@@ -25,3 +25,4 @@ rootProject.name = "Lurk"
 include(":androidApp:app")
 include(":shared:core:common")
 include(":shared:core:model")
+include(":shared:core:network")
