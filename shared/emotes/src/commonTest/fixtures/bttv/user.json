@@ -4,21 +4,21 @@
   "avatar": "https://static-cdn.jtvnw.net/jtv_user_pictures/profile-image-300x300.png",
   "channelEmotes": [
     {
-      "id": "578f7083f44392aa564829be",
+      "id": "5f0000000000000000000a01",
       "code": "chanPls",
       "imageType": "gif",
       "animated": true,
       "userId": "000000000000000000000001"
     },
     {
-      "id": "5f08947772ac200523c66db3",
+      "id": "5f0000000000000000000a02",
       "code": "chanHappyLeft",
       "imageType": "png",
       "animated": false,
       "userId": "000000000000000000000001"
     },
     {
-      "id": "5f089b16a2ac620530367e28",
+      "id": "5f0000000000000000000a03",
       "code": "chanDance",
       "imageType": "gif",
       "animated": true,

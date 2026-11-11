@@ -7,11 +7,6 @@
     "body": {
       "id": "01AA0000000000000000000011",
       "kind": 3,
-      "actor": {
-        "id": "01AA0000000000000000000001",
-        "username": "chan_one",
-        "display_name": "chan_one"
-      },
       "pushed": [
         {
           "key": "emotes",
@@ -84,7 +79,8 @@
                 ]
               },
               "tags": []
-            }
+            },
+            "origin_id": null
           }
         }
       ],
@@ -93,6 +89,7 @@
           "key": "emotes",
           "index": 1,
           "type": "object",
+          "value": null,
           "old_value": {
             "id": "01AA0000000000000000000E02",
             "name": "oldEmote",
@@ -160,7 +157,8 @@
                 ]
               },
               "tags": []
-            }
+            },
+            "origin_id": null
           }
         }
       ]
