@@ -9,4 +9,7 @@ kotlin {
         api(project(":shared:core:common"))
         api(project(":shared:emotes"))
     }
+    sourceSets.commonTest.dependencies {
+        implementation(libs.kotlinx.io.core)
+    }
 }

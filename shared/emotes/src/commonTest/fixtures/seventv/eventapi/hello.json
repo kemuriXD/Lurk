@@ -1,0 +1,14 @@
+{
+  "d": {
+    "heartbeat_interval": 48441,
+    "session_id": "00000000000000000000000001",
+    "subscription_limit": 500,
+    "instance": {
+      "name": "event-api-1",
+      "population": 1000
+    }
+  },
+  "op": 1,
+  "t": 1794434909330,
+  "s": 0
+}

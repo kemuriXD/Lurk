@@ -1,0 +1,63 @@
+{
+  "d": {
+    "type": "cosmetic.create",
+    "body": {
+      "id": "01GJGRX0FG0002GRV318PGDRKT",
+      "kind": 10,
+      "object": {
+        "id": "01GJGRX0FG0002GRV318PGDRKT",
+        "kind": "BADGE",
+        "data": {
+          "id": "01GJGRX0FG0002GRV318PGDRKT",
+          "name": "7TV Subscriber - 1 Year, 3 Months",
+          "tag": "sub15",
+          "tooltip": "7TV Subscriber (1 Year, 3 Months)",
+          "host": {
+            "url": "//cdn.7tv.app/badge/01GJGRX0FG0002GRV318PGDRKT",
+            "files": [
+              {
+                "name": "1x.webp",
+                "static_name": "1x.webp",
+                "width": 18,
+                "height": 18,
+                "frame_count": 1,
+                "size": 346,
+                "format": "WEBP"
+              },
+              {
+                "name": "2x.webp",
+                "static_name": "2x.webp",
+                "width": 36,
+                "height": 36,
+                "frame_count": 1,
+                "size": 612,
+                "format": "WEBP"
+              },
+              {
+                "name": "3x.webp",
+                "static_name": "3x.webp",
+                "width": 54,
+                "height": 54,
+                "frame_count": 1,
+                "size": 876,
+                "format": "WEBP"
+              },
+              {
+                "name": "4x.webp",
+                "static_name": "4x.webp",
+                "width": 72,
+                "height": 72,
+                "frame_count": 1,
+                "size": 1088,
+                "format": "WEBP"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "op": 0,
+  "t": 1794434909706,
+  "s": 37
+}

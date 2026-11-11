@@ -8,4 +8,7 @@ kotlin {
         api(project(":shared:core:model"))
         api(project(":shared:core:common"))
     }
+    sourceSets.commonTest.dependencies {
+        implementation(libs.kotlinx.io.core)
+    }
 }

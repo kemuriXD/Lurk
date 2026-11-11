@@ -1,0 +1,62 @@
+{
+  "d": {
+    "type": "cosmetic.create",
+    "body": {
+      "id": "01KDREVNA4XVTD3G04PWWDQMGF",
+      "kind": 10,
+      "object": {
+        "id": "01KDREVNA4XVTD3G04PWWDQMGF",
+        "kind": "PAINT",
+        "data": {
+          "id": "01KDREVNA4XVTD3G04PWWDQMGF",
+          "name": "Northern Light",
+          "color": null,
+          "gradients": [],
+          "shadows": [
+            {
+              "x_offset": 0.0,
+              "y_offset": 0.0,
+              "radius": 0.1,
+              "color": 2096885247
+            }
+          ],
+          "text": null,
+          "function": "LINEAR_GRADIENT",
+          "repeat": false,
+          "angle": 45,
+          "shape": "circle",
+          "image_url": "",
+          "stops": [
+            {
+              "at": 0.0,
+              "color": -1675056641
+            },
+            {
+              "at": 0.2,
+              "color": -279117825
+            },
+            {
+              "at": 0.4,
+              "color": 1560255231
+            },
+            {
+              "at": 0.6,
+              "color": 1308618239
+            },
+            {
+              "at": 0.8,
+              "color": 576286207
+            },
+            {
+              "at": 1.0,
+              "color": 576286207
+            }
+          ]
+        }
+      }
+    }
+  },
+  "op": 0,
+  "t": 1794434909706,
+  "s": 38
+}

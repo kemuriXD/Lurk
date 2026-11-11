@@ -1,0 +1,200 @@
+{
+  "data": {
+    "messages": [
+      {
+        "id": "10000000-0000-4000-8000-000000000500",
+        "chat_id": 1000100,
+        "user_id": 1000249,
+        "content": "good game everyone",
+        "type": "message",
+        "metadata": "{\"message_ref\": \"1794074100000\"}",
+        "sender": {
+          "id": 1000249,
+          "slug": "user_0036",
+          "username": "user_0036",
+          "identity": {
+            "color": "#E26EFF",
+            "badges": [],
+            "badges_v2": [
+              {
+                "name": "level",
+                "badge_type": "global",
+                "image_url": "…",
+                "selected": false,
+                "metadata": {
+                  "level": 30
+                },
+                "sort_order": 1
+              }
+            ]
+          }
+        },
+        "created_at": "2026-11-07T17:55:07Z",
+        "thread_parent_id": null
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000501",
+        "chat_id": 1000100,
+        "user_id": 1000248,
+        "content": "[emote:1000001:chanHype]",
+        "type": "message",
+        "metadata": "{\"message_ref\": \"1794074100001\"}",
+        "sender": {
+          "id": 1000248,
+          "slug": "user_0035",
+          "username": "user_0035",
+          "identity": {
+            "color": "#BAFEA3",
+            "badges": [],
+            "badges_v2": [
+              {
+                "name": "level",
+                "badge_type": "global",
+                "image_url": "…",
+                "selected": true,
+                "metadata": {
+                  "level": 36
+                },
+                "sort_order": 1
+              }
+            ]
+          }
+        },
+        "created_at": "2026-11-07T17:55:07Z",
+        "thread_parent_id": null
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000502",
+        "chat_id": 1000100,
+        "user_id": 1000250,
+        "content": "what song is this ?",
+        "type": "message",
+        "metadata": "{\"message_ref\": \"1794074100002\"}",
+        "sender": {
+          "id": 1000250,
+          "slug": "user_0037",
+          "username": "user_0037",
+          "identity": {
+            "color": "#BDFF28",
+            "badges": [
+              {
+                "type": "subscriber",
+                "text": "Subscriber",
+                "count": 1,
+                "sort_order": 9
+              }
+            ],
+            "badges_v2": [
+              {
+                "name": "level",
+                "badge_type": "global",
+                "image_url": "…",
+                "selected": true,
+                "metadata": {
+                  "level": 29
+                },
+                "sort_order": 1
+              }
+            ]
+          }
+        },
+        "created_at": "2026-11-07T17:55:04Z",
+        "thread_parent_id": null
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000503",
+        "chat_id": 1000100,
+        "user_id": 1000251,
+        "content": "nice one [emote:1000002:chanWave]",
+        "type": "message",
+        "metadata": "{\"message_ref\": \"1794074100003\"}",
+        "sender": {
+          "id": 1000251,
+          "slug": "user_0038",
+          "username": "user_0038",
+          "identity": {
+            "color": "#FF2C56",
+            "badges": [
+              {
+                "type": "subscriber",
+                "text": "Subscriber",
+                "count": 7,
+                "sort_order": 9
+              }
+            ],
+            "badges_v2": [
+              {
+                "name": "level",
+                "badge_type": "global",
+                "image_url": "…",
+                "selected": true,
+                "metadata": {
+                  "level": 49
+                },
+                "sort_order": 1
+              }
+            ]
+          }
+        },
+        "created_at": "2026-11-07T17:54:58Z",
+        "thread_parent_id": null
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000504",
+        "chat_id": 1000100,
+        "user_id": 1000252,
+        "content": "see you tomorrow",
+        "type": "message",
+        "metadata": "{\"message_ref\": \"1794074100004\"}",
+        "sender": {
+          "id": 1000252,
+          "slug": "user_0039",
+          "username": "user_0039",
+          "identity": {
+            "color": "#75FD46",
+            "badges": [
+              {
+                "type": "moderator",
+                "text": "Moderator",
+                "sort_order": 12
+              },
+              {
+                "type": "vip",
+                "text": "VIP",
+                "sort_order": 5
+              },
+              {
+                "type": "og",
+                "text": "OG",
+                "sort_order": 7
+              },
+              {
+                "type": "subscriber",
+                "text": "Subscriber",
+                "count": 25,
+                "sort_order": 9
+              }
+            ],
+            "badges_v2": [
+              {
+                "name": "level",
+                "badge_type": "global",
+                "image_url": "…",
+                "selected": false,
+                "metadata": {
+                  "level": 1
+                },
+                "sort_order": 1
+              }
+            ]
+          }
+        },
+        "created_at": "2026-11-07T17:54:58Z",
+        "thread_parent_id": null
+      }
+    ],
+    "cursor": "1794074060011477",
+    "pinned_message": null
+  },
+  "message": "OK"
+}
