@@ -1,0 +1,17 @@
+CREATE TABLE cache_entry (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL
+);
+
+get:
+SELECT value, fetched_at FROM cache_entry WHERE key = ?;
+
+upsert:
+INSERT OR REPLACE INTO cache_entry (key, value, fetched_at) VALUES (?, ?, ?);
+
+delete:
+DELETE FROM cache_entry WHERE key = ?;
+
+deleteAll:
+DELETE FROM cache_entry;

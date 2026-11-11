@@ -1,0 +1,17 @@
+# Overrides only; everything else comes from the detekt defaults.
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - Composable
+
+Compose:
+  ComposableAnnotationNaming:
+    active: true
+  ComposableNaming:
+    active: true
+  ModifierMissing:
+    active: true
+  ModifierNaming:
+    active: true
+  ParameterNaming:
+    active: true
