@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.core.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** A streaming platform Lurk can watch. */
@@ -7,7 +8,10 @@ import kotlinx.serialization.Serializable
 enum class Platform(
     val id: String,
 ) {
+    @SerialName("twitch")
     TWITCH("twitch"),
+
+    @SerialName("kick")
     KICK("kick"),
     ;
 
