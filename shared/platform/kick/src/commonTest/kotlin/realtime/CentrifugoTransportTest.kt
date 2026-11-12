@@ -1,15 +1,21 @@
 package io.github.kemurixd.lurk.platform.kick.realtime
 
+import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.chat.ChatEvent
 import io.github.kemurixd.lurk.chat.ChatParsers
 import io.github.kemurixd.lurk.core.common.LurkException
+import io.github.kemurixd.lurk.platform.kick.RIG_TOKEN
 import io.github.kemurixd.lurk.platform.kick.api.json
 import io.github.kemurixd.lurk.platform.kick.fixture
+import io.github.kemurixd.lurk.platform.kick.rigSessions
 import io.ktor.client.request.HttpRequestData
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -17,15 +23,18 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
+private const val CONNECT_ERROR = """{"id":1,"error":{"code":109,"message":"token expired"}}"""
+private const val SETTLE_MS = 10_000L
 private const val DISCONNECT_PUSH = """{"push":{"disconnect":{"code":3005,"reason":"expired","reconnect":true}}}"""
 
 class CentrifugoTransportTest {
     private val recordedFrames = fixture("realtime/centrifugo-frames.txt").lines().filter { it.isNotBlank() }
 
-    private fun transport(
+    private suspend fun TestScope.transport(
         bootstrap: RealtimeBootstrap,
         connector: FakeSocketConnector,
-    ) = CentrifugoTransport(bootstrap, connector, CHANNEL_ID, CHATROOM_ID, token = { null })
+        sessions: SessionRepository? = null,
+    ) = CentrifugoTransport(bootstrap, connector, CHANNEL_ID, CHATROOM_ID, sessions ?: rigSessions())
 
     @Test
     fun connectThenSubscribeAll() =
@@ -95,6 +104,35 @@ class CentrifugoTransportTest {
 
             assertEquals(listOf(recordedFrames.first(), DISCONNECT_PUSH), frames)
             assertTrue(socket.closed)
+        }
+
+    @Test
+    fun connectErrorReplyCompletesFlow() =
+        runTest {
+            val socket = FakeSocket()
+            socket.inbound.send(CONNECT_ERROR)
+            socket.inbound.send(recordedFrames.first())
+            // The channel stays open: only the error reply can end this collection.
+            val frames =
+                withTimeout(SETTLE_MS) {
+                    transport(bootstrapRig(mutableListOf()), FakeSocketConnector { socket }).frames().toList()
+                }
+
+            assertEquals(listOf(CONNECT_ERROR), frames)
+            assertTrue(socket.closed)
+        }
+
+    @Test
+    fun errorReplyToASubscribeKeepsFlowOpen() =
+        runTest {
+            val subscribeError = CONNECT_ERROR.replace("\"id\":1,", "\"id\":3,")
+            val socket = FakeSocket()
+            socket.inbound.send(subscribeError)
+            socket.inbound.send(recordedFrames.first())
+            socket.inbound.close()
+            val frames = transport(bootstrapRig(mutableListOf()), FakeSocketConnector { socket }).frames().toList()
+
+            assertEquals(listOf(subscribeError, recordedFrames.first()), frames)
         }
 
     @Test
@@ -197,6 +235,30 @@ class CentrifugoTransportTest {
 
             assertTrue(connector.urls.isEmpty(), "no socket without a ticket")
             assertFalse(FIXTURE_TOKEN in error.message.orEmpty())
+        }
+
+    @Test
+    fun expiredTokenBootstrapsAgainSignedOut() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val bootstrap =
+                bootstrapRig(seen) {
+                    if (it.headers[HttpHeaders.Authorization] != null) {
+                        json("""{"message":"Unauthenticated."}""", HttpStatusCode.Unauthorized)
+                    } else {
+                        recorded(it)
+                    }
+                }
+            val socket = FakeSocket().apply { inbound.close() }
+            val connector = FakeSocketConnector { socket }
+
+            transport(bootstrap, connector, rigSessions(signedIn = true)).frames().toList()
+
+            assertEquals("Bearer $RIG_TOKEN", seen.first().headers[HttpHeaders.Authorization])
+            assertEquals(4, seen.size, "one signed-in POST is rejected, then the whole bootstrap runs signed out")
+            assertTrue(seen.drop(1).all { it.headers[HttpHeaders.Authorization] == null })
+            assertEquals(listOf(SOCKET_URL), connector.urls)
+            assertEquals("""{"id":1,"connect":{"token":"$FIXTURE_TOKEN","name":"js"}}""", socket.sent.first())
         }
 
     @Test

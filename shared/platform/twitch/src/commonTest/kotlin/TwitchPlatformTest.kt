@@ -8,18 +8,25 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.network.WebSocketConnector
 import io.github.kemurixd.lurk.core.network.createHttpClient
 import io.github.kemurixd.lurk.platform.api.Capabilities
+import io.github.kemurixd.lurk.platform.twitch.chat.FakeIrcConnector
 import io.github.kemurixd.lurk.platform.twitch.chat.chatConfig
+import io.github.kemurixd.lurk.platform.twitch.discovery.RIG_TOKEN
 import io.github.kemurixd.lurk.platform.twitch.discovery.discoveryRig
 import io.github.kemurixd.lurk.platform.twitch.discovery.reply
 import io.github.kemurixd.lurk.platform.twitch.playback.TwitchPlaybackSource
 import io.ktor.client.engine.mock.MockEngine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class TwitchPlatformTest {
     private val channel =
         Channel(
@@ -35,9 +42,11 @@ class TwitchPlatformTest {
             lastStream = null,
         )
 
-    private suspend fun TestScope.platform(signedIn: Boolean): TwitchPlatform {
+    private suspend fun TestScope.platform(
+        signedIn: Boolean,
+        connector: WebSocketConnector = WebSocketConnector { _, _ -> error("not opened in these tests") },
+    ): TwitchPlatform {
         val rig = discoveryRig(signedIn) { reply("[]") }
-        val connector = WebSocketConnector { _, _ -> error("not opened in these tests") }
         return TwitchPlatform(
             gql = rig.gql,
             sessions = rig.sessions,
@@ -89,5 +98,34 @@ class TwitchPlatformTest {
     fun signedInChatHasASender() =
         runTest {
             assertNotNull(platform(signedIn = true).chat(channel).sender)
+        }
+
+    @Test
+    fun signedInChatLogsInAsTheAccount() =
+        runTest {
+            val connector = FakeIrcConnector()
+            val endpoints = platform(signedIn = true, connector = connector).chat(channel)
+            backgroundScope.launch { endpoints.transport.frames().collect { } }
+            runCurrent()
+            assertEquals(Outcome.Success(Unit), endpoints.sender?.send("hi", null))
+
+            for (connection in connector.connections) {
+                assertTrue("NICK viewer1" in connection.sent, connection.sent.toString())
+                assertTrue("PASS oauth:$RIG_TOKEN" in connection.sent)
+            }
+            assertEquals(2, connector.connections.size)
+        }
+
+    @Test
+    fun signedOutChatLogsInAnonymously() =
+        runTest {
+            val connector = FakeIrcConnector()
+            val endpoints = platform(signedIn = false, connector = connector).chat(channel)
+            backgroundScope.launch { endpoints.transport.frames().collect { } }
+            runCurrent()
+
+            val sent = connector.connections.single().sent
+            assertTrue(sent.any { Regex("NICK justinfan[0-9]{4,5}").matches(it) }, sent.toString())
+            assertTrue(sent.none { it.startsWith("PASS") })
         }
 }

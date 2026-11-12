@@ -7,12 +7,17 @@ import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Account
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.storage.SecureStore
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AuthedCallTest {
     private class FakeSecureStore : SecureStore {
         val values = mutableMapOf<String, String>()
@@ -152,5 +157,34 @@ class AuthedCallTest {
             assertEquals(Outcome.Failure(LurkError.Timeout), result)
             assertEquals(1, calls)
             assertEquals(0, f.fetcher.calls)
+        }
+
+    @Test
+    fun lateUnauthorizedAfterFinishedCheckDoesNotCheckAgain() =
+        runTest {
+            val f = fixture(signedIn = true)
+            runCurrent() // let the restore check finish first
+            f.fetcher.calls = 0
+            val gate = CompletableDeferred<Unit>()
+            val straggler =
+                async {
+                    f.repo.authed<String>(Platform.TWITCH, anonymousFallback = true) { t ->
+                        if (t == null) return@authed Outcome.Success("anon")
+                        gate.await()
+                        Outcome.Failure(LurkError.AuthExpired)
+                    }
+                }
+            runCurrent()
+            val first =
+                f.repo.authed<String>(Platform.TWITCH, anonymousFallback = true) { t ->
+                    if (t != null) Outcome.Failure(LurkError.AuthExpired) else Outcome.Success("anon")
+                }
+            assertEquals(1, f.fetcher.calls)
+
+            gate.complete(Unit)
+
+            assertEquals(Outcome.Success("anon"), straggler.await())
+            assertEquals(Outcome.Success("anon"), first)
+            assertEquals(1, f.fetcher.calls, "the straggler read its token before the finished check")
         }
 }

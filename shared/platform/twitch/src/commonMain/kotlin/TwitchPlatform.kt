@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.platform.twitch
 
+import io.github.kemurixd.lurk.auth.AccountState
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.chat.ChatChannel
 import io.github.kemurixd.lurk.core.common.LurkError
@@ -24,6 +25,7 @@ import io.github.kemurixd.lurk.platform.twitch.account.followed
 import io.github.kemurixd.lurk.platform.twitch.assets.TwitchBadgeSource
 import io.github.kemurixd.lurk.platform.twitch.assets.TwitchCheermoteSource
 import io.github.kemurixd.lurk.platform.twitch.assets.TwitchEmoteSource
+import io.github.kemurixd.lurk.platform.twitch.chat.IrcCredential
 import io.github.kemurixd.lurk.platform.twitch.chat.IrcSender
 import io.github.kemurixd.lurk.platform.twitch.chat.IrcTransport
 import io.github.kemurixd.lurk.platform.twitch.chat.RecentMessagesSource
@@ -83,17 +85,28 @@ class TwitchPlatform(
         follow: Boolean,
     ): Outcome<Unit> = Outcome.Failure(LurkError.Unsupported)
 
-    /** The IRC login is [Channel.chatId]. The sender exists only while signed in at the time of the call. */
+    /**
+     * The IRC channel is [Channel.chatId]. The sender exists only while signed in at the time of the call. A token
+     * Twitch rejects on IRC is reported to the session, so the transport's next connection goes out signed out.
+     */
     override suspend fun chat(channel: Channel): ChatEndpoints {
         val login = channel.chatId
-        val token: suspend () -> String? = { sessions.token(Platform.TWITCH) }
+        val credential: suspend () -> IrcCredential? = { ircCredential() }
         val sender =
-            if (token() == null) null else IrcSender(connector, config, login, token, scope)
+            if (credential() == null) null else IrcSender(connector, config, login, credential, scope)
+        val rejected: suspend (String) -> Unit = { sessions.reportUnauthorized(Platform.TWITCH, it) }
         return ChatEndpoints(
             channel = ChatChannel(Platform.TWITCH, channel.id, channel.ref.login),
-            transport = IrcTransport(connector, config, login, token),
+            transport = IrcTransport(connector, config, login, credential, rejected),
             history = RecentMessagesSource(http, config, login),
             sender = sender,
         )
+    }
+
+    /** The token and the account login while signed in, else null. */
+    private suspend fun ircCredential(): IrcCredential? {
+        val account = (sessions.state(Platform.TWITCH).value as? AccountState.SignedIn)?.account
+        val token = account?.let { sessions.token(Platform.TWITCH) }
+        return if (account != null && token != null) IrcCredential(token, account.login) else null
     }
 }

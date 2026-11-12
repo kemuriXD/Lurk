@@ -75,7 +75,7 @@ internal class TwitchChecks(
 
     private suspend fun irc(ref: ChannelRef) {
         val config = koin.get<RemoteConfigRepository>().config
-        val transport = IrcTransport(koin.get<WebSocketConnector>(), config, ref.login, token = { null })
+        val transport = IrcTransport(koin.get<WebSocketConnector>(), config, ref.login, credential = { null })
         report.frameResult("twitch.irc", firstFrame(transport, IRC_LIMIT), "frame", IRC_LIMIT)
     }
 

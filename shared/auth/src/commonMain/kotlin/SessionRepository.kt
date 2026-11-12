@@ -83,13 +83,29 @@ class SessionRepository(
         if (session(platform).state.value is AccountState.SignedIn) vault.token(platform) else null
 
     /**
+     * How many profile checks for [platform] have finished. A caller reads it before [token] and hands it to
+     * [reportUnauthorized], so a 401 that lands after a check already finished doesn't start another one.
+     */
+    fun checksFinished(platform: Platform): Long = session(platform).generation.value
+
+    /**
      * Called when a request came back 401. Re-checks the token once; callers that arrive while a check is pending wait
      * for it and share its result. Only a rejected token moves the state to [AccountState.Expired].
+     *
+     * Nothing is checked when the platform is no longer signed in, when [usedToken] is no longer the stored token, or
+     * when a check finished after the caller read its token ([checksSeen], from [checksFinished]; without it, the
+     * count at this call).
      */
-    suspend fun reportUnauthorized(platform: Platform) {
+    suspend fun reportUnauthorized(
+        platform: Platform,
+        usedToken: String? = null,
+        checksSeen: Long? = null,
+    ) {
         val session = session(platform)
-        if (session.state.value == AccountState.SignedOut) return
-        checkOnce(platform, session.generation.value)
+        val seen = checksSeen ?: session.generation.value
+        if (session.state.value !is AccountState.SignedIn) return
+        if (usedToken != null && usedToken != vault.token(platform)) return
+        checkOnce(platform, seen)
     }
 
     private suspend fun checkOnce(

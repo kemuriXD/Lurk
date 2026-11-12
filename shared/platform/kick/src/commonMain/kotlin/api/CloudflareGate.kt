@@ -11,19 +11,24 @@ import io.ktor.http.Url
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.Volatile
 
 private const val APEX_LABELS = 2
 
 /**
  * Clears Cloudflare blocks on Kick requests. A blocked call asks the solver once, stores the cookies it returns
  * and replays the call once. Calls blocked together share one solve: whoever gets the lock first asks, the rest
- * see that an attempt finished after their call began and reuse its result.
+ * see that an attempt finished after their call began and reuse its result. Calls that are not blocked never touch
+ * the lock, so a slow solve holds up only the calls waiting on it.
  */
 class CloudflareGate(
     private val solver: ChallengeSolver?,
     private val cookies: CookiesStorage,
 ) {
     private val lock = Mutex()
+
+    /** Written only under [lock]; read without it at the start of every call. */
+    @Volatile
     private var attempts = 0
     private var lastSolved = false
 
@@ -31,7 +36,7 @@ class CloudflareGate(
         url: String,
         call: suspend () -> Outcome<T>,
     ): Outcome<T> {
-        val attemptsBefore = lock.withLock { attempts }
+        val attemptsBefore = attempts
         val first = call()
         if (first !is Outcome.Failure || first.error != LurkError.Blocked) return first
         return if (solveOnce(url, attemptsBefore)) call() else first

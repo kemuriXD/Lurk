@@ -10,14 +10,18 @@ import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CloudflareGateTest {
     private val blockedPage get() = fixture("api/challenge.html")
 
@@ -164,5 +168,33 @@ class CloudflareGateTest {
 
             assertTrue(results.all { it == Outcome.Failure(LurkError.Blocked) }, results.toString())
             assertEquals(1, solves)
+        }
+
+    @Test
+    fun unblockedCallDoesNotWaitForASolve() =
+        runTest {
+            val release = CompletableDeferred<Unit>()
+            val rig =
+                Rig(
+                    solver =
+                        { _, _ ->
+                            release.await()
+                            ChallengeResult.Solved(mapOf("cf_clearance" to "c1"), null)
+                        },
+                    engine =
+                        mockEngine {
+                            if (it.url.encodedPath.endsWith("v2/open")) json("""{"ok":true}""") else reply(it)
+                        },
+                )
+            val blocked = async { rig.api.get(KickBase.API, "v2/x", null) }
+            runCurrent()
+
+            val open = async { rig.api.get(KickBase.API, "v2/open", null) }
+            runCurrent()
+
+            assertTrue(open.isCompleted, "an unblocked call must not wait on the solve")
+            assertTrue(open.await() is Outcome.Success)
+            release.complete(Unit)
+            assertTrue(blocked.await() is Outcome.Success)
         }
 }

@@ -11,18 +11,17 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class IrcSenderTest {
     private fun TestScope.sender(
         connector: FakeIrcConnector,
-        token: String? = "tok",
+        credential: IrcCredential? = IrcCredential("tok", "Viewer1"),
         tokenCalls: MutableList<Unit> = mutableListOf(),
     ) = IrcSender(connector, chatConfig, "streamer1", {
         tokenCalls += Unit
-        token
+        credential
     }, backgroundScope, Random(1))
 
     @Test
@@ -79,7 +78,7 @@ class IrcSenderTest {
     fun signedOutSendIsNotSignedIn() =
         runTest {
             val connector = FakeIrcConnector()
-            assertEquals(Outcome.Failure(LurkError.NotSignedIn), sender(connector, token = null).send("hi", null))
+            assertEquals(Outcome.Failure(LurkError.NotSignedIn), sender(connector, credential = null).send("hi", null))
             assertTrue(connector.connections.isEmpty())
         }
 
@@ -169,16 +168,17 @@ class IrcSenderTest {
         }
 
     @Test
-    fun signedInNickIsAnonymousStyle() =
+    fun signedInNickIsTheUserLogin() =
         runTest {
             val connector = FakeIrcConnector()
-            sender(connector).send("a", null)
+            val s = sender(connector)
+            s.send("a", null)
             val nick =
                 connector.connections
                     .single()
                     .sent
                     .first { it.startsWith("NICK ") }
-            assertTrue(Regex("NICK justinfan[0-9]{4,5}").matches(nick), nick)
-            assertNotEquals("NICK streamer1", nick)
+            assertEquals("NICK viewer1", nick)
+            assertFalse(s.toString().contains("viewer1", ignoreCase = true))
         }
 }

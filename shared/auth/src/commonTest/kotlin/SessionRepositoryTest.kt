@@ -271,6 +271,21 @@ class SessionRepositoryTest {
         }
 
     @Test
+    fun stragglerAfterExpiredCheckDoesNotCheckAgain() =
+        runTest {
+            val store = FakeSecureStore()
+            val fetcher = FakeFetcher(Platform.TWITCH, Outcome.Success(account))
+            val repo = signedIn(store, fetcher)
+            fetcher.result = Outcome.Failure(LurkError.AuthExpired)
+
+            repo.reportUnauthorized(Platform.TWITCH)
+            assertIs<AccountState.Expired>(repo.state(Platform.TWITCH).value)
+            repo.reportUnauthorized(Platform.TWITCH)
+
+            assertEquals(1, fetcher.calls)
+        }
+
+    @Test
     fun unauthorizedRecheckSuccessKeepsSignedInWithFreshAccount() =
         runTest {
             val store = FakeSecureStore()

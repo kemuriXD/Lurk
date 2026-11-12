@@ -91,7 +91,7 @@ class KickPlatform(
             if (token() == null) null else KickSender(api, resolved.chatId, token, { null }, clock)
         return ChatEndpoints(
             channel = ChatChannel(Platform.KICK, slug, slug),
-            transport = CentrifugoTransport(bootstrap, connector, resolved.id, resolved.chatId, token),
+            transport = CentrifugoTransport(bootstrap, connector, resolved.id, resolved.chatId, sessions),
             history = KickHistorySource(api, resolved.id),
             sender = sender,
         )

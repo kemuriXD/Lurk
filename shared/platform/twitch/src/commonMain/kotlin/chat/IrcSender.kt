@@ -22,14 +22,14 @@ import kotlin.random.Random
  * Sends chat messages over one authenticated IRC connection, opened on the first send. A drain of the socket, run in
  * [scope], answers the server's PINGs and notices when the server hangs up; the next send then opens a fresh
  * connection. When a send finds the connection dead, it opens a fresh one and tries once more; a second failure is
- * returned, with no further retries. The token is read once per connection. Not a data class, so the token can't
- * leak through `toString()`.
+ * returned, with no further retries. The credential is read once per connection, and the nick is the account login
+ * (see [ircNick]). Not a data class, so the token and login can't leak through `toString()`.
  */
 class IrcSender(
     private val connector: WebSocketConnector,
     private val config: StateFlow<RemoteConfig>,
     private val login: String,
-    private val token: suspend () -> String?,
+    private val credential: suspend () -> IrcCredential?,
     private val scope: CoroutineScope,
     private val random: Random = Random.Default,
 ) : ChatSender {
@@ -70,11 +70,11 @@ class IrcSender(
 
     @Suppress("TooGenericExceptionCaught")
     private suspend fun open(): Held? {
-        val oauth = token() ?: return null
+        val signIn = credential() ?: return null
         val opened = connector.connect(config.value.twitch.ircUrl, emptyMap())
         try {
-            opened.send("PASS oauth:$oauth")
-            opened.send("NICK ${ircNick(random)}")
+            opened.send("PASS oauth:${signIn.token}")
+            opened.send("NICK ${ircNick(signIn, random)}")
         } catch (e: Throwable) {
             withContext(NonCancellable) { opened.close() }
             throw e
