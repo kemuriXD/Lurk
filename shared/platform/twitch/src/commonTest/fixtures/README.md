@@ -13,7 +13,15 @@ Responses from Twitch's web GraphQL endpoint, anonymised. Nothing here can be fe
 - `playback-token-turbo.json`: **hand-built** from the anonymous token, with `turbo:true`, `show_ads:false` and a stand-in `user_id`.
 - `playback-token-unknown.json`: **hand-built.** `streamPlaybackAccessToken` is null, as for a login that does not exist.
 - `error-integrity.json`: **hand-built.** It follows the shape of a recorded `failed integrity check` response to a signed-in follow mutation: an `errors` entry with `extensions.code` of `IntegrityCheckFailed`, a null mutation result under `data`, and `extensions.challenge.type` of `integrity`.
+- `top-streams.json`: the shape of a signed-out raw `TopStreams` response (`streams` edges with a `cursor`, a stream node and `pageInfo`), rebuilt with stand-in values and trimmed to 3 items. **Hand-edited:** the second node has `broadcaster: null` and the third has `game: null`.
+- `games.json`: the shape of a `TopGames` response (`games` edges, each game with a box-art template and `viewersCount`), stand-in values, 3 items.
+- `game-streams.json`: the shape of a `GameStreams` response (`game { streams }`), stand-in values, 3 streams, `hasNextPage` false.
+- `search.json`: the shape of a `SearchFor` response (`searchFor` with `channels` and `games` edges, each under `item`), stand-in values, 3 channels and 2 games. **Hand-ordered:** the offline channel comes first and the two live ones after it.
+- `channel-live.json` and `channel-offline.json`: the shape of a `ChannelProfile` response, stand-in values. The offline one differs from the live one only in a null `stream`. **Hand-built** from the recorded shape.
+- `channel-unknown.json`: a `ChannelProfile` response for a login that does not exist (`user` is null), as recorded, with the request ID replaced.
 
 ## Anonymising
 
 The probed channel's login and ID became `streamer1` and `1000001`, and the request ID became `request-1`. In the playback tokens the signature is all zeros, the viewer IP is `192.0.2.1` (a documentation address), and the hand-built signed-in user is `1000002`. The web Client-ID is a public value that lives in `config/remote.json`; it appears nowhere in these files.
+
+In the discovery fixtures every login, display name, ID, title, bio and image path is a stand-in (`streamer1`, `Streamer One`, `1000001`, `Stream title 1`, `https://cdn.example/a/1.png`), and the follower and viewer counts are invented. Image URLs keep the `{width}x{height}` template the API returns.
