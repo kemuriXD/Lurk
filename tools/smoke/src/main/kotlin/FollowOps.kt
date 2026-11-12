@@ -18,7 +18,8 @@ internal interface FollowOps {
 
 /**
  * The follow list stops at 20 pages, and the page size is not exposed. A list this long may be cut off, so the test
- * leaves the follow alone rather than risk unfollowing a channel it could not see.
+ * leaves the follow alone rather than risk unfollowing a channel it could not see. Assumes Kick pages hold at least
+ * 5 channels (20-page cap, see `FOLLOWED_MAX_PAGES` in KickFollows.kt).
  */
 internal const val FOLLOW_LIST_LIMIT = 100
 
@@ -39,7 +40,7 @@ internal suspend fun runFollowTest(
             report.fail(CHECK, "lookup failed")
         }
 
-        before.live.size + before.offline.size >= FOLLOW_LIST_LIMIT -> {
+        before.size >= FOLLOW_LIST_LIMIT -> {
             report.skip(CHECK, "follow list incomplete")
         }
 
@@ -49,24 +50,33 @@ internal suspend fun runFollowTest(
         }
 
         else -> {
-            report.pass(CHECK, "restored=${roundTrip(channel, ops)}")
+            report.pass(CHECK, "restored=${roundTrip(channel, ops, before.size)}")
         }
     }
 }
 
+/**
+ * Follows, then unfollows only when the list shows exactly one more entry that is this channel. Anything else (a
+ * capped list, a changed list) leaves the follow in place and reports `restored=false`, so an existing follow can
+ * never be lost.
+ */
 private suspend fun roundTrip(
     channel: Channel,
     ops: FollowOps,
+    sizeBefore: Int,
 ): Boolean {
-    val followed = ops.setFollow(channel, true)
-    var verified = false
+    if (!ops.setFollow(channel, true)) return false
+    val after = ops.followed()
+    val safe = after != null && after.contains(channel.ref) && after.size == sizeBefore + 1
     var restored = false
-    try {
-        if (followed) verified = ops.followed()?.contains(channel.ref) == true
-    } finally {
-        if (followed) {
-            restored = ops.setFollow(channel, false) && ops.followed()?.contains(channel.ref) == false
+    if (safe) {
+        try {
+            restored = ops.setFollow(channel, false)
+        } finally {
+            restored = restored && ops.followed()?.contains(channel.ref) == false
         }
     }
-    return followed && verified && restored
+    return restored
 }
+
+private val Followed.size get() = live.size + offline.size

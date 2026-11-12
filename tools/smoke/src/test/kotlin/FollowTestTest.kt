@@ -18,6 +18,8 @@ private class FakeOps(
     private val server: Channel?,
     private val initial: List<Channel> = emptyList(),
     private val throwAfterFollow: Boolean = false,
+    private val hideNew: Boolean = false,
+    private val extra: Int = 0,
 ) : FollowOps {
     val calls = mutableListOf<String>()
     private val following = initial.toMutableList()
@@ -26,7 +28,9 @@ private class FakeOps(
 
     override suspend fun followed(): Followed? {
         if (throwAfterFollow && calls.contains("follow")) error("lookup exploded")
-        return Followed(emptyList(), following.toList())
+        val shown = if (hideNew) initial else following.toList()
+        val added = if (calls.contains("follow")) (1..extra).map { channel("extra$it") } else emptyList()
+        return Followed(emptyList(), shown + added)
     }
 
     override suspend fun setFollow(
@@ -73,11 +77,29 @@ class FollowTestTest {
         }
 
     @Test
-    fun unfollowStillRunsWhenAVerifyStepThrows() =
+    fun cappedListNeverCostsAFollow() =
+        runBlocking {
+            val ops = FakeOps(channel("streamer1"), initial = listOf(channel("other")), hideNew = true)
+            runFollowTest(ref("streamer1"), ops, report)
+            assertEquals(listOf("follow"), ops.calls)
+            assertEquals(listOf("PASS kick.followTest restored=false"), lines)
+        }
+
+    @Test
+    fun unexpectedListSizeLeavesTheFollowInPlace() =
+        runBlocking {
+            val ops = FakeOps(channel("streamer1"), extra = 1)
+            runFollowTest(ref("streamer1"), ops, report)
+            assertEquals(listOf("follow"), ops.calls)
+            assertEquals(listOf("PASS kick.followTest restored=false"), lines)
+        }
+
+    @Test
+    fun failedVerifyAfterFollowSurfacesAndKeepsTheFollow() =
         runBlocking {
             val ops = FakeOps(channel("streamer1"), throwAfterFollow = true)
             assertFailsWith<IllegalStateException> { runFollowTest(ref("streamer1"), ops, report) }
-            assertEquals(listOf("follow", "unfollow"), ops.calls)
+            assertEquals(listOf("follow"), ops.calls)
         }
 
     @Test
