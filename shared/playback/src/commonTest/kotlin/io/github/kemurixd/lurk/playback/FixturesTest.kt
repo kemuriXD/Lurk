@@ -42,7 +42,10 @@ class FixturesTest {
         assertFalse(refreshes.first().second.contains("twitch-maf-ad"))
         assertFalse(refreshes.last().second.contains("twitch-maf-ad"))
         assertTrue(refreshes.any { it.second.contains("twitch-maf-ad") })
-        assertEquals(refreshes.map { it.first }.sorted(), refreshes.map { it.first })
+        assertEquals(
+            (1..refreshes.size).map { it.toString().padStart(3, '0') },
+            refreshes.map { it.first.substringBefore('-') },
+        )
     }
 
     @Test
@@ -68,14 +71,16 @@ class FixturesTest {
     }
 
     @Test
-    fun fixturesCarryNoQueryStringsOrHosts() {
+    fun fixturesCarryNoQueryStringsAndOnlyExampleHosts() {
         val all =
             playlists.map { it to fixture(it) } +
                 fixtureDir("twitch/cue-break").map { it.first to it.second }
+        val host = Regex("https?://([^/ \"]+)")
         for ((name, text) in all) {
             assertFalse(text.contains("?"), name)
-            assertFalse(text.contains("ttvnw.net"), name)
-            assertFalse(text.contains("cloudfront"), name)
+            for (match in host.findAll(text)) {
+                assertTrue(match.groupValues[1].endsWith(".example"), "$name: ${match.value}")
+            }
         }
     }
 }

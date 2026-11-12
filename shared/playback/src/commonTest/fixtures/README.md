@@ -1,6 +1,6 @@
 # Playlist fixtures
 
-HLS playlists for the playback tests. They were captured from live Twitch streams and then anonymised. Nothing here can be fetched or traced back to a stream, account or viewer.
+HLS playlists for the playback tests. They were captured from live Twitch streams and then anonymised. Nothing here can be fetched, and no account, viewer or channel is named.
 
 ## Files
 
@@ -17,8 +17,8 @@ HLS playlists for the playback tests. They were captured from live Twitch stream
 `broken/`
 
 - `truncated.m3u8`: a media playlist cut in the middle of a line.
-- `html.m3u8`: an HTML error page.
-- `empty.m3u8`: an empty file.
+- `html.m3u8`: an HTML error page, hand-made.
+- `empty.m3u8`: an empty file, hand-made.
 
 The two stitched playlists came from signed-in captures made without the proxy. The others came from direct fetches while signed out.
 
@@ -30,6 +30,7 @@ All playlists went through the project's capture anonymiser first, which masks I
 - `#EXT-X-DATERANGE` keeps `ID`, `CLASS`, `START-DATE`, `DURATION`, `PLANNED-DURATION`, `END-ON-NEXT`, `X-SERVER-TIME`, `X-TV-TWITCH-AD-ROLL-TYPE`, `X-TV-TWITCH-AD-POD-LENGTH`, `X-TV-TWITCH-AD-POD-POSITION` and `X-TV-TWITCH-STREAM-SOURCE`. Every other `X-*` attribute keeps its name and gets the value `"0"`. Attributes without an `X-` prefix are dropped.
 - Numbers of nine or more digits in an `ID` become `1000000000` and up. The same original number gets the same stand-in in every file. Where the anonymiser had already blanked an `ID`, a unique one was made up (`stitched-ad-…`).
 - Segment URLs become `https://video-edge.example/v1/segment/<n>.ts`, where `<n>` is the media sequence number plus the position in the file, so a segment keeps its number from one refresh to the next. Variant URLs become `https://video-weaver.example/v1/playlist/<variant>.m3u8`. No URL has a query string.
+- `#EXT-X-TWITCH-ELAPSED-SECS`, `#EXT-X-TWITCH-TOTAL-SECS` and `#EXT-X-TWITCH-LIVE-SEQUENCE` are shifted by one constant per source run, so a stream's real length or start cannot be read from them. `ELAPSED` starts near 600 s and `LIVE-SEQUENCE` near 1000. Differences between refreshes stay as captured. In the direct captures `MEDIA-SEQUENCE` and the segment numbers in the URLs are shifted by the same amount as `LIVE-SEQUENCE`. `PROGRAM-DATE-TIME`, `START-DATE` and `X-SERVER-TIME` are left alone, because the ad tests need them.
 - Segment titles of the form `Amazon|<id>` become `Amazon|0000000000`.
 
 The attribute names for tokens, click tracking and session IDs are still there, each with the value `"0"`. That is on purpose: a parser should skip them.
