@@ -1,0 +1,21 @@
+{
+  "current_page": 2,
+  "data": [
+    {
+      "id": 90,
+      "category_id": 1,
+      "name": "Category 4",
+      "slug": "category-4",
+      "viewers": 10,
+      "banner": {
+        "url": "https://cdn.example/b/4.webp"
+      }
+    }
+  ],
+  "last_page": 2,
+  "next_page_url": null,
+  "per_page": "32",
+  "prev_page_url": "https://kick.example/api/v1/subcategories?page=1",
+  "to": 4,
+  "total": 4
+}

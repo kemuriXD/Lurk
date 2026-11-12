@@ -1,0 +1,15 @@
+{
+  "id": 1000099,
+  "email": "viewer1@example.invalid",
+  "username": "Viewer One",
+  "bio": null,
+  "country": "XX",
+  "profilepic": "https://cdn.example/a/v1.png",
+  "filtered_categories": [],
+  "roles": [],
+  "streamer_channel": {
+    "id": 1000099,
+    "user_id": 1000099,
+    "slug": "viewer1"
+  }
+}

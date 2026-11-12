@@ -1,0 +1,38 @@
+{
+  "nextCursor": 3,
+  "channels": [
+    {
+      "is_live": false,
+      "profile_picture": "https://cdn.example/a/1.png",
+      "channel_slug": "streamer1",
+      "viewer_count": 0,
+      "show_view_count": true,
+      "category_name": "",
+      "user_username": "Streamer One",
+      "session_title": null,
+      "is_reserved": false
+    },
+    {
+      "is_live": true,
+      "profile_picture": "https://cdn.example/a/2.png",
+      "channel_slug": "streamer2",
+      "viewer_count": 100,
+      "show_view_count": true,
+      "category_name": "Category 1",
+      "user_username": "Streamer Two",
+      "session_title": "Stream title 2",
+      "is_reserved": false
+    },
+    {
+      "is_live": true,
+      "profile_picture": null,
+      "channel_slug": "streamer3",
+      "viewer_count": 5000,
+      "show_view_count": true,
+      "category_name": null,
+      "user_username": "Streamer Three",
+      "session_title": null,
+      "is_reserved": false
+    }
+  ]
+}

@@ -34,7 +34,7 @@ class FixturesTest {
 
     @Test
     fun everyFixtureExistsAndIsNotEmpty() {
-        (json + "README.md" + "broken/html.json").forEach { assertTrue(fixture(it).isNotBlank(), "$it is empty") }
+        (json + "broken/html.json").forEach { assertTrue(fixture(it).isNotBlank(), "$it is empty") }
     }
 
     @Test

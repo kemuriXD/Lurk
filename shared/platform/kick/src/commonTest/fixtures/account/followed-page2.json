@@ -1,0 +1,23 @@
+{
+  "channels": [
+    {
+      "is_live": false,
+      "profile_picture": "https://cdn.example/a/4.png",
+      "channel_slug": "streamer4",
+      "viewer_count": 0,
+      "show_view_count": true,
+      "category_name": "",
+      "user_username": "alpha Four",
+      "session_title": null,
+      "is_reserved": false
+    },
+    {
+      "is_live": false,
+      "profile_picture": "https://cdn.example/a/5.png",
+      "channel_slug": "streamer5",
+      "show_view_count": true,
+      "user_username": "Bravo Five",
+      "is_reserved": false
+    }
+  ]
+}

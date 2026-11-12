@@ -7,7 +7,6 @@ import kotlin.test.assertTrue
 class FixturesTest {
     private val files =
         listOf(
-            "README.md",
             "twitch/chat.irc",
             "twitch/recent-messages.json",
             "kick/frames.jsonl",

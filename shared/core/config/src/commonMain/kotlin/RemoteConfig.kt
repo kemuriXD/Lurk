@@ -22,6 +22,9 @@ data class TwitchConfig(
     val adCueClasses: List<String>,
     val stitchedAdClasses: List<String>,
     val recentMessagesUrl: String,
+    val gqlUrl: String = "https://gql.twitch.tv/gql",
+    val usherBase: String = "https://usher.ttvnw.net",
+    val ircUrl: String = "wss://irc-ws.chat.twitch.tv:443",
 )
 
 @Serializable
@@ -32,6 +35,11 @@ data class KickConfig(
     val realtimeAuthPath: String,
     val publicChannelTemplates: List<String>,
     val pusherFallback: PusherConfig? = null,
+    val realtimeChatConnectionPath: String = "realtime/channels/{channelId}/chat/connection",
+    val realtimeChannelAuthPath: String = "realtime/auth/channel",
+    val realtimeAcceptedProviders: List<String> = listOf("pusher", "centrifugo"),
+    val searchApiBase: String = "https://search.kick.com/api/v1/",
+    val siteBase: String = "https://kick.com/",
 )
 
 @Serializable

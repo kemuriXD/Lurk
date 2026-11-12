@@ -43,6 +43,10 @@ dependencies {
     implementation(project(":shared:emotes"))
     implementation(project(":shared:chat"))
     implementation(project(":shared:playback"))
+    implementation(project(":shared:auth"))
+    implementation(project(":shared:platform:api"))
+    implementation(project(":shared:platform:twitch"))
+    implementation(project(":shared:platform:kick"))
     implementation(libs.koin.android)
     // Dispatchers.Main on Android comes from this artifact at runtime.
     runtimeOnly(libs.kotlinx.coroutines.android)
@@ -50,5 +54,6 @@ dependencies {
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
     testImplementation(libs.koin.test)
+    testImplementation(libs.sqldelight.sqlite.driver)
     testImplementation(libs.kotlinx.coroutines.test)
 }

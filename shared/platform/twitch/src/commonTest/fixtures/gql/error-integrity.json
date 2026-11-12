@@ -1,0 +1,1 @@
+[{"errors":[{"message":"failed integrity check","path":["followUser"],"extensions":{"code":"IntegrityCheckFailed"}}],"data":{"followUser":null},"extensions":{"challenge":{"type":"integrity"},"durationMilliseconds":26,"requestID":"request-1","operationName":"FollowButton_FollowUser"}}]

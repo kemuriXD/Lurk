@@ -10,13 +10,21 @@
     },
     "adCueClasses": ["twitch-maf-ad"],
     "stitchedAdClasses": ["twitch-stitched-ad"],
-    "recentMessagesUrl": "https://recent-messages.robotty.de/api/v2/recent-messages/{channel}"
+    "recentMessagesUrl": "https://recent-messages.robotty.de/api/v2/recent-messages/{channel}",
+    "gqlUrl": "https://gql.twitch.tv/gql",
+    "usherBase": "https://usher.ttvnw.net",
+    "ircUrl": "wss://irc-ws.chat.twitch.tv:443"
   },
   "kick": {
     "apiBase": "https://kick.com/api/",
     "webApiBase": "https://web.kick.com/api/v1/",
+    "searchApiBase": "https://search.kick.com/api/v1/",
+    "siteBase": "https://kick.com/",
     "realtimeConnectionPath": "realtime/connection",
     "realtimeAuthPath": "realtime/auth/connection",
+    "realtimeChatConnectionPath": "realtime/channels/{channelId}/chat/connection",
+    "realtimeChannelAuthPath": "realtime/auth/channel",
+    "realtimeAcceptedProviders": ["pusher", "centrifugo"],
     "publicChannelTemplates": [
       "chatroom_{chatroomId}",
       "channel_{channelId}",
