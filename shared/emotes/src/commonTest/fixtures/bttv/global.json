@@ -1,0 +1,52 @@
+[
+  {
+    "id": "54fab7d2633595ca4c713abf",
+    "code": "bttvNice",
+    "imageType": "png",
+    "animated": false,
+    "userId": "000000000000000000000001",
+    "modifier": false,
+    "width": 42,
+    "height": 28
+  },
+  {
+    "id": "54fa8f1401e468494b85b537",
+    "code": ":tf:",
+    "imageType": "png",
+    "animated": false,
+    "userId": "000000000000000000000001",
+    "modifier": false
+  },
+  {
+    "id": "54fa8fce01e468494b85b53c",
+    "code": "CiGrip",
+    "imageType": "png",
+    "animated": false,
+    "userId": "000000000000000000000001",
+    "modifier": false
+  },
+  {
+    "id": "566ca38765dbbdab32ec0560",
+    "code": "SourPls",
+    "imageType": "gif",
+    "animated": true,
+    "userId": "000000000000000000000001",
+    "modifier": false
+  },
+  {
+    "id": "5e76d399d6581c3724c0f0b8",
+    "code": "cvMask",
+    "imageType": "png",
+    "animated": false,
+    "userId": "000000000000000000000001",
+    "modifier": false
+  },
+  {
+    "id": "5e76d338d6581c3724c0f0b2",
+    "code": "cvHazmat",
+    "imageType": "png",
+    "animated": false,
+    "userId": "000000000000000000000001",
+    "modifier": false
+  }
+]

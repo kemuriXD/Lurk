@@ -7,6 +7,7 @@ import kotlin.time.TimeSource
 val networkModule =
     module {
         single<HttpClient> { createHttpClient() }
+        single<WebSocketConnector> { KtorWebSocketConnector(get()) }
         single { Backoff() }
         single { HostRateLimiter(timeSource = TimeSource.Monotonic) }
     }

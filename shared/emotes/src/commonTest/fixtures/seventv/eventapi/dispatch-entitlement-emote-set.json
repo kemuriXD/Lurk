@@ -1,0 +1,37 @@
+{
+  "d": {
+    "type": "entitlement.create",
+    "body": {
+      "id": "00000000000000000000000000",
+      "kind": 5,
+      "object": {
+        "id": "00000000000000000000000000",
+        "kind": "EMOTE_SET",
+        "ref_id": "01AA0000000000000000000011",
+        "user": {
+          "id": "01AA0000000000000000000001",
+          "username": "chan_one",
+          "display_name": "chan_one",
+          "style": {
+            "color": -5635841
+          },
+          "role_ids": [],
+          "connections": [
+            {
+              "id": "1000500",
+              "platform": "TWITCH",
+              "username": "chan_one",
+              "display_name": "chan_one",
+              "linked_at": 1600000000000,
+              "emote_capacity": 1000,
+              "emote_set_id": "01AA0000000000000000000011"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "op": 0,
+  "t": 1794434909556,
+  "s": 36
+}

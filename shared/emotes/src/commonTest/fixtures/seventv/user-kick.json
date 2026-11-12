@@ -1,0 +1,467 @@
+{
+  "id": "1000600",
+  "platform": "KICK",
+  "username": "chan_one",
+  "display_name": "chan_one",
+  "linked_at": 1600000000000,
+  "emote_capacity": 1000,
+  "emote_set_id": "01AA0000000000000000000012",
+  "emote_set": {
+    "id": "01AA0000000000000000000012",
+    "name": "Channel Emotes",
+    "flags": 0,
+    "tags": [],
+    "immutable": false,
+    "privileged": false,
+    "emotes": [
+      {
+        "id": "01F00ZJBQR0007E4VV006YKSKE",
+        "name": "gachiHYPER",
+        "flags": 0,
+        "timestamp": 1614940811000,
+        "actor_id": "01AA00000000000000000000A0",
+        "data": {
+          "id": "01F00ZJBQR0007E4VV006YKSKE",
+          "name": "gachiHYPER",
+          "flags": 0,
+          "lifecycle": 3,
+          "state": [
+            "LISTED"
+          ],
+          "listed": true,
+          "animated": true,
+          "owner": {
+            "id": "01AA00000000000000000000A1",
+            "username": "emote_owner",
+            "display_name": "emote_owner",
+            "style": {},
+            "role_ids": [],
+            "connections": []
+          },
+          "host": {
+            "url": "//cdn.7tv.app/emote/01F00ZJBQR0007E4VV006YKSKE",
+            "files": [
+              {
+                "name": "1x.webp",
+                "static_name": "1x_static.webp",
+                "width": 32,
+                "height": 32,
+                "frame_count": 60,
+                "size": 59696,
+                "format": "WEBP"
+              },
+              {
+                "name": "2x.webp",
+                "static_name": "2x_static.webp",
+                "width": 64,
+                "height": 64,
+                "frame_count": 60,
+                "size": 130846,
+                "format": "WEBP"
+              },
+              {
+                "name": "3x.webp",
+                "static_name": "3x_static.webp",
+                "width": 96,
+                "height": 96,
+                "frame_count": 60,
+                "size": 221462,
+                "format": "WEBP"
+              },
+              {
+                "name": "4x.webp",
+                "static_name": "4x_static.webp",
+                "width": 128,
+                "height": 128,
+                "frame_count": 60,
+                "size": 342528,
+                "format": "WEBP"
+              }
+            ]
+          },
+          "tags": []
+        },
+        "origin_id": null
+      },
+      {
+        "id": "01F5PA6DCG00034VRANA2SYMTF",
+        "name": "peepoS",
+        "flags": 0,
+        "timestamp": 1621025306000,
+        "actor_id": "01AA00000000000000000000A0",
+        "data": {
+          "id": "01F5PA6DCG00034VRANA2SYMTF",
+          "name": "peepoS",
+          "flags": 0,
+          "lifecycle": 3,
+          "state": [
+            "LISTED"
+          ],
+          "listed": true,
+          "animated": true,
+          "owner": {
+            "id": "01AA00000000000000000000A1",
+            "username": "emote_owner",
+            "display_name": "emote_owner",
+            "style": {},
+            "role_ids": [],
+            "connections": []
+          },
+          "host": {
+            "url": "//cdn.7tv.app/emote/01F5PA6DCG00034VRANA2SYMTF",
+            "files": [
+              {
+                "name": "1x.webp",
+                "static_name": "1x_static.webp",
+                "width": 32,
+                "height": 32,
+                "frame_count": 4,
+                "size": 3062,
+                "format": "WEBP"
+              },
+              {
+                "name": "2x.webp",
+                "static_name": "2x_static.webp",
+                "width": 64,
+                "height": 64,
+                "frame_count": 4,
+                "size": 6222,
+                "format": "WEBP"
+              },
+              {
+                "name": "3x.webp",
+                "static_name": "3x_static.webp",
+                "width": 96,
+                "height": 96,
+                "frame_count": 4,
+                "size": 9792,
+                "format": "WEBP"
+              },
+              {
+                "name": "4x.webp",
+                "static_name": "4x_static.webp",
+                "width": 128,
+                "height": 128,
+                "frame_count": 4,
+                "size": 11130,
+                "format": "WEBP"
+              }
+            ]
+          },
+          "tags": []
+        },
+        "origin_id": null
+      },
+      {
+        "id": "01FD0629RG0004F4TZ6SBNRYXV",
+        "name": "Love",
+        "flags": 1,
+        "timestamp": 1628872714000,
+        "actor_id": "01AA00000000000000000000A0",
+        "data": {
+          "id": "01FD0629RG0004F4TZ6SBNRYXV",
+          "name": "Love",
+          "flags": 256,
+          "lifecycle": 3,
+          "state": [
+            "PERSONAL",
+            "LISTED"
+          ],
+          "listed": true,
+          "animated": false,
+          "owner": {
+            "id": "01AA00000000000000000000A1",
+            "username": "emote_owner",
+            "display_name": "emote_owner",
+            "style": {},
+            "role_ids": [],
+            "connections": []
+          },
+          "host": {
+            "url": "//cdn.7tv.app/emote/01FD0629RG0004F4TZ6SBNRYXV",
+            "files": [
+              {
+                "name": "1x.webp",
+                "static_name": "1x.webp",
+                "width": 32,
+                "height": 32,
+                "frame_count": 1,
+                "size": 634,
+                "format": "WEBP"
+              },
+              {
+                "name": "2x.webp",
+                "static_name": "2x.webp",
+                "width": 64,
+                "height": 64,
+                "frame_count": 1,
+                "size": 1276,
+                "format": "WEBP"
+              },
+              {
+                "name": "3x.webp",
+                "static_name": "3x.webp",
+                "width": 96,
+                "height": 96,
+                "frame_count": 1,
+                "size": 2072,
+                "format": "WEBP"
+              },
+              {
+                "name": "4x.webp",
+                "static_name": "4x.webp",
+                "width": 128,
+                "height": 128,
+                "frame_count": 1,
+                "size": 2842,
+                "format": "WEBP"
+              }
+            ]
+          },
+          "tags": []
+        },
+        "origin_id": null
+      },
+      {
+        "id": "01FHNFBQYR000C3ZWT2Z63JSJT",
+        "name": "DonkRave",
+        "flags": 0,
+        "timestamp": 1633882071000,
+        "actor_id": "01AA00000000000000000000A0",
+        "data": {
+          "id": "01FHNFBQYR000C3ZWT2Z63JSJT",
+          "name": "DonkRave",
+          "flags": 0,
+          "tags": [],
+          "lifecycle": 3,
+          "state": [
+            "NO_PERSONAL"
+          ],
+          "listed": false,
+          "animated": true,
+          "owner": {
+            "id": "01AA00000000000000000000A1",
+            "username": "emote_owner",
+            "display_name": "emote_owner",
+            "style": {},
+            "role_ids": [],
+            "connections": []
+          },
+          "host": {
+            "url": "//cdn.7tv.app/emote/01FHNFBQYR000C3ZWT2Z63JSJT",
+            "files": [
+              {
+                "name": "1x.webp",
+                "static_name": "1x_static.webp",
+                "width": 32,
+                "height": 32,
+                "frame_count": 11,
+                "size": 10174,
+                "format": "WEBP"
+              },
+              {
+                "name": "2x.webp",
+                "static_name": "2x_static.webp",
+                "width": 64,
+                "height": 64,
+                "frame_count": 11,
+                "size": 21216,
+                "format": "WEBP"
+              },
+              {
+                "name": "3x.webp",
+                "static_name": "3x_static.webp",
+                "width": 96,
+                "height": 96,
+                "frame_count": 11,
+                "size": 36332,
+                "format": "WEBP"
+              },
+              {
+                "name": "4x.webp",
+                "static_name": "4x_static.webp",
+                "width": 128,
+                "height": 128,
+                "frame_count": 11,
+                "size": 38406,
+                "format": "WEBP"
+              }
+            ]
+          }
+        },
+        "origin_id": null
+      },
+      {
+        "id": "01FGEQPPS000021TQRJX35MPK5",
+        "name": "Sip",
+        "flags": 1,
+        "timestamp": 1632582196000,
+        "actor_id": "01AA00000000000000000000A0",
+        "data": {
+          "id": "01FGEQPPS000021TQRJX35MPK5",
+          "name": "Sip",
+          "flags": 256,
+          "lifecycle": 3,
+          "state": [
+            "PERSONAL",
+            "LISTED"
+          ],
+          "listed": true,
+          "animated": false,
+          "owner": {
+            "id": "01AA00000000000000000000A1",
+            "username": "emote_owner",
+            "display_name": "emote_owner",
+            "style": {},
+            "role_ids": [],
+            "connections": []
+          },
+          "host": {
+            "url": "//cdn.7tv.app/emote/01FGEQPPS000021TQRJX35MPK5",
+            "files": [
+              {
+                "name": "1x.webp",
+                "static_name": "1x.webp",
+                "width": 32,
+                "height": 32,
+                "frame_count": 1,
+                "size": 904,
+                "format": "WEBP"
+              },
+              {
+                "name": "2x.webp",
+                "static_name": "2x.webp",
+                "width": 64,
+                "height": 64,
+                "frame_count": 1,
+                "size": 2288,
+                "format": "WEBP"
+              },
+              {
+                "name": "3x.webp",
+                "static_name": "3x.webp",
+                "width": 96,
+                "height": 96,
+                "frame_count": 1,
+                "size": 3770,
+                "format": "WEBP"
+              },
+              {
+                "name": "4x.webp",
+                "static_name": "4x.webp",
+                "width": 128,
+                "height": 128,
+                "frame_count": 1,
+                "size": 5480,
+                "format": "WEBP"
+              }
+            ]
+          },
+          "tags": []
+        },
+        "origin_id": null
+      },
+      {
+        "id": "01EZPGQES8000C438200A44F0M",
+        "name": "TriSad",
+        "flags": 0,
+        "timestamp": 1614589705000,
+        "actor_id": "01AA00000000000000000000A0",
+        "data": {
+          "id": "01EZPGQES8000C438200A44F0M",
+          "name": "TriSad",
+          "flags": 0,
+          "lifecycle": 3,
+          "state": [
+            "LISTED"
+          ],
+          "listed": true,
+          "animated": true,
+          "host": {
+            "url": "//cdn.7tv.app/emote/01EZPGQES8000C438200A44F0M",
+            "files": [
+              {
+                "name": "1x.webp",
+                "static_name": "1x_static.webp",
+                "width": 32,
+                "height": 32,
+                "frame_count": 170,
+                "size": 157118,
+                "format": "WEBP"
+              },
+              {
+                "name": "2x.webp",
+                "static_name": "2x_static.webp",
+                "width": 64,
+                "height": 64,
+                "frame_count": 170,
+                "size": 357248,
+                "format": "WEBP"
+              },
+              {
+                "name": "3x.webp",
+                "static_name": "3x_static.webp",
+                "width": 96,
+                "height": 96,
+                "frame_count": 170,
+                "size": 633384,
+                "format": "WEBP"
+              },
+              {
+                "name": "4x.webp",
+                "static_name": "4x_static.webp",
+                "width": 128,
+                "height": 128,
+                "frame_count": 170,
+                "size": 968622,
+                "format": "WEBP"
+              }
+            ]
+          },
+          "owner": {
+            "id": "01AA00000000000000000000A1",
+            "username": "emote_owner",
+            "display_name": "emote_owner",
+            "style": {},
+            "role_ids": [],
+            "connections": []
+          },
+          "tags": []
+        },
+        "origin_id": null
+      }
+    ],
+    "emote_count": 6,
+    "capacity": 1000,
+    "owner": null
+  },
+  "user": {
+    "id": "01AA0000000000000000000002",
+    "username": "chan_one",
+    "display_name": "chan_one",
+    "created_at": 1600000000000,
+    "style": {},
+    "emote_sets": [
+      {
+        "id": "01AA0000000000000000000012",
+        "name": "Channel Emotes",
+        "flags": 0,
+        "tags": [],
+        "capacity": 1000
+      }
+    ],
+    "editors": [],
+    "roles": [],
+    "connections": [
+      {
+        "id": "1000600",
+        "platform": "KICK",
+        "username": "chan_one",
+        "display_name": "chan_one",
+        "linked_at": 1600000000000,
+        "emote_capacity": 1000,
+        "emote_set_id": "01AA0000000000000000000012"
+      }
+    ]
+  }
+}

@@ -46,4 +46,21 @@ class LoggingTest {
         assertFalse(forwarded?.message.orEmpty().contains("Zx81kd02mXqP3"))
         assertEquals(true, forwarded?.message?.contains("IllegalStateException"))
     }
+
+    @Test
+    fun loggedThrowableKeepsStackTrace() {
+        val capture = CapturingWriter()
+        val failure = IllegalStateException("outer", IllegalArgumentException("bad cf_clearance=Zx81kd02mXqP3"))
+        ScrubbingLogWriter(capture).log(Severity.Error, "failed", "net", failure)
+        val forwarded = capture.entries.single().throwable
+        assertEquals(failure.stackTrace.toList(), forwarded?.stackTrace?.toList())
+        assertFalse(
+            forwarded
+                ?.cause
+                ?.message
+                .orEmpty()
+                .contains("Zx81kd02mXqP3"),
+        )
+        assertEquals(true, forwarded?.cause?.message?.contains("IllegalArgumentException"))
+    }
 }

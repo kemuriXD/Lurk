@@ -1,0 +1,116 @@
+{
+  "room": {
+    "_id": 1000950,
+    "twitch_id": 1000500,
+    "youtube_id": null,
+    "id": "chan_one",
+    "is_group": false,
+    "display_name": "chan_one",
+    "set": 1000951,
+    "moderator_badge": "https://cdn.frankerfacez.com/room-badge/mod/id/1000500/1",
+    "vip_badge": null,
+    "mod_urls": {
+      "1": "https://cdn.frankerfacez.com/room-badge/mod/id/1000500/1",
+      "2": "https://cdn.frankerfacez.com/room-badge/mod/id/1000500/2",
+      "4": "https://cdn.frankerfacez.com/room-badge/mod/id/1000500/4"
+    },
+    "user_badges": {},
+    "user_badge_ids": {},
+    "css": null
+  },
+  "sets": {
+    "1000951": {
+      "id": 1000951,
+      "_type": 1,
+      "icon": null,
+      "title": "Channel: chan_one",
+      "css": null,
+      "emoticons": [
+        {
+          "id": 270930,
+          "name": "widepeepoHappy",
+          "height": 19,
+          "width": 80,
+          "public": true,
+          "hidden": false,
+          "modifier": false,
+          "modifier_flags": 0,
+          "offset": null,
+          "margins": null,
+          "css": null,
+          "owner": {
+            "_id": 1000900,
+            "name": "emote_owner",
+            "display_name": "emote_owner"
+          },
+          "artist": null,
+          "urls": {
+            "1": "https://cdn.frankerfacez.com/emote/270930/1",
+            "2": "https://cdn.frankerfacez.com/emote/270930/2",
+            "4": "https://cdn.frankerfacez.com/emote/270930/4"
+          },
+          "status": 1,
+          "usage_count": 161989,
+          "created_at": "2018-08-04T02:40:31.258Z",
+          "last_updated": "2018-08-04T04:02:23.759Z"
+        },
+        {
+          "id": 418189,
+          "name": "YEP",
+          "height": 31,
+          "width": 32,
+          "public": true,
+          "hidden": false,
+          "modifier": false,
+          "modifier_flags": 0,
+          "offset": null,
+          "margins": null,
+          "css": null,
+          "owner": {
+            "_id": 1000900,
+            "name": "emote_owner",
+            "display_name": "emote_owner"
+          },
+          "artist": null,
+          "urls": {
+            "1": "https://cdn.frankerfacez.com/emote/418189/1",
+            "2": "https://cdn.frankerfacez.com/emote/418189/2",
+            "4": "https://cdn.frankerfacez.com/emote/418189/4"
+          },
+          "status": 1,
+          "usage_count": 89079,
+          "created_at": "2019-12-15T15:42:42.821Z",
+          "last_updated": "2019-12-15T23:54:54.823Z"
+        },
+        {
+          "id": 231552,
+          "name": "PepeHands",
+          "height": 32,
+          "width": 32,
+          "public": true,
+          "hidden": false,
+          "modifier": false,
+          "modifier_flags": 0,
+          "offset": null,
+          "margins": null,
+          "css": null,
+          "owner": {
+            "_id": 1000900,
+            "name": "emote_owner",
+            "display_name": "emote_owner"
+          },
+          "artist": null,
+          "urls": {
+            "1": "https://cdn.frankerfacez.com/emote/231552/1",
+            "2": "https://cdn.frankerfacez.com/emote/231552/2",
+            "4": "https://cdn.frankerfacez.com/emote/231552/4"
+          },
+          "status": 1,
+          "usage_count": 172125,
+          "created_at": "2018-01-16T18:11:16.933Z",
+          "last_updated": "2018-01-21T00:49:13.221Z"
+        }
+      ]
+    }
+  }
+}

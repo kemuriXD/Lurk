@@ -1,0 +1,166 @@
+{
+  "id": "01AA0000000000000000000011",
+  "name": "Channel Emotes",
+  "flags": 0,
+  "tags": [],
+  "immutable": false,
+  "privileged": false,
+  "emotes": [
+    {
+      "id": "01FPKZ5M6000054ET7GQBW3N9K",
+      "name": "Modding",
+      "flags": 0,
+      "timestamp": 1639200248000,
+      "actor_id": "01AA00000000000000000000A0",
+      "data": {
+        "id": "01FPKZ5M6000054ET7GQBW3N9K",
+        "name": "Modding",
+        "flags": 0,
+        "tags": [],
+        "lifecycle": 3,
+        "state": [
+          "LISTED"
+        ],
+        "listed": true,
+        "animated": false,
+        "owner": {
+          "id": "01AA00000000000000000000A1",
+          "username": "emote_owner",
+          "display_name": "emote_owner",
+          "style": {},
+          "role_ids": [],
+          "connections": []
+        },
+        "host": {
+          "url": "//cdn.7tv.app/emote/01FPKZ5M6000054ET7GQBW3N9K",
+          "files": [
+            {
+              "name": "1x.webp",
+              "static_name": "1x.webp",
+              "width": 32,
+              "height": 32,
+              "frame_count": 1,
+              "size": 970,
+              "format": "WEBP"
+            },
+            {
+              "name": "2x.webp",
+              "static_name": "2x.webp",
+              "width": 64,
+              "height": 64,
+              "frame_count": 1,
+              "size": 2828,
+              "format": "WEBP"
+            },
+            {
+              "name": "3x.webp",
+              "static_name": "3x.webp",
+              "width": 96,
+              "height": 96,
+              "frame_count": 1,
+              "size": 4970,
+              "format": "WEBP"
+            },
+            {
+              "name": "4x.webp",
+              "static_name": "4x.webp",
+              "width": 128,
+              "height": 128,
+              "frame_count": 1,
+              "size": 8120,
+              "format": "WEBP"
+            }
+          ]
+        }
+      },
+      "origin_id": null
+    },
+    {
+      "id": "01FNM1J390000EJT2EVEY3EJAN",
+      "name": "DonkChat",
+      "flags": 0,
+      "timestamp": 1638129012000,
+      "actor_id": "01AA00000000000000000000A0",
+      "origin_id": null
+    },
+    {
+      "id": "01F00YT2CR0007E4VV006YKSK6",
+      "name": "TRUEING",
+      "flags": 0,
+      "timestamp": 1614940015000,
+      "actor_id": "01AA00000000000000000000A0",
+      "data": {
+        "id": "01F00YT2CR0007E4VV006YKSK6",
+        "name": "TRUEING",
+        "flags": 0,
+        "lifecycle": 3,
+        "state": [
+          "LISTED"
+        ],
+        "listed": true,
+        "animated": true,
+        "owner": {
+          "id": "01AA00000000000000000000A1",
+          "username": "emote_owner",
+          "display_name": "emote_owner",
+          "style": {},
+          "role_ids": [],
+          "connections": []
+        },
+        "host": {
+          "url": "//cdn.7tv.app/emote/01F00YT2CR0007E4VV006YKSK6",
+          "files": [
+            {
+              "name": "1x.webp",
+              "static_name": "1x_static.webp",
+              "width": 32,
+              "height": 32,
+              "frame_count": 99,
+              "size": 58728,
+              "format": "WEBP"
+            },
+            {
+              "name": "2x.webp",
+              "static_name": "2x_static.webp",
+              "width": 64,
+              "height": 64,
+              "frame_count": 99,
+              "size": 130106,
+              "format": "WEBP"
+            },
+            {
+              "name": "3x.webp",
+              "static_name": "3x_static.webp",
+              "width": 96,
+              "height": 96,
+              "frame_count": 99,
+              "size": 214518,
+              "format": "WEBP"
+            },
+            {
+              "name": "4x.webp",
+              "static_name": "4x_static.webp",
+              "width": 128,
+              "height": 128,
+              "frame_count": 99,
+              "size": 427014,
+              "format": "WEBP"
+            }
+          ]
+        },
+        "tags": []
+      },
+      "origin_id": null
+    }
+  ],
+  "emote_count": 3,
+  "capacity": 1000,
+  "owner": {
+    "id": "01AA00000000000000000000A1",
+    "username": "emote_owner",
+    "display_name": "emote_owner",
+    "style": {},
+    "role_ids": [],
+    "connections": []
+  }
+}

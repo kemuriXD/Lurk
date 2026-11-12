@@ -1,0 +1,167 @@
+{
+  "op": 0,
+  "t": 1794434909556,
+  "s": 12,
+  "d": {
+    "type": "emote_set.update",
+    "body": {
+      "id": "01AA0000000000000000000011",
+      "kind": 3,
+      "pushed": [
+        {
+          "key": "emotes",
+          "index": 0,
+          "type": "object",
+          "value": {
+            "id": "01EZPHVXS0000C438200A44F24",
+            "name": "pepeLaugh",
+            "flags": 0,
+            "timestamp": 1614590900000,
+            "actor_id": "01AA00000000000000000000A1",
+            "data": {
+              "id": "01EZPHVXS0000C438200A44F24",
+              "name": "pepeLaugh",
+              "flags": 0,
+              "lifecycle": 3,
+              "state": [
+                "PERSONAL",
+                "LISTED"
+              ],
+              "listed": true,
+              "animated": false,
+              "owner": {
+                "id": "01AA00000000000000000000A1",
+                "username": "emote_owner",
+                "display_name": "emote_owner",
+                "style": {},
+                "role_ids": [],
+                "connections": []
+              },
+              "host": {
+                "url": "//cdn.7tv.app/emote/01EZPHVXS0000C438200A44F24",
+                "files": [
+                  {
+                    "name": "1x.webp",
+                    "static_name": "1x.webp",
+                    "width": 32,
+                    "height": 32,
+                    "frame_count": 1,
+                    "size": 1076,
+                    "format": "WEBP"
+                  },
+                  {
+                    "name": "2x.webp",
+                    "static_name": "2x.webp",
+                    "width": 64,
+                    "height": 64,
+                    "frame_count": 1,
+                    "size": 2688,
+                    "format": "WEBP"
+                  },
+                  {
+                    "name": "3x.webp",
+                    "static_name": "3x.webp",
+                    "width": 96,
+                    "height": 96,
+                    "frame_count": 1,
+                    "size": 4546,
+                    "format": "WEBP"
+                  },
+                  {
+                    "name": "4x.webp",
+                    "static_name": "4x.webp",
+                    "width": 128,
+                    "height": 128,
+                    "frame_count": 1,
+                    "size": 6698,
+                    "format": "WEBP"
+                  }
+                ]
+              },
+              "tags": []
+            },
+            "origin_id": null
+          }
+        }
+      ],
+      "pulled": [
+        {
+          "key": "emotes",
+          "index": 1,
+          "type": "object",
+          "value": null,
+          "old_value": {
+            "id": "01AA0000000000000000000E02",
+            "name": "oldEmote",
+            "flags": 0,
+            "timestamp": 1614590900000,
+            "actor_id": "01AA00000000000000000000A1",
+            "data": {
+              "id": "01AA0000000000000000000E02",
+              "name": "oldEmote",
+              "flags": 0,
+              "lifecycle": 3,
+              "state": [
+                "PERSONAL",
+                "LISTED"
+              ],
+              "listed": true,
+              "animated": false,
+              "owner": {
+                "id": "01AA00000000000000000000A1",
+                "username": "emote_owner",
+                "display_name": "emote_owner",
+                "style": {},
+                "role_ids": [],
+                "connections": []
+              },
+              "host": {
+                "url": "//cdn.7tv.app/emote/01AA0000000000000000000E02",
+                "files": [
+                  {
+                    "name": "1x.webp",
+                    "static_name": "1x.webp",
+                    "width": 32,
+                    "height": 32,
+                    "frame_count": 1,
+                    "size": 1076,
+                    "format": "WEBP"
+                  },
+                  {
+                    "name": "2x.webp",
+                    "static_name": "2x.webp",
+                    "width": 64,
+                    "height": 64,
+                    "frame_count": 1,
+                    "size": 2688,
+                    "format": "WEBP"
+                  },
+                  {
+                    "name": "3x.webp",
+                    "static_name": "3x.webp",
+                    "width": 96,
+                    "height": 96,
+                    "frame_count": 1,
+                    "size": 4546,
+                    "format": "WEBP"
+                  },
+                  {
+                    "name": "4x.webp",
+                    "static_name": "4x.webp",
+                    "width": 128,
+                    "height": 128,
+                    "frame_count": 1,
+                    "size": 6698,
+                    "format": "WEBP"
+                  }
+                ]
+              },
+              "tags": []
+            },
+            "origin_id": null
+          }
+        }
+      ]
+    }
+  }
+}

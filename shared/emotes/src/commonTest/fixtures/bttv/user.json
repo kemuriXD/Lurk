@@ -1,0 +1,68 @@
+{
+  "id": "000000000000000000000003",
+  "bots": [],
+  "avatar": "https://static-cdn.jtvnw.net/jtv_user_pictures/profile-image-300x300.png",
+  "channelEmotes": [
+    {
+      "id": "5f0000000000000000000a01",
+      "code": "chanPls",
+      "imageType": "gif",
+      "animated": true,
+      "userId": "000000000000000000000001"
+    },
+    {
+      "id": "5f0000000000000000000a02",
+      "code": "chanHappyLeft",
+      "imageType": "png",
+      "animated": false,
+      "userId": "000000000000000000000001"
+    },
+    {
+      "id": "5f0000000000000000000a03",
+      "code": "chanDance",
+      "imageType": "gif",
+      "animated": true,
+      "userId": "000000000000000000000001"
+    }
+  ],
+  "sharedEmotes": [
+    {
+      "id": "55898e122612142e6aaa935b",
+      "code": "PepePls",
+      "imageType": "gif",
+      "animated": true,
+      "width": 21,
+      "height": 28,
+      "user": {
+        "id": "000000000000000000000002",
+        "name": "emote_owner",
+        "displayName": "emote_owner",
+        "providerId": "1000800"
+      }
+    },
+    {
+      "id": "5590b223b344e2c42a9e28e3",
+      "code": "EZ",
+      "imageType": "png",
+      "animated": false,
+      "user": {
+        "id": "000000000000000000000002",
+        "name": "emote_owner",
+        "displayName": "emote_owner",
+        "providerId": "1000800"
+      }
+    },
+    {
+      "id": "55b6f480e66682f576dd94f5",
+      "code": "Clap",
+      "imageType": "gif",
+      "animated": true,
+      "user": {
+        "id": "000000000000000000000002",
+        "name": "emote_owner",
+        "displayName": "emote_owner",
+        "providerId": "1000800"
+      }
+    }
+  ]
+}
