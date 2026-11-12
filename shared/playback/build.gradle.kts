@@ -11,5 +11,8 @@ kotlin {
             implementation(project(":shared:core:network"))
             implementation(project(":shared:core:config"))
         }
+        commonTest.dependencies {
+            implementation(libs.kotlinx.io.core)
+        }
     }
 }
