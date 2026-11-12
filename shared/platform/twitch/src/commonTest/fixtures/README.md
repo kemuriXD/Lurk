@@ -28,3 +28,13 @@ In the discovery fixtures every login, display name, ID, title, bio and image pa
 - `current-user.json`: the shape of a signed-in `CurrentUser` response, recorded once, with the account replaced by `viewer1` and `Viewer One`. `current-user-null.json` is **hand-built**: `currentUser` is null, as for a rejected token.
 - `follows.json`: the shape of a signed-in `Follows` response (`currentUser.follows` edges with a user node and its `stream`), rebuilt with stand-in values, 3 items. **Hand-built:** one offline entry and two live ones, listed in an order that needs sorting.
 - `follows-page1.json` and `follows-page2.json`: **hand-built** two-page variant (`hasNextPage` true, then false), used to test paging.
+- `emotes.json`: the shape of a signed-out `ChannelEmotes` response (`user(id:) { subscriptionProducts { emotes { id token } } }`), stand-in IDs and tokens, trimmed to 3 emotes. **Hand-edited:** a second, empty product was added to show that products are merged.
+- `emotes-unknown.json`: **hand-built.** `user` is null, as for an ID Twitch does not know.
+- `emotes-bad-item.json`: **hand-built** from `emotes.json`. One emote has no token, one has no ID, and the second product's `emotes` is null.
+- `badges.json`: the shape of a signed-out `Badges` response (global `badges` plus `user(id:) { broadcastBadges }`, each with `setID version title imageURL`), stand-in titles and image URLs. **Hand-edited:** the channel list holds a `subscriber/0` badge that also exists globally, so the two images differ.
+- `badges-unknown.json`: **hand-built.** `user` is null, with the global list still present.
+- `badges-bad-item.json`: **hand-built.** One badge has no set ID, one has no image, and `broadcastBadges` is null.
+- `cheermotes.json`: the shape of a signed-out `Cheermotes` response (`cheerConfig` with `displayConfig.colors` and `groups { templateURL nodes { prefix tiers { bits } } }`, plus `user(id:) { cheer { cheerGroups } }`), stand-in prefixes and template URLs, 2 prefixes. **Hand-edited:** the tiers are listed out of order. The recorded tier lists carry no images, so a tier's image is built from its group's `templateURL`.
+- `cheermotes-unknown.json`: **hand-built.** `user` is null, with the global config still present.
+- `cheermotes-bad-item.json`: **hand-built.** A tier with no `bits`, a prefix with no tiers, a node with no `prefix`, and `cheerGroups` null.
+- The asset fixtures (`emotes*`, `badges*`, `cheermotes*`) use stand-in emote IDs (`emotesv2_stand1`), tokens (`streamer1OK`), prefixes, badge and template URLs on `cdn.example`, and the request ID `request-1`. Cheermote colours are the public display-config values.

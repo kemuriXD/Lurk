@@ -1,0 +1,1 @@
+[{"data":{"badges":[{"setID":"broadcaster","version":"1","title":"Broadcaster","imageURL":"https://cdn.example/badge/broadcaster-1.png"},{"setID":"subscriber","version":"0","title":"Subscriber","imageURL":"https://cdn.example/badge/global-subscriber-0.png"}],"user":null},"extensions":{"durationMilliseconds":21,"requestID":"request-1","operationName":"Badges"}}]
