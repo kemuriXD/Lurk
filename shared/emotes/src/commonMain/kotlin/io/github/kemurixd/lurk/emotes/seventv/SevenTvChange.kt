@@ -79,10 +79,11 @@ object SevenTvDispatch {
                 else -> emptyList()
             }
         } catch (e: SerializationException) {
-            log.w { "Skipping 7TV ${d.type} dispatch that failed to decode: ${e.message}" }
+            // The exception message quotes the body, which can hold other users' 7TV names.
+            log.w { "Skipping 7TV ${d.type} dispatch that failed to decode (${e::class.simpleName})" }
             emptyList()
         } catch (e: IllegalArgumentException) {
-            log.w { "Skipping 7TV ${d.type} dispatch that failed to decode: ${e.message}" }
+            log.w { "Skipping 7TV ${d.type} dispatch that failed to decode (${e::class.simpleName})" }
             emptyList()
         }
 

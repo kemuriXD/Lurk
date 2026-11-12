@@ -6,7 +6,10 @@ import io.github.kemurixd.lurk.core.model.PaintFunction
 import io.github.kemurixd.lurk.core.model.PaintShadow
 import io.github.kemurixd.lurk.core.model.PaintStop
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.emotes.capturedLogs
 import io.github.kemurixd.lurk.emotes.fixture
+import io.github.kemurixd.lurk.emotes.provider.SevenTvParser
+import io.github.kemurixd.lurk.emotes.provider.providerJson
 import io.github.kemurixd.lurk.emotes.seventv.EventApiMessage.Ack
 import io.github.kemurixd.lurk.emotes.seventv.EventApiMessage.Dispatch
 import io.github.kemurixd.lurk.emotes.seventv.EventApiMessage.EndOfStream
@@ -16,6 +19,7 @@ import io.github.kemurixd.lurk.emotes.seventv.EventApiMessage.Reconnect
 import io.github.kemurixd.lurk.emotes.seventv.EventApiMessage.Unknown
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
@@ -169,5 +173,25 @@ class EventApiParserTest {
             val d = assertIs<Dispatch>(EventApiParser.parse(text))
             assertTrue(SevenTvDispatch.changes(d, Platform.TWITCH).isEmpty(), text)
         }
+    }
+
+    @Test
+    fun decodeFailuresLogNoPayload() {
+        val entitlement =
+            """{"op":0,"d":{"type":"entitlement.create","body":{"object":{"kind":"PAINT",""" +
+                """"user":{"username":"user_9999","connections":"x"}}}}}"""
+        val logs =
+            capturedLogs {
+                val d = assertIs<Dispatch>(EventApiParser.parse(entitlement))
+                assertTrue(SevenTvDispatch.changes(d, Platform.TWITCH).isEmpty())
+                val badEmote = """{"id":"e1","name":"user_9999","data":{"host":"x"}}"""
+                assertEquals(
+                    null,
+                    SevenTvParser.activeEmote(providerJson.parseToJsonElement(badEmote), EmoteScope.CHANNEL),
+                )
+                assertTrue(SevenTvParser.emoteSet("""{"emotes": [{"id": "user_9999""", EmoteScope.CHANNEL).isEmpty())
+            }
+        assertTrue(logs.isNotEmpty(), "the failures are still logged")
+        logs.forEach { line -> assertFalse("user_9999" in line, line) }
     }
 }

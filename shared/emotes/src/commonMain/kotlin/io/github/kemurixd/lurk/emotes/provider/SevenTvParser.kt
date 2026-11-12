@@ -59,10 +59,10 @@ object SevenTvParser {
         try {
             map(providerJson.decodeFromJsonElement<ActiveEmote>(element), scope)
         } catch (e: SerializationException) {
-            log.w { "Skipping 7TV emote that failed to decode: ${e.message}" }
+            log.w { "Skipping 7TV emote that failed to decode (${e::class.simpleName})" }
             null
         } catch (e: IllegalArgumentException) {
-            log.w { "Skipping 7TV emote that failed to decode: ${e.message}" }
+            log.w { "Skipping 7TV emote that failed to decode (${e::class.simpleName})" }
             null
         }
 

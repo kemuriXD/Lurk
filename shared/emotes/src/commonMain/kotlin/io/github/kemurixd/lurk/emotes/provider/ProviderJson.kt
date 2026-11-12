@@ -17,7 +17,10 @@ internal val providerJson: Json =
         coerceInputValues = true
     }
 
-/** Parses [body] into a [JsonObject], or returns null (and logs) when it is not a JSON object. */
+/**
+ * Parses [body] into a [JsonObject], or returns null (and logs) when it is not a JSON object. Logs name only the
+ * exception class: kotlinx messages quote the input, and bodies can carry user names.
+ */
 internal fun parseObject(
     body: String,
     log: Logger,
@@ -25,10 +28,10 @@ internal fun parseObject(
     try {
         providerJson.parseToJsonElement(body).jsonObject
     } catch (e: SerializationException) {
-        log.w { "Response is not a JSON object: ${e.message}" }
+        log.w { "Response is not a JSON object (${e::class.simpleName})" }
         null
     } catch (e: IllegalArgumentException) {
-        log.w { "Response is not a JSON object: ${e.message}" }
+        log.w { "Response is not a JSON object (${e::class.simpleName})" }
         null
     }
 
@@ -46,7 +49,7 @@ internal fun parseArray(
             null
         }
     } catch (e: SerializationException) {
-        log.w { "Response is not a JSON array: ${e.message}" }
+        log.w { "Response is not a JSON array (${e::class.simpleName})" }
         null
     }
 
@@ -60,10 +63,10 @@ internal inline fun <reified T, R : Any> JsonElement?.decodeEach(
         try {
             map(providerJson.decodeFromJsonElement<T>(element))
         } catch (e: SerializationException) {
-            log.w { "Skipping emote that failed to decode: ${e.message}" }
+            log.w { "Skipping emote that failed to decode (${e::class.simpleName})" }
             null
         } catch (e: IllegalArgumentException) {
-            log.w { "Skipping emote that failed to decode: ${e.message}" }
+            log.w { "Skipping emote that failed to decode (${e::class.simpleName})" }
             null
         }
     }

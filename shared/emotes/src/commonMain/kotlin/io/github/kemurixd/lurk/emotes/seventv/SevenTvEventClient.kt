@@ -127,7 +127,7 @@ class SevenTvEventClient(
             session.serve(connection)
         } catch (e: CancellationException) {
             currentCoroutineContext().ensureActive()
-            log.i { "7TV EventAPI connection cancelled by the transport: ${e.message}" }
+            log.i { "7TV EventAPI connection cancelled by the transport (${e::class.simpleName})" }
         } catch (e: LurkException) {
             log.i { "7TV EventAPI connection failed: ${e.error}" }
         } catch (
@@ -348,8 +348,18 @@ class SevenTvEventClient(
         private suspend fun receive(inbox: ReceiveChannel<String>): String? {
             val result = withTimeoutOrNull(heartbeat * MISSED_HEARTBEATS) { inbox.receiveCatching() }
             when {
-                result == null -> log.i { "7TV EventAPI went quiet for ${heartbeat * MISSED_HEARTBEATS}" }
-                result.isClosed -> log.i { "7TV EventAPI stream ended: ${result.exceptionOrNull()?.message}" }
+                result == null -> {
+                    log.i { "7TV EventAPI went quiet for ${heartbeat * MISSED_HEARTBEATS}" }
+                }
+
+                result.isClosed -> {
+                    log.i {
+                        "7TV EventAPI stream ended (${result.exceptionOrNull()?.let {
+                            it::class
+                                .simpleName
+                        }})"
+                    }
+                }
             }
             return result?.getOrNull()
         }
