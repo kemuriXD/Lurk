@@ -66,4 +66,20 @@ class ScrubberTest {
             Scrubber.scrub("a_very_long_identifier_without_digits_here"),
         )
     }
+
+    @Test
+    fun masksProxyUserinfoForAnyScheme() {
+        assertEquals(
+            "via http://…@proxy.example:8080 failed",
+            Scrubber.scrub("via http://user1:hunter2@proxy.example:8080 failed"),
+        )
+        assertEquals(
+            "via socks5h://…@proxy.example:1080 failed",
+            Scrubber.scrub("via socks5h://user1:hunter2@proxy.example:1080 failed"),
+        )
+        assertEquals(
+            "via socks5://…@proxy.example:1080",
+            Scrubber.scrub("via socks5://user1:hunter2@proxy.example:1080"),
+        )
+    }
 }

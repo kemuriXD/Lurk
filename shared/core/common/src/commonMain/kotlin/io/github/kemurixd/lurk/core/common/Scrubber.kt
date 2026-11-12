@@ -5,6 +5,7 @@ object Scrubber {
     private const val MASK = "…"
     private const val KEEP_CHARS = 4
 
+    private val urlUserinfo = Regex("""\b([A-Za-z][A-Za-z0-9+.-]*://)[^\s/?#@]+@""")
     private val urlQuery = Regex("""(https?://[^\s"'?]*)\?[^\s"']+""")
     private val oauthPrefix = Regex("""(oauth:)\S+""", RegexOption.IGNORE_CASE)
     private val authScheme = Regex("""\b(OAuth|Bearer) [A-Za-z0-9._~+/=-]{8,}""", RegexOption.IGNORE_CASE)
@@ -18,7 +19,7 @@ object Scrubber {
     private val sha256Hex = Regex("""[0-9a-fA-F]{64}""")
 
     fun scrub(text: String): String {
-        var out = text
+        var out = urlUserinfo.replace(text) { "${it.groupValues[1]}$MASK@" }
         out = urlQuery.replace(out) { "${it.groupValues[1]}?$MASK" }
         out = oauthPrefix.replace(out) { "${it.groupValues[1]}$MASK" }
         out = authScheme.replace(out) { "${it.groupValues[1]} $MASK" }
