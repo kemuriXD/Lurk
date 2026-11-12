@@ -15,13 +15,13 @@ class RingBuffer<T>(
 
     val size: Int get() = items.size
 
-    /** Appends [items] in order and returns the evicted oldest items, oldest first. */
-    fun addAll(items: List<T>): List<T> {
-        this.items.addAll(items)
-        val overflow = this.items.size - capacity
+    /** Appends [added] in order and returns the evicted oldest items, oldest first. */
+    fun addAll(added: List<T>): List<T> {
+        items.addAll(added)
+        val overflow = items.size - capacity
         if (overflow <= 0) return emptyList()
         val evicted = ArrayList<T>(overflow)
-        repeat(overflow) { evicted += this.items.removeFirst() }
+        repeat(overflow) { evicted += items.removeFirst() }
         return evicted
     }
 

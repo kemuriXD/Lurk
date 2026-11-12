@@ -178,4 +178,32 @@ class BatcherTest {
             source.close()
             job.join()
         }
+
+    @Test
+    fun itemAtExactFlushInstantIsNeverLost() =
+        runTest {
+            val source = Channel<Int>(Channel.UNLIMITED)
+            val seen = mutableListOf<List<Int>>()
+            val job = launch { source.receiveAsFlow().batched().collect { seen += it } }
+            source.send(1)
+            delay(1000)
+            source.send(2)
+            delay(2500)
+            source.close()
+            job.join()
+            assertEquals(listOf(1, 2), seen.flatten())
+        }
+
+    @Test
+    fun itemsOnEveryQuarterSecondAreDeliveredOnceInOrder() =
+        runTest {
+            val seen = mutableListOf<Int>()
+            flow {
+                repeat(10_000) {
+                    emit(it)
+                    delay(250)
+                }
+            }.batched().collect { seen += it }
+            assertEquals((0 until 10_000).toList(), seen)
+        }
 }

@@ -2,11 +2,12 @@ package io.github.kemurixd.lurk.chat
 
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.selects.select
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -44,17 +45,25 @@ fun <T> Flow<T>.batched(interval: Duration = 1.seconds): Flow<List<T>> {
                         finished = true
                     } else {
                         batch += first.getOrThrow()
-                        withTimeoutOrNull(interval) {
-                            while (true) {
-                                val next = channel.receiveCatching()
-                                if (next.isClosed) {
-                                    failure = next.exceptionOrNull()
-                                    finished = true
-                                    break
+                        // A select that takes the deadline clause cannot consume an element, so
+                        // nothing is lost at the flush instant (unlike a cancelled receive).
+                        val deadline = launch { delay(interval) }
+                        var waiting = true
+                        while (waiting) {
+                            select {
+                                deadline.onJoin { waiting = false }
+                                channel.onReceiveCatching { next ->
+                                    if (next.isClosed) {
+                                        failure = next.exceptionOrNull()
+                                        finished = true
+                                        waiting = false
+                                    } else {
+                                        batch += next.getOrThrow()
+                                    }
                                 }
-                                batch += next.getOrThrow()
                             }
                         }
+                        deadline.cancel()
                     }
                     if (batch.isNotEmpty()) emit(batch)
                     failure?.let { throw it }
