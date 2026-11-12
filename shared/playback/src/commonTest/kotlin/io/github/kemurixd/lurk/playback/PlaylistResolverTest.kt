@@ -187,4 +187,26 @@ class PlaylistResolverTest {
             )
             stream.session.close()
         }
+
+    @Test
+    fun resolvedStreamToStringHidesHeadersAndQuery() =
+        runTest {
+            val rig = Rig(this)
+            rig.source.next = {
+                Outcome.Success(
+                    PlaybackGrant(
+                        "$MASTER?sig=sigvalue1&token=tokenvalue1",
+                        headers =
+                            mapOf("Authorization" to "OAuth headervalue1"),
+                    ),
+                )
+            }
+            val stream = rig.resolve(PlaybackPrefs())
+            val text = stream.toString()
+            listOf("sigvalue1", "tokenvalue1", "headervalue1", "Authorization").forEach {
+                assertFalse(it in text, "$it leaked: $text")
+            }
+            assertTrue("usher.example/api/channel/hls/testchannel.m3u8" in text, text)
+            stream.session.close()
+        }
 }

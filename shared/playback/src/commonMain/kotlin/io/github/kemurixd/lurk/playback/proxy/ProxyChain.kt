@@ -7,7 +7,7 @@ import kotlinx.coroutines.CancellationException
 import kotlin.time.TimeSource
 
 /** Result of walking a proxy list. */
-sealed interface ChainResult<out T> {
+internal sealed interface ChainResult<out T> {
     data class Success<T>(
         val value: T,
         val endpoint: ProxyEndpoint,
@@ -31,7 +31,7 @@ internal fun LurkError.blamesProxy(): Boolean =
     }
 
 /** Tries proxies in order and reports each result to [health]. */
-class ProxyChain(
+internal class ProxyChain(
     private val health: ProxyHealth,
     private val timeSource: TimeSource.WithComparableMarks,
 ) {

@@ -25,7 +25,7 @@ import kotlin.time.TimeSource
  *
  * A [ProxyEndpoint.UrlTemplate] replaces the master URL with the template's; an HTTP proxy carries the source's own.
  */
-class PlaylistResolver(
+class PlaylistResolver internal constructor(
     private val sources: List<PlaybackSource>,
     routes: RouteClients,
     chain: ProxyChain,

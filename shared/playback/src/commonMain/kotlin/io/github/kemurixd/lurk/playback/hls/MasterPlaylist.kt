@@ -3,7 +3,7 @@ package io.github.kemurixd.lurk.playback.hls
 import io.github.kemurixd.lurk.playback.Variant
 
 /** Reads the variants of an HLS master playlist. Lenient: unreadable input gives an empty list. */
-object MasterPlaylist {
+internal object MasterPlaylist {
     private const val STREAM_INF = "#EXT-X-STREAM-INF:"
     private const val MEDIA = "#EXT-X-MEDIA:"
     private const val AUDIO_ONLY = "audio_only"

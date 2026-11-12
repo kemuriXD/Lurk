@@ -5,7 +5,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** An `#EXT-X-DATERANGE` entry. */
-data class DateRange(
+internal data class DateRange(
     val id: String,
     val klass: String?,
     val start: Instant?,
@@ -15,14 +15,14 @@ data class DateRange(
 )
 
 /** One media segment. The URI is not kept: ad detection only needs timing, title and discontinuities. */
-data class Segment(
+internal data class Segment(
     val duration: Duration,
     val title: String,
     val programDateTime: Instant?,
     val discontinuity: Boolean,
 )
 
-data class MediaPlaylist(
+internal data class MediaPlaylist(
     val targetDuration: Duration?,
     val segments: List<Segment>,
     val dateRanges: List<DateRange>,

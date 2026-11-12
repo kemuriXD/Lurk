@@ -15,6 +15,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpTimeoutCapability
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
@@ -43,9 +44,9 @@ val B = ProxyEndpoint.Http("127.0.0.1", 8081)
 val C = ProxyEndpoint.Http("127.0.0.1", 8082)
 val TWITCH = ChannelRef(Platform.TWITCH, "testchannel")
 val KICK = ChannelRef(Platform.KICK, "testchannel")
-val MARKERS = AdMarkers(listOf("twitch-maf-ad"), listOf("twitch-stitched-ad"))
+internal val MARKERS = AdMarkers(listOf("twitch-maf-ad"), listOf("twitch-stitched-ad"))
 
-fun via(endpoint: ProxyEndpoint): Route = Route.ViaProxy(endpoint)
+internal fun via(endpoint: ProxyEndpoint): Route = Route.ViaProxy(endpoint)
 
 fun prefs(
     mode: ProxyMode,
@@ -53,10 +54,12 @@ fun prefs(
 ): PlaybackPrefs = PlaybackPrefs(proxy = ProxySettings(mode, endpoints.toList()))
 
 /** One playlist request as the network saw it. */
-data class Request(
+internal data class Request(
     val route: Route,
     val url: String,
     val headers: Map<String, String>,
+    /** The request timeout the client applied, in milliseconds. */
+    val timeoutMs: Long? = null,
 )
 
 sealed interface Reply {
@@ -102,7 +105,7 @@ class FakePlaybackSource(
  * run on [dispatcher], so handlers that suspend stay on the test's virtual clock.
  */
 @OptIn(ExperimentalAtomicApi::class)
-class FakeRoutes(
+internal class FakeRoutes(
     private val dispatcher: CoroutineDispatcher,
 ) : RouteClients {
     var master: String = fixture("twitch/master.m3u8")
@@ -145,7 +148,8 @@ class FakeRoutes(
         config.addHandler { request ->
             val url = request.url.toString()
             val headers = request.headers.entries().associate { it.key to it.value.joinToString(",") }
-            append(Request(route, url, headers))
+            val timeoutMs = request.getCapabilityOrNull(HttpTimeoutCapability)?.requestTimeoutMillis
+            append(Request(route, url, headers, timeoutMs))
             when (val r = reply(route, url)) {
                 is Reply.Text -> respond(r.body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, M3U8))
                 is Reply.Status -> respond("", HttpStatusCode.fromValue(r.code))
@@ -170,12 +174,12 @@ class FakeRoutes(
 }
 
 /** Serves the fixtures, but [fail] decides first; null lets the request through. */
-fun Rig.script(fail: (Route, String) -> Reply?) {
+internal fun Rig.script(fail: (Route, String) -> Reply?) {
     routes.reply = { route, url -> fail(route, url) ?: Reply.Text(routes.serve(url)) }
 }
 
 /** A resolver wired to fakes on the test's scheduler and virtual time. */
-class Rig(
+internal class Rig(
     private val test: TestScope,
     val source: FakePlaybackSource = FakePlaybackSource(),
 ) {

@@ -10,7 +10,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** The DATERANGE classes that mark ads, read live from remote config. */
-data class AdMarkers(
+internal data class AdMarkers(
     val cueClasses: List<String>,
     val stitchedClasses: List<String>,
 ) {
@@ -20,21 +20,21 @@ data class AdMarkers(
 }
 
 /** A `twitch-maf-ad` style cue. The video stays live during a cue-only break. */
-data class CueBreak(
+internal data class CueBreak(
     val id: String,
     val start: Instant,
     val planned: Duration,
 )
 
 /** A stretch of the stream that carries ad video. */
-data class StitchedWindow(
+internal data class StitchedWindow(
     val start: Instant,
     val end: Instant,
     val roll: RollType,
     val podLength: Int,
 )
 
-data class PlaylistAdInfo(
+internal data class PlaylistAdInfo(
     val cues: List<CueBreak>,
     val stitched: List<StitchedWindow>,
 ) {
@@ -47,7 +47,7 @@ data class PlaylistAdInfo(
 }
 
 /** Finds ad markers in a Twitch media playlist. [inspect] never throws. */
-class AdDetector(
+internal class AdDetector(
     private val markers: () -> AdMarkers,
 ) {
     fun inspect(playlist: MediaPlaylist): PlaylistAdInfo =

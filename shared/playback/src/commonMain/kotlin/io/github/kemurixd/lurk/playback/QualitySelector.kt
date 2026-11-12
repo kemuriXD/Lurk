@@ -1,7 +1,19 @@
 package io.github.kemurixd.lurk.playback
 
 object QualitySelector {
-    /** The variant to start on, or `null` for Auto (adaptive). */
+    /**
+     * The variant to start on, or `null` for Auto (adaptive).
+     *
+     * - [QualityPreference.Auto]: always `null`.
+     * - [QualityPreference.MaxHeight]: the video variant with the greatest height not above the limit; ties go to the
+     *   higher frame rate, then the higher bandwidth. A variant with no height counts as too tall. When nothing fits,
+     *   the lowest-bandwidth video variant.
+     * - [QualityPreference.AudioOnly]: the first audio-only variant, or the lowest-bandwidth video variant when there
+     *   is none.
+     *
+     * `null` also comes back when there is nothing to pick: no video variant for MaxHeight, no variant at all for
+     * AudioOnly.
+     */
     fun initial(
         variants: List<Variant>,
         pref: QualityPreference,

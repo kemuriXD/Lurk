@@ -2,7 +2,6 @@ package io.github.kemurixd.lurk.playback.proxy
 
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
-import io.github.kemurixd.lurk.core.common.outcomeOf
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.playback.PlaybackGrant
 import io.github.kemurixd.lurk.playback.PlaybackSource
@@ -12,11 +11,10 @@ import io.github.kemurixd.lurk.playback.ads.AdDetector
 import io.github.kemurixd.lurk.playback.hls.MasterPlaylist
 import io.github.kemurixd.lurk.playback.hls.MediaPlaylist
 import io.github.kemurixd.lurk.playback.masterHeaders
+import io.github.kemurixd.lurk.playback.masterUrlFor
 import io.github.kemurixd.lurk.playback.onTemplateHost
-import io.github.kemurixd.lurk.playback.templateMasterUrl
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsText
+import io.github.kemurixd.lurk.playback.templateHostsOf
+import kotlinx.coroutines.CancellationException
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 
@@ -46,11 +44,12 @@ sealed interface ProxyTestResult {
 
 /**
  * Checks one proxy against a live sample channel: it fetches the master and the lowest-bandwidth video playlist the
- * way a session would, and looks for stitched ads. The caller picks the sample channel.
+ * way a session would, and looks for stitched ads. The caller picks the sample channel. [test] never throws (except
+ * for cancellation), and nothing it sees is recorded in the proxies' health.
  *
  * Playlists are parsed on the caller's dispatcher, so call [test] from a background scope.
  */
-class ProxyTester(
+class ProxyTester internal constructor(
     private val source: PlaybackSource,
     private val routes: RouteClients,
     private val detector: AdDetector,
@@ -71,13 +70,9 @@ class ProxyTester(
         grant: PlaybackGrant,
     ): ProxyTestResult {
         val route = Route.ViaProxy(endpoint)
-        val masterUrl =
-            when (endpoint) {
-                is ProxyEndpoint.UrlTemplate -> templateMasterUrl(endpoint, sample.login)
-                is ProxyEndpoint.Http -> grant.masterUrl
-            }
+        val masterUrl = masterUrlFor(endpoint, sample, grant)
         val start = timeSource.markNow()
-        val master = get(route, masterUrl, masterHeaders(endpoint, grant))
+        val master = get(route, masterUrl, masterHeaders(endpoint, grant), templateHosts = emptySet())
         val latency = start.elapsedNow()
         return when (master) {
             is Outcome.Failure -> {
@@ -93,13 +88,7 @@ class ProxyTester(
                     masterUrl = masterUrl,
                     route = if (throughProxy) route else Route.Direct,
                     headers = grant.headers,
-                    templateHosts =
-                        (endpoint as? ProxyEndpoint.UrlTemplate)
-                            ?.let {
-                                setOf(
-                                    it.label.lowercase(),
-                                )
-                            }.orEmpty(),
+                    templateHosts = templateHostsOf(listOf(endpoint)),
                     result = { ProxyTestResult.Passed(latency, mediaThroughProxy = throughProxy) },
                 )
             }
@@ -119,20 +108,9 @@ class ProxyTester(
                 .variants(master, masterUrl)
                 .filter { !it.audioOnly }
                 .minByOrNull { it.bandwidth }
-        return when (
-            val media =
-                if (variant ==
-                    null
-                ) {
-                    null
-                } else {
-                    get(route, variant.url, mediaHeaders(variant.url, headers, templateHosts))
-                }
-        ) {
-            null -> {
-                ProxyTestResult.StreamFailed(LurkError.SchemaChanged)
-            }
-
+                ?: return ProxyTestResult.StreamFailed(LurkError.SchemaChanged)
+        val mediaHeaders = if (onTemplateHost(variant.url, templateHosts)) emptyMap() else headers
+        return when (val media = get(route, variant.url, mediaHeaders, templateHosts)) {
             // Only a request that went through the proxy can blame it; a direct media fetch failed on the CDN.
             is Outcome.Failure -> {
                 if (route == Route.Direct) ProxyTestResult.StreamFailed(media.error) else failed(media.error)
@@ -149,24 +127,26 @@ class ProxyTester(
         }
     }
 
-    private fun mediaHeaders(
-        url: String,
-        headers: Map<String, String>,
-        templateHosts: Set<String>,
-    ): Map<String, String> = if (onTemplateHost(url, templateHosts)) emptyMap() else headers
-
     private fun failed(error: LurkError): ProxyTestResult =
         if (error.blamesProxy()) ProxyTestResult.Unreachable(error) else ProxyTestResult.StreamFailed(error)
 
+    /**
+     * [getText] that never throws: anything unexpected (a malformed template URL, say) is the proxy's fault when the
+     * request went through it, and [LurkError.Unexpected] otherwise.
+     */
     private suspend fun get(
         route: Route,
         url: String,
         headers: Map<String, String>,
+        templateHosts: Set<String>,
     ): Outcome<String> =
-        outcomeOf {
-            routes
-                .clientFor(route)
-                .get(url) { headers.forEach { (name, value) -> header(name, value) } }
-                .bodyAsText()
+        try {
+            routes.getText(route, url, headers, toTemplateHost = onTemplateHost(url, templateHosts))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+        ) {
+            Outcome.Failure(if (route is Route.ViaProxy) LurkError.ProxyFailed else LurkError.Unexpected)
         }
 }

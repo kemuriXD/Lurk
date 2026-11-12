@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** The [ProxyMode.WHEN_ADS_DETECTED] switch of a [PlaybackSession]: stitched ads only, once, and never lost. */
@@ -323,6 +324,69 @@ class AdsSwitchTest {
                 runCurrent()
             }
             assertEquals(1, events.size)
+            session.close()
+        }
+
+    @Test
+    fun adsSwitchDropsTheDirectStitchedWindow() =
+        runTest {
+            val rig = Rig(this)
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val session = stream.session
+            val states = record(session.adState)
+            rig.routes.media = stitchedMidAd()
+            session.fetch(MEDIA)
+            runCurrent()
+            assertTrue(states.any { it is AdState.Playing }, "the direct playlist's ad was seen")
+            assertEquals(via(A), session.route.value)
+
+            // The proxied refresh covers the same span with no ad in it.
+            rig.routes.media = cleanMidAd()
+            session.fetch(MEDIA)
+            runCurrent()
+            assertEquals(listOf(MASTER, MEDIA), rig.routes.urlsVia(via(A)))
+            assertEquals(AdState.None, session.adState.value)
+            session.close()
+        }
+
+    @Test
+    fun masterAfterTheSwitchComesThroughTheProxy() =
+        runTest {
+            val rig = Rig(this)
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val session = stream.session
+            rig.routes.media = preroll
+            session.fetch(MEDIA)
+            runCurrent()
+            assertEquals(via(A), session.route.value)
+            // The Reload names the same master URL; the resolve's direct copy of it is not served.
+            session.fetch(MASTER)
+            assertEquals(listOf(MASTER, MASTER), rig.routes.urlsVia(via(A)))
+            session.close()
+        }
+
+    @Test
+    fun adsSwitchOnDeadProxiesRecoversAfterCooldown() =
+        runTest {
+            val rig = Rig(this)
+            var proxyDown = true
+            rig.script { route, _ -> if (proxyDown && route == via(A)) Reply.Offline else null }
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val session = stream.session
+            val events = record(session.events)
+            rig.routes.media = preroll
+            session.fetch(MEDIA)
+            runCurrent()
+            assertEquals(ProxyStatus.Unavailable, session.proxyStatus.value)
+
+            proxyDown = false
+            delay(2.minutes)
+            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
+            runCurrent()
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
+            assertEquals(via(A), session.route.value)
+            assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
+            assertEquals(listOf(MASTER, MASTER), rig.routes.urlsVia(via(A)))
             session.close()
         }
 }

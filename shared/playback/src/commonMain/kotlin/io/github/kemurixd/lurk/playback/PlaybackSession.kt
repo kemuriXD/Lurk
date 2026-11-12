@@ -19,13 +19,16 @@ import kotlin.time.Duration
 import kotlin.time.Instant
 
 sealed interface PlaybackEvent {
-    /** The player must re-prepare with [masterUrl]: the session moved to a new route or took a fresh grant. */
+    /**
+     * The player must re-prepare with [masterUrl]: the session moved to a new route or took a fresh grant. Only the
+     * URL is carried; the player reads the new variants (and their URLs) from the master it then loads.
+     */
     data class Reload(
         val masterUrl: String,
     ) : PlaybackEvent
 }
 
-/** Fetches one playlist. */
+/** Fetches one playlist. Public so the player's data source can take a fake in tests. */
 interface PlaylistFetcher {
     suspend fun fetch(url: String): Outcome<String>
 }
@@ -36,11 +39,13 @@ interface PlaylistFetcher {
  * **Contract for the player:** only playlist (`.m3u8`) URLs go through [fetch]; media segments always load straight
  * from the CDN and never touch this class. [fetch] may be called concurrently, for the master and each rendition.
  *
- * - Every playlist goes over the current [route], so a proxied session proxies the master and every media refresh. A
+ * - Every playlist goes over the current route, so a proxied session proxies the master and every media refresh. A
  *   template route only rewrites the master: its media playlists go direct.
  * - When a proxy fails a request, the same URL is retried on the next HTTP proxy and the session moves there. When
  *   none is left the session plays direct with [ProxyStatus.Unavailable]. A proxy problem never stops playback, and a
  *   session that should be proxied never goes direct without saying so.
+ * - The first fetch of the resolved master URL is answered with the text the resolve already fetched, unless a
+ *   Reload came first, so the player does not fetch the master twice.
  * - A playlist 403 takes a fresh grant, picks the route again and emits [PlaybackEvent.Reload], at most once per
  *   30 s. The 403 itself is returned.
  * - Twitch media playlists feed the ad tracker and [typicalSegment]. In [ProxyMode.WHEN_ADS_DETECTED] the first
@@ -49,7 +54,7 @@ interface PlaylistFetcher {
  *
  * Route changes are serialised without locking ordinary fetches; see [SessionRouting]. Built by [PlaylistResolver]
  * only. The session keeps a child job in the caller's scope until [close], so call it when the stream ends. Cancel
- * collectors of [route], [proxyStatus] and [events] at or before [close]: a route change racing [close] can still
+ * collectors of [proxyStatus] and [events] at or before [close]: a route change racing [close] can still
  * publish one last value.
  */
 class PlaybackSession internal constructor(
@@ -64,7 +69,8 @@ class PlaybackSession internal constructor(
     /** The session's own child of the caller's scope. A supervisor, so a failing tracker task stays in here. */
     private val job = SupervisorJob(parent.coroutineContext[Job])
     private val scope = CoroutineScope(parent.coroutineContext + job + router.dispatchers.default)
-    private val routing = SessionRouting(channel, source, settings, router, scope, initial)
+    private val routing =
+        SessionRouting(channel, source, settings, router, scope, initial, onRouteReload = { tracker?.onReload() })
     private val mutableTypical = MutableStateFlow<Duration?>(null)
 
     private val tracker: AdTracker? =
@@ -74,7 +80,8 @@ class PlaybackSession internal constructor(
             null
         }
 
-    val route: StateFlow<Route> = routing.route
+    /** Internal: a proxy route holds its credentials. The player follows [proxyStatus] instead. */
+    internal val route: StateFlow<Route> = routing.route
     val adState: StateFlow<AdState> = tracker?.state ?: MutableStateFlow<AdState>(AdState.None).asStateFlow()
     val proxyStatus: StateFlow<ProxyStatus> = routing.status
 

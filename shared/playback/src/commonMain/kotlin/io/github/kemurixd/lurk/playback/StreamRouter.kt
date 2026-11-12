@@ -4,7 +4,6 @@ import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.common.map
-import io.github.kemurixd.lurk.core.common.outcomeOf
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.playback.ads.AdMarkers
 import io.github.kemurixd.lurk.playback.proxy.ChainResult
@@ -12,9 +11,7 @@ import io.github.kemurixd.lurk.playback.proxy.ProxyChain
 import io.github.kemurixd.lurk.playback.proxy.Route
 import io.github.kemurixd.lurk.playback.proxy.RouteClients
 import io.github.kemurixd.lurk.playback.proxy.blamesProxy
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsText
+import io.github.kemurixd.lurk.playback.proxy.getText
 import kotlin.time.TimeSource
 
 /** A grant whose master playlist has been fetched over [route]. */
@@ -84,18 +81,13 @@ internal class StreamRouter(
             is ChainResult.AllFailed -> Outcome.Failure(result.lastError ?: LurkError.ProxyFailed)
         }
 
-    /** A plain GET over [route]'s client. The body comes back exactly as served. */
+    /** A plain GET over [route]'s client; see [getText]. */
     suspend fun get(
         route: Route,
         url: String,
         headers: Map<String, String>,
-    ): Outcome<String> =
-        outcomeOf {
-            routes
-                .clientFor(route)
-                .get(url) { headers.forEach { (name, value) -> header(name, value) } }
-                .bodyAsText()
-        }
+        toTemplateHost: Boolean = false,
+    ): Outcome<String> = routes.getText(route, url, headers, toTemplateHost)
 
     /**
      * The master through the first of [endpoints] that works; when none does (or the list is empty), directly as
@@ -130,7 +122,8 @@ internal fun masterHeaders(
     grant: PlaybackGrant,
 ): Map<String, String> = if (endpoint is ProxyEndpoint.UrlTemplate) emptyMap() else grant.headers
 
-private fun masterUrlFor(
+/** The master URL [endpoint] fetches: the expanded template, or the grant's own master for an HTTP proxy. */
+internal fun masterUrlFor(
     endpoint: ProxyEndpoint,
     channel: ChannelRef,
     grant: PlaybackGrant,

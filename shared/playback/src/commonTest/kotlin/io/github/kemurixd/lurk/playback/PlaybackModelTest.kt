@@ -36,4 +36,18 @@ class PlaybackModelTest {
         assertTrue(prefs.lowLatency)
         assertFalse(prefs.proxy.active)
     }
+
+    @Test
+    fun grantToStringHidesHeadersAndQuery() {
+        val grant =
+            PlaybackGrant(
+                masterUrl = "https://usher.example/hls/testchannel.m3u8?sig=sigvalue1&token=tokenvalue1",
+                headers = mapOf("Authorization" to "OAuth headervalue1"),
+            )
+        val text = grant.toString()
+        listOf("sigvalue1", "tokenvalue1", "headervalue1", "Authorization").forEach {
+            assertFalse(it in text, "$it leaked: $text")
+        }
+        assertTrue("usher.example/hls/testchannel.m3u8" in text, text)
+    }
 }

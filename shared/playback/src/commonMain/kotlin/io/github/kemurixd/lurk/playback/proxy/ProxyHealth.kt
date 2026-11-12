@@ -8,8 +8,11 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
 
+/** How long a failed proxy is passed over, and how long an Unavailable session waits before it tries them again. */
+internal val PROXY_COOLDOWN = 2.minutes
+
 /** What is known about one proxy. [lastFailure] is null until it first fails. */
-data class ProxyStats(
+internal data class ProxyStats(
     val lastLatency: Duration?,
     val lastFailure: ComparableTimeMark?,
     val consecutiveFailures: Int,
@@ -21,9 +24,9 @@ data class ProxyStats(
  * never suspends.
  */
 @OptIn(ExperimentalAtomicApi::class)
-class ProxyHealth(
+internal class ProxyHealth(
     private val timeSource: TimeSource.WithComparableMarks,
-    private val cooldown: Duration = 2.minutes,
+    private val cooldown: Duration = PROXY_COOLDOWN,
 ) {
     private val state = AtomicReference<Map<ProxyEndpoint, ProxyStats>>(emptyMap())
 

@@ -4,6 +4,7 @@ import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.common.getOrNull
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.playback.proxy.ChainResult
+import io.github.kemurixd.lurk.playback.proxy.PROXY_COOLDOWN
 import io.github.kemurixd.lurk.playback.proxy.Route
 import io.github.kemurixd.lurk.playback.proxy.blamesProxy
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.Volatile
 import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.ComparableTimeMark
 import kotlin.time.Duration.Companion.seconds
@@ -51,8 +53,14 @@ internal data class Routed(
  * The ads switch runs in [scope], not in the fetch that found the ad, so the player cancelling that load cannot lose
  * it. Nothing is committed once [close] has been called.
  *
+ * A session playing direct as [ProxyStatus.Unavailable] probes the proxies again once [PROXY_COOLDOWN] has passed
+ * since it went there (or since the last probe failed). The probe is started by a fetch but runs in [scope], so that
+ * fetch is not held up; it is single-flight under [transitions], and on success the session moves back with a Reload.
+ *
  * A URL template's host is a third party: requests to it never carry the source's headers and never go through an
- * HTTP proxy.
+ * HTTP proxy, and they time out like a proxied request.
+ *
+ * [onRouteReload] runs, holding [transitions], after every Reload that moved the session to another route.
  */
 @OptIn(ExperimentalAtomicApi::class)
 internal class SessionRouting(
@@ -62,13 +70,21 @@ internal class SessionRouting(
     private val router: StreamRouter,
     private val scope: CoroutineScope,
     initial: Opening,
+    private val onRouteReload: () -> Unit = {},
 ) {
     private val transitions = Mutex()
-    private val templateHosts =
-        settings.endpoints
-            .filterIsInstance<ProxyEndpoint.UrlTemplate>()
-            .map { it.label.lowercase() }
-            .toSet()
+    private val templateHosts = templateHostsOf(settings.endpoints)
+
+    /** The resolve's master text, served once for the first fetch of its URL unless a Reload came first. */
+    private val resolvedMasterUrl = initial.masterUrl
+    private val resolvedMaster = AtomicReference<String?>(initial.masterText)
+
+    /** When a session playing direct as Unavailable may probe the proxies again. Read only while Unavailable. */
+    @Volatile
+    private var recoverAfter: ComparableTimeMark? =
+        if (initial.status == ProxyStatus.Unavailable) router.timeSource.markNow() + PROXY_COOLDOWN else null
+
+    private val recovering = AtomicBoolean(false)
 
     /** Written only while holding [transitions]; read anywhere. */
     @Volatile
@@ -101,6 +117,7 @@ internal class SessionRouting(
 
     /** Fetches [url] on the current route, failing over when a proxy lets it down. */
     suspend fun fetch(url: String): Routed {
+        if (url == resolvedMasterUrl) resolvedMaster.exchange(null)?.let { return Routed(current, Outcome.Success(it)) }
         var result = current.let { Routed(it, attempt(it, url)) }
         val maxRounds = settings.endpoints.size + 1
         var rounds = 0
@@ -119,6 +136,7 @@ internal class SessionRouting(
             stop = closed || handled?.state?.generation == seen.generation
             result = handled ?: current.let { Routed(it, attempt(it, url)) }
         }
+        recoverIfDue(result.state)
         return result
     }
 
@@ -158,8 +176,34 @@ internal class SessionRouting(
     ): Outcome<String> {
         val headers = headersFor(s, url, templateHosts)
         return when (val endpoint = proxyFor(s, url, templateHosts)) {
-            null -> router.get(Route.Direct, url, headers)
+            null -> router.get(Route.Direct, url, headers, toTemplateHost = onTemplateHost(url, templateHosts))
             else -> router.throughProxy(endpoint, url, headers)
+        }
+    }
+
+    /**
+     * When [seen] is Unavailable and the cooldown is over, starts one probe in [scope] and returns without waiting.
+     * The probe takes [transitions] and, with the session still where [seen] left it, fetches the master through the
+     * proxies again. On success the session moves there with a Reload; otherwise it stays Unavailable for another
+     * cooldown.
+     */
+    private fun recoverIfDue(seen: RouteState) {
+        if (closed || seen.status != ProxyStatus.Unavailable || recoverAfter?.hasPassedNow() != true) return
+        if (!recovering.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                transitions.withLock<Unit> {
+                    val s = current
+                    val unchanged = s.generation == seen.generation && s.status == ProxyStatus.Unavailable
+                    if (closed || !unchanged || recoverAfter?.hasPassedNow() != true) return@withLock
+                    when (val result = router.proxiedMaster(channel, s.grant, settings.endpoints)) {
+                        is ChainResult.Success -> commit(result.value.after(s), reload = true)
+                        is ChainResult.AllFailed -> recoverAfter = router.timeSource.markNow() + PROXY_COOLDOWN
+                    }
+                }
+            } finally {
+                recovering.store(false)
+            }
         }
     }
 
@@ -273,18 +317,27 @@ internal class SessionRouting(
     /**
      * Holding [transitions]: publishes [next], and a Reload of its master when [reload]. Inert once closed; [close]
      * takes no lock, so `closed` is checked again right before each write to keep a racing close's window small.
+     * A Reload also drops the resolve's master text, and one that changes the route calls [onRouteReload].
      */
     private fun commit(
         next: RouteState,
         reload: Boolean,
     ): RouteState {
         if (!closed) {
+            val previous = current
+            if (next.status == ProxyStatus.Unavailable && previous.status != ProxyStatus.Unavailable) {
+                recoverAfter = router.timeSource.markNow() + PROXY_COOLDOWN
+            }
+            if (reload) resolvedMaster.store(null)
             current = next
             if (!closed) {
                 mutableRoute.value = next.route
                 mutableStatus.value = next.status
             }
-            if (reload && !closed) mutableEvents.tryEmit(PlaybackEvent.Reload(next.masterUrl))
+            if (reload && !closed) {
+                if (next.route != previous.route) onRouteReload()
+                mutableEvents.tryEmit(PlaybackEvent.Reload(next.masterUrl))
+            }
         }
         return current
     }
@@ -339,3 +392,10 @@ internal fun onTemplateHost(
     url: String,
     templateHosts: Set<String>,
 ): Boolean = templateHosts.isNotEmpty() && hostOf(url).lowercase() in templateHosts
+
+/** The hosts of [endpoints]' URL templates, lower-cased, for [onTemplateHost]. */
+internal fun templateHostsOf(endpoints: List<ProxyEndpoint>): Set<String> =
+    endpoints
+        .filterIsInstance<ProxyEndpoint.UrlTemplate>()
+        .map { it.label.lowercase() }
+        .toSet()

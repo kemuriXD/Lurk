@@ -13,13 +13,17 @@ enum class AdPolicy {
     UNTOUCHED,
 }
 
-/** What a source hands the player for one channel. */
+/** What a source hands the player for one channel. [toString] leaves out [headers] and [masterUrl]'s query. */
 data class PlaybackGrant(
     val masterUrl: String,
     val headers: Map<String, String> = emptyMap(),
     val tokenFlags: TokenFlags? = null,
     val lowLatencyCapable: Boolean = false,
-)
+) {
+    override fun toString(): String =
+        "PlaybackGrant(masterUrl=${withoutQuery(masterUrl)}, tokenFlags=$tokenFlags, " +
+            "lowLatencyCapable=$lowLatencyCapable)"
+}
 
 /**
  * Resolves a channel to a master playlist. Grants are always fetched directly, never through a proxy.

@@ -42,7 +42,7 @@ import kotlin.time.TimeSource
  *
  * The tracker's coroutines run under its own child Job of [scope]. Call [close] when done with it.
  */
-class AdTracker(
+internal class AdTracker(
     private val detector: AdDetector,
     private val scope: CoroutineScope,
     private val timeSource: TimeSource.WithComparableMarks,
@@ -77,7 +77,10 @@ class AdTracker(
         post {
             serverClock = forward(serverClock, serverTime, at)
             edgeClock = forward(edgeClock, edge, at)
-            register(info)
+            for (cue in info.cues) {
+                if (seenCues.add(cue.id)) cues.add(Window(cue.start, cue.start + cue.planned))
+            }
+            if (info.stitched.isNotEmpty()) stitched = merge(stitched + info.stitched)
         }
         return info
     }
@@ -89,6 +92,14 @@ class AdTracker(
             // Reports from different threads may be posted out of order; the newest one wins.
             if (playhead.let { it == null || at > it.mark }) playhead = Anchor(programDateTime, at)
         }
+    }
+
+    /**
+     * The session moved to another route with a Reload, so the stitched ads seen on the old route are not in the
+     * stream the player now loads; they are forgotten. Cue windows, and the cue IDs already seen, stay.
+     */
+    fun onReload() {
+        post { stitched = emptyList() }
     }
 
     /** Publishes [AdState.None] and cancels the tracker's coroutines at once. Later input is ignored. */
@@ -106,13 +117,6 @@ class AdTracker(
                 schedule(recompute())
             }
         }
-    }
-
-    private fun register(info: PlaylistAdInfo) {
-        for (cue in info.cues) {
-            if (seenCues.add(cue.id)) cues.add(Window(cue.start, cue.start + cue.planned))
-        }
-        if (info.stitched.isNotEmpty()) stitched = merge(stitched + info.stitched)
     }
 
     /** Publishes the state for now and returns how long until it can next change, or null when no window is open. */

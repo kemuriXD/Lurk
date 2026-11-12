@@ -197,4 +197,12 @@ class ProxyTesterTest {
             assertTrue(media.url.startsWith("https://lol.example/v1/"))
             assertFalse(media.headers.containsKey("X-Test-Header"))
         }
+
+    @Test
+    fun malformedTemplateIsUnreachableNotThrown() =
+        runTest {
+            val s = Setup(this)
+            val template = ProxyEndpoint.UrlTemplate("https://lol.example:notaport/live/{channel}")
+            assertEquals(ProxyTestResult.Unreachable(LurkError.ProxyFailed), s.tester.test(template, TWITCH))
+        }
 }
