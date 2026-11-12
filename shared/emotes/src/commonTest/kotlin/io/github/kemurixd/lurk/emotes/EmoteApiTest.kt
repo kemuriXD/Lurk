@@ -60,7 +60,8 @@ class EmoteApiTest {
     @Test
     fun requestsUseTheDocumentedEndpoints() =
         runTest {
-            val engine = MockEngine { respond("{}", HttpStatusCode.OK) }
+            // A readable body for every endpoint called here: an object with BTTV emote arrays and FFZ sets.
+            val engine = MockEngine { respond("""{"channelEmotes":[],"sets":{}}""", HttpStatusCode.OK) }
             val api = EmoteApi(createHttpClient(engine))
             api.sevenTvGlobal()
             api.sevenTvUser(Platform.KICK, "42")
@@ -78,6 +79,52 @@ class EmoteApiTest {
                     "https://api.frankerfacez.com/v1/set/global",
                 ),
                 engine.requestHistory.map { it.url.toString() },
+            )
+        }
+
+    @Test
+    fun unreadableBodyThrowsSchemaChanged() =
+        runTest {
+            val html = api(HttpStatusCode.OK, fixture("broken/html.json"))
+            val calls: List<suspend () -> Any> =
+                listOf(
+                    { html.sevenTvGlobal() },
+                    { html.sevenTvUser(Platform.TWITCH, "1000500") },
+                    { html.sevenTvSet("01AA0000000000000000000011") },
+                    { html.bttvGlobal(emptySet()) },
+                    { html.bttvUser("1000500", emptySet()) },
+                    { html.ffzGlobal() },
+                    { html.ffzRoom("1000500") },
+                )
+            calls.forEachIndexed { index, call ->
+                val e = assertFailsWith<LurkException>("call $index") { call() }
+                assertEquals(LurkError.SchemaChanged, e.error, "call $index")
+            }
+        }
+
+    @Test
+    fun wrongShapeThrowsSchemaChanged() =
+        runTest {
+            val wrong = api(HttpStatusCode.OK, """{"error":"maintenance"}""")
+            assertEquals(LurkError.SchemaChanged, assertFailsWith<LurkException> { wrong.ffzRoom("1") }.error)
+            assertEquals(LurkError.SchemaChanged, assertFailsWith<LurkException> { wrong.ffzGlobal() }.error)
+            assertEquals(
+                LurkError.SchemaChanged,
+                assertFailsWith<LurkException> { wrong.bttvUser("1", emptySet()) }.error,
+            )
+            assertEquals(LurkError.SchemaChanged, assertFailsWith<LurkException> { wrong.bttvGlobal(emptySet()) }.error)
+        }
+
+    @Test
+    fun readableEmptyBodyIsEmpty() =
+        runTest {
+            val bttv = api(HttpStatusCode.OK, """{"channelEmotes":[],"sharedEmotes":[]}""")
+            assertTrue(bttv.bttvUser("1", emptySet()).isEmpty())
+            assertTrue(api(HttpStatusCode.OK, "[]").bttvGlobal(emptySet()).isEmpty())
+            assertTrue(api(HttpStatusCode.OK, """{"room":{},"sets":{}}""").ffzRoom("1").isEmpty())
+            assertTrue(api(HttpStatusCode.OK, """{"id":"x","emotes":[]}""").sevenTvSet("x").isEmpty())
+            assertNull(
+                api(HttpStatusCode.OK, """{"id":"u","emote_set":null}""").sevenTvUser(Platform.KICK, "1").emoteSetId,
             )
         }
 }

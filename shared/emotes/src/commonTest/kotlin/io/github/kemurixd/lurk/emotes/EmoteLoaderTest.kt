@@ -95,16 +95,21 @@ class EmoteLoaderTest {
             else -> error("unexpected url $url")
         }
 
-    private fun TestScope.engine(override: (HttpRequestData) -> HttpStatusCode? = { null }) =
-        MockEngine(
-            MockEngineConfig().apply {
-                dispatcher = StandardTestDispatcher(testScheduler)
-                addHandler { request ->
-                    val status = override(request)
-                    if (status != null) respond("", status) else respond(body(request.url.toString()))
+    private fun TestScope.engine(
+        bodyOverride: (HttpRequestData) -> String? = { null },
+        override: (HttpRequestData) -> HttpStatusCode? = { null },
+    ) = MockEngine(
+        MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                val status = override(request)
+                when {
+                    status != null -> respond("", status)
+                    else -> respond(bodyOverride(request) ?: body(request.url.toString()))
                 }
-            },
-        )
+            }
+        },
+    )
 
     private fun loader(
         cache: CacheStore,
@@ -354,5 +359,60 @@ class EmoteLoaderTest {
             runCurrent()
             assertEquals(6, calls)
             assertEquals(true, backgroundScope.isActive)
+        }
+
+    @Test
+    fun htmlBodyKeepsStaleCacheAndRetries() =
+        runTest {
+            val cache = cacheStore()
+            val cached = listOf(emote("OldOne", EmoteProvider.BTTV, EmoteScope.CHANNEL))
+            val key = "emotes:v1:BTTV_CHANNEL:twitch:1000500"
+            val cachedJson = Json.encodeToString(listSerializer, cached)
+            cache.put(key, cachedJson, start - 2.hours)
+            var bttvCalls = 0
+            val e =
+                engine(bodyOverride = {
+                    if (it.has("/cached/users/twitch/") && bttvCalls++ == 0) fixture("broken/html.json") else null
+                })
+            val results = loader(cache, e).load(twitch, all, backgroundScope)
+
+            assertEquals(Outcome.Failure(LurkError.SchemaChanged), outcomeOf(results, EmoteSource.BTTV_CHANNEL))
+            assertEquals(cached, registry.snapshot.value.sources[EmoteKey(EmoteProvider.BTTV, EmoteScope.CHANNEL)])
+            assertEquals(cachedJson, cache.get(key)?.value, "the cache is not overwritten")
+            assertEquals(start - 2.hours, cache.get(key)?.fetchedAt)
+
+            advanceTimeBy(5.seconds)
+            runCurrent()
+            assertEquals(2, bttvCalls, "a retry was scheduled")
+            assertEquals(bttvUserCount, count(EmoteProvider.BTTV, EmoteScope.CHANNEL))
+        }
+
+    @Test
+    fun htmlBodyKeepsSevenTvSetIdAndRetries() =
+        runTest {
+            val cache = cacheStore()
+            var userCalls = 0
+            val e =
+                engine(bodyOverride = {
+                    val sevenTvUser = it.url.host == "7tv.io" && it.has("/users/")
+                    if (sevenTvUser && userCalls++ == 1) fixture("broken/html.json") else null
+                })
+            val l = loader(cache, e)
+            l.load(twitch, all, backgroundScope)
+            val setId = "01AA0000000000000000000011"
+            assertEquals(setId, l.sevenTvSetId.value)
+
+            clock.now = start + 2.hours
+            val results = l.load(twitch, all, backgroundScope)
+
+            assertEquals(Outcome.Failure(LurkError.SchemaChanged), outcomeOf(results, EmoteSource.SEVENTV_CHANNEL))
+            assertEquals(setId, l.sevenTvSetId.value, "the set id is kept")
+            assertEquals(6, count(EmoteProvider.SEVENTV, EmoteScope.CHANNEL))
+            assertEquals(setId, cache.get("emotes:v1:SEVENTV_CHANNEL_SET:twitch:1000500")?.value)
+
+            advanceTimeBy(5.seconds)
+            runCurrent()
+            assertEquals(3, userCalls, "a retry was scheduled")
+            assertEquals(setId, l.sevenTvSetId.value)
         }
 }

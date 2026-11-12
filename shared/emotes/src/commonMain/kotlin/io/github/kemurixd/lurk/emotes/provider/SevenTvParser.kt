@@ -23,15 +23,28 @@ object SevenTvParser {
     private const val ZERO_WIDTH_BIT = 1
     private val scaleNames = mapOf("1x" to 1, "2x" to 2, "3x" to 3, "4x" to 4)
 
-    /** An emote set response from `/v3/emote-sets`: reads `emotes[]`. */
+    /** An emote set response from `/v3/emote-sets`: reads `emotes[]`. An unreadable body gives an empty list. */
     fun emoteSet(
         json: String,
         scope: EmoteScope,
-    ): List<Emote> = parseObject(json, log)?.let { emotesOf(it, scope) } ?: emptyList()
+    ): List<Emote> = emoteSetOrNull(json, scope).orEmpty()
 
-    /** `/v3/users/{platform}/{id}`: reads `emote_set.id` and `emote_set.emotes[]`; emotes are channel scope. */
-    fun user(json: String): SevenTvUser {
-        val set = parseObject(json, log)?.get("emote_set") as? JsonObject
+    /** Like [emoteSet], but null when the body is not a JSON object. */
+    internal fun emoteSetOrNull(
+        json: String,
+        scope: EmoteScope,
+    ): List<Emote>? = parseObject(json, log)?.let { emotesOf(it, scope) }
+
+    /**
+     * `/v3/users/{platform}/{id}`: reads `emote_set.id` and `emote_set.emotes[]`; emotes are channel scope. An
+     * unreadable body gives a user with no set.
+     */
+    fun user(json: String): SevenTvUser = userOrNull(json) ?: SevenTvUser(null, emptyList())
+
+    /** Like [user], but null when the body is not a JSON object. A user without an emote set is still readable. */
+    internal fun userOrNull(json: String): SevenTvUser? {
+        val root = parseObject(json, log) ?: return null
+        val set = root["emote_set"] as? JsonObject
         return SevenTvUser(
             emoteSetId = (set?.get("id") as? JsonPrimitive)?.content,
             emotes = set?.let { emotesOf(it, EmoteScope.CHANNEL) } ?: emptyList(),

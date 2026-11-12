@@ -16,22 +16,38 @@ import kotlinx.serialization.json.JsonPrimitive
 object FfzParser {
     private val log = Logger.withTag("FfzParser")
 
-    /** `/v1/set/global`: only the sets listed in `default_sets`. */
-    fun global(json: String): List<Emote> {
+    /** `/v1/set/global`: only the sets listed in `default_sets`. An unreadable body gives an empty list. */
+    fun global(json: String): List<Emote> = globalOrNull(json).orEmpty()
+
+    /** Like [global], but null when the body is not a JSON object with a `sets` object. */
+    internal fun globalOrNull(json: String): List<Emote>? {
         val root = parseObject(json, log)
-        val sets = root?.get("sets") as? JsonObject
+        val sets = setsOf(root) ?: return null
         val defaults =
             (root?.get("default_sets") as? JsonArray)
                 ?.mapNotNull { (it as? JsonPrimitive)?.content }
                 .orEmpty()
-        return defaults.flatMap { id -> emotesOf(sets?.get(id), EmoteScope.GLOBAL) }
+        return defaults.flatMap { id -> emotesOf(sets[id], EmoteScope.GLOBAL) }
     }
 
-    /** `/v1/room/id/{id}`: every set in `sets`, channel scope. */
-    fun room(json: String): List<Emote> {
-        val sets = parseObject(json, log)?.get("sets") as? JsonObject ?: return emptyList()
-        return sets.values.flatMap { emotesOf(it, EmoteScope.CHANNEL) }
-    }
+    /** `/v1/room/id/{id}`: every set in `sets`, channel scope. An unreadable body gives an empty list. */
+    fun room(json: String): List<Emote> = roomOrNull(json).orEmpty()
+
+    /** Like [room], but null when the body is not a JSON object with a `sets` object. */
+    internal fun roomOrNull(json: String): List<Emote>? =
+        setsOf(parseObject(json, log))?.values?.flatMap { emotesOf(it, EmoteScope.CHANNEL) }
+
+    /** The `sets` object of [root], or null (and logged) when the body had none. */
+    private fun setsOf(root: JsonObject?): JsonObject? =
+        root?.let {
+            (it["sets"] as? JsonObject).also { sets ->
+                if (sets ==
+                    null
+                ) {
+                    log.w { "FFZ response has no sets" }
+                }
+            }
+        }
 
     private fun emotesOf(
         set: JsonElement?,

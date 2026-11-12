@@ -19,38 +19,45 @@ private const val FFZ = "https://api.frankerfacez.com/v1"
 
 /**
  * The public emote endpoints. HTTP errors surface as [LurkException]; a 404 on a user or room means the channel has
- * no account with that provider and yields an empty result.
+ * no account with that provider and yields an empty result. A body that is not the expected JSON (an HTML error page,
+ * a captive portal, a truncated response) throws [LurkError.SchemaChanged], so callers can tell it apart from a
+ * channel that really has no emotes.
  */
 class EmoteApi(
     private val http: HttpClient,
 ) {
     suspend fun sevenTvGlobal(): List<Emote> =
-        SevenTvParser.emoteSet(text("$SEVENTV/emote-sets/global"), EmoteScope.GLOBAL)
+        readable(SevenTvParser.emoteSetOrNull(text("$SEVENTV/emote-sets/global"), EmoteScope.GLOBAL))
 
     suspend fun sevenTvUser(
         platform: Platform,
         userId: String,
     ): SevenTvUser =
         orMissing(SevenTvUser(null, emptyList())) {
-            SevenTvParser.user(text("$SEVENTV/users/${platform.id}/$userId"))
+            readable(SevenTvParser.userOrNull(text("$SEVENTV/users/${platform.id}/$userId")))
         }
 
     suspend fun sevenTvSet(setId: String): List<Emote> =
-        SevenTvParser.emoteSet(text("$SEVENTV/emote-sets/$setId"), EmoteScope.PERSONAL)
+        readable(SevenTvParser.emoteSetOrNull(text("$SEVENTV/emote-sets/$setId"), EmoteScope.PERSONAL))
 
-    suspend fun bttvGlobal(zw: Set<String>): List<Emote> = BttvParser.global(text("$BTTV/cached/emotes/global"), zw)
+    suspend fun bttvGlobal(zw: Set<String>): List<Emote> =
+        readable(BttvParser.globalOrNull(text("$BTTV/cached/emotes/global"), zw))
 
     suspend fun bttvUser(
         twitchId: String,
         zw: Set<String>,
-    ): List<Emote> = orMissing(emptyList()) { BttvParser.user(text("$BTTV/cached/users/twitch/$twitchId"), zw) }
+    ): List<Emote> =
+        orMissing(emptyList()) { readable(BttvParser.userOrNull(text("$BTTV/cached/users/twitch/$twitchId"), zw)) }
 
-    suspend fun ffzGlobal(): List<Emote> = FfzParser.global(text("$FFZ/set/global"))
+    suspend fun ffzGlobal(): List<Emote> = readable(FfzParser.globalOrNull(text("$FFZ/set/global")))
 
     suspend fun ffzRoom(twitchId: String): List<Emote> =
-        orMissing(emptyList()) { FfzParser.room(text("$FFZ/room/id/$twitchId")) }
+        orMissing(emptyList()) { readable(FfzParser.roomOrNull(text("$FFZ/room/id/$twitchId"))) }
 
     private suspend fun text(url: String): String = http.get(url).bodyAsText()
+
+    /** A parse result, or [LurkError.SchemaChanged] when the parser could not read the body at all. */
+    private fun <T : Any> readable(parsed: T?): T = parsed ?: throw LurkException(LurkError.SchemaChanged)
 
     private suspend fun <T> orMissing(
         missing: T,

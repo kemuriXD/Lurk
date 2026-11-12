@@ -6,24 +6,48 @@ import io.github.kemurixd.lurk.core.model.EmoteImage
 import io.github.kemurixd.lurk.core.model.EmoteProvider
 import io.github.kemurixd.lurk.core.model.EmoteScope
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 
 object BttvParser {
     private val log = Logger.withTag("BttvParser")
 
-    /** `/3/cached/emotes/global`: a top-level array. */
+    private val userLists = listOf("channelEmotes", "sharedEmotes")
+
+    /** `/3/cached/emotes/global`: a top-level array. An unreadable body gives an empty list. */
     fun global(
         json: String,
         zeroWidthNames: Set<String>,
-    ): List<Emote> = parseArray(json, log).decodeEach<Item, Emote>(log) { map(it, EmoteScope.GLOBAL, zeroWidthNames) }
+    ): List<Emote> = globalOrNull(json, zeroWidthNames).orEmpty()
 
-    /** `/3/cached/users/twitch/{id}`: `channelEmotes` followed by `sharedEmotes`, channel scope. */
+    /** Like [global], but null when the body is not a JSON array. */
+    internal fun globalOrNull(
+        json: String,
+        zeroWidthNames: Set<String>,
+    ): List<Emote>? = parseArray(json, log)?.decodeEach<Item, Emote>(log) { map(it, EmoteScope.GLOBAL, zeroWidthNames) }
+
+    /**
+     * `/3/cached/users/twitch/{id}`: `channelEmotes` followed by `sharedEmotes`, channel scope. An unreadable body
+     * gives an empty list.
+     */
     fun user(
         json: String,
         zeroWidthNames: Set<String>,
-    ): List<Emote> {
-        val root = parseObject(json, log) ?: return emptyList()
-        return listOf("channelEmotes", "sharedEmotes").flatMap { key ->
-            root[key].decodeEach<Item, Emote>(log) { map(it, EmoteScope.CHANNEL, zeroWidthNames) }
+    ): List<Emote> = userOrNull(json, zeroWidthNames).orEmpty()
+
+    /** Like [user], but null when the body is not a JSON object holding at least one of the two emote arrays. */
+    internal fun userOrNull(
+        json: String,
+        zeroWidthNames: Set<String>,
+    ): List<Emote>? {
+        val root = parseObject(json, log) ?: return null
+        val readable = userLists.any { root[it] is JsonArray }
+        if (!readable) log.w { "BTTV user response has no emote arrays" }
+        return if (!readable) {
+            null
+        } else {
+            userLists.flatMap { key ->
+                root[key].decodeEach<Item, Emote>(log) { map(it, EmoteScope.CHANNEL, zeroWidthNames) }
+            }
         }
     }
 
