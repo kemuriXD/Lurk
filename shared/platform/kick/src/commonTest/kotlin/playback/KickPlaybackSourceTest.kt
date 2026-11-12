@@ -153,4 +153,18 @@ class KickPlaybackSourceTest {
             assertEquals(a, b)
             assertEquals(liveUrl, a.granted().masterUrl)
         }
+
+    @Test
+    fun slugIsOnePathSegment() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val source =
+                source {
+                    seen += it
+                    json(fixture("api/channel-live.json"))
+                }
+            source.grant(ChannelRef(Platform.KICK, "a/b?c#d"))
+
+            assertEquals("/api/v2/channels/a%2Fb%3Fc%23d", seen.single().url.encodedPath)
+        }
 }

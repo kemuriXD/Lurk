@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.smoke
 
+import co.touchlab.kermit.Logger
 import io.github.kemurixd.lurk.auth.authModule
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.config.configModule
@@ -13,6 +14,7 @@ import io.github.kemurixd.lurk.platform.twitch.twitchModule
 import io.github.kemurixd.lurk.playback.playbackModule
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -55,7 +57,13 @@ private object SmokeDispatchers : DispatcherProvider {
  * copy bundled at build time. Closing it cancels the app scope and closes the shared [HttpClient].
  */
 internal class SmokeGraph : AutoCloseable {
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val scope =
+        CoroutineScope(
+            SupervisorJob() + Dispatchers.Default +
+                CoroutineExceptionHandler { _, e ->
+                    Logger.withTag("AppScope").e { "Background task failed: ${e::class.simpleName}" }
+                },
+        )
     private val app: KoinApplication =
         koinApplication {
             modules(

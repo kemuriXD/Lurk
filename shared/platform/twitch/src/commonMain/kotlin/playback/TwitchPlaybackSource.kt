@@ -7,6 +7,7 @@ import io.github.kemurixd.lurk.core.config.RemoteConfig
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.platform.api.authed
+import io.github.kemurixd.lurk.platform.twitch.discovery.retryAnonymouslyOnIntegrity
 import io.github.kemurixd.lurk.platform.twitch.gql.GqlClient
 import io.github.kemurixd.lurk.playback.AdPolicy
 import io.github.kemurixd.lurk.playback.PlaybackGrant
@@ -50,11 +51,7 @@ class TwitchPlaybackSource(
     private suspend fun token(
         login: String,
         userToken: String?,
-    ): Outcome<PlaybackToken?> {
-        val result = fetch(login, userToken)
-        val integrity = result is Outcome.Failure && result.error == LurkError.IntegrityRequired
-        return if (userToken != null && integrity) fetch(login, null) else result
-    }
+    ): Outcome<PlaybackToken?> = retryAnonymouslyOnIntegrity(userToken) { fetch(login, it) }
 
     private suspend fun fetch(
         login: String,

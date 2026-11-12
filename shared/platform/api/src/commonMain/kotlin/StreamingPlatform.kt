@@ -42,5 +42,6 @@ interface StreamingPlatform {
         follow: Boolean,
     ): Outcome<Unit>
 
+    /** May throw `LurkException` when the channel can't be resolved, as Kick does for followed or search channels. */
     suspend fun chat(channel: Channel): ChatEndpoints
 }

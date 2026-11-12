@@ -3,9 +3,7 @@ package io.github.kemurixd.lurk.platform.twitch.discovery
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Page
-import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
-import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.twitch.gql.GqlClient
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -23,7 +21,7 @@ internal suspend fun GqlClient.topLive(
     sessions: SessionRepository,
     cursor: String?,
 ): Outcome<Page<Stream>> =
-    sessions.authed(Platform.TWITCH, anonymousFallback = true) { token ->
+    sessions.twitchCall { token ->
         query(TOP_STREAMS_OPERATION, TOP_STREAMS_QUERY, pageVariables(cursor), token, ::decodeTopStreams)
     }
 

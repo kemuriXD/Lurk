@@ -6,6 +6,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import co.touchlab.kermit.LogWriter
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
 import io.github.kemurixd.lurk.auth.ProfileFetcher
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.auth.authModule
@@ -31,14 +34,19 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.cookies.CookiesStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.core.module.Module
+import org.koin.core.qualifier.named
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 import org.koin.test.verify.verify
 import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -186,5 +194,34 @@ class AppModulesTest {
     fun cloudflareGateAndClientShareOneCookieJar() {
         val koin = platformGraph().koin
         assertSame(koin.get<CookiesStorage>(), koin.get<CookiesStorage>())
+    }
+
+    @Test
+    fun appScopeSwallowsAndLogsOnlyTheClassName() {
+        val logged = mutableListOf<Triple<Severity, String, Throwable?>>()
+        Logger.setLogWriters(
+            object : LogWriter() {
+                override fun log(
+                    severity: Severity,
+                    message: String,
+                    tag: String,
+                    throwable: Throwable?,
+                ) {
+                    logged += Triple(severity, message, throwable)
+                }
+            },
+        )
+        try {
+            val scope = platformGraph().koin.get<CoroutineScope>(named("appScope"))
+            runBlocking { scope.launch { error("secret-token-value") }.join() }
+
+            assertTrue(scope.coroutineContext[kotlinx.coroutines.Job]!!.isActive)
+            val entry = logged.single()
+            assertTrue("IllegalStateException" in entry.second)
+            assertFalse("secret-token-value" in entry.second)
+            assertNull(entry.third)
+        } finally {
+            Logger.setLogWriters(co.touchlab.kermit.platformLogWriter())
+        }
     }
 }

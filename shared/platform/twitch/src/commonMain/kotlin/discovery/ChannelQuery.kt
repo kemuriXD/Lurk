@@ -7,7 +7,6 @@ import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
-import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.twitch.gql.GqlClient
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -27,7 +26,7 @@ internal suspend fun GqlClient.channel(
     sessions: SessionRepository,
     ref: ChannelRef,
 ): Outcome<Channel> =
-    sessions.authed(Platform.TWITCH, anonymousFallback = true) { token ->
+    sessions.twitchCall { token ->
         val variables = buildJsonObject { put("login", ref.login) }
         when (val result = query(CHANNEL_OPERATION, CHANNEL_QUERY, variables, token, ::decodeChannel)) {
             is Outcome.Failure -> result

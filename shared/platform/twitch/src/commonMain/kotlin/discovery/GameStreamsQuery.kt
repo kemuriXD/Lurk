@@ -5,9 +5,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Page
-import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
-import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.twitch.gql.GqlClient
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -27,7 +25,7 @@ internal suspend fun GqlClient.liveInCategory(
     id: String,
     cursor: String?,
 ): Outcome<Page<Stream>> =
-    sessions.authed(Platform.TWITCH, anonymousFallback = true) { token ->
+    sessions.twitchCall { token ->
         val variables =
             buildJsonObject {
                 put("id", id)

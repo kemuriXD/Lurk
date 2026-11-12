@@ -15,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -136,5 +137,27 @@ class TopStreamsQueryTest {
             assertFalse("after" in r.operation(1)["variables"]!!.jsonObject)
             assertTrue("streams(first: \$first, after: \$after)" in r.operation(0)["query"]!!.jsonPrimitive.content)
             assertNull(r.seen[0].headers["Authorization"])
+        }
+
+    @Test
+    fun integrityFailureWhileSignedInRetriesAnonymously() =
+        runTest {
+            var calls = 0
+            val r =
+                discoveryRig(signedIn = true) {
+                    if (calls++ ==
+                        0
+                    ) {
+                        reply(fixture("gql/error-integrity.json"))
+                    } else {
+                        reply(fixture("gql/top-streams.json"))
+                    }
+                }
+            val page = r.gql.topLive(r.sessions, null).page()
+
+            assertEquals(2, r.seen.size)
+            assertNotNull(r.seen[0].headers["Authorization"])
+            assertNull(r.seen[1].headers["Authorization"])
+            assertEquals(2, page.items.size)
         }
 }

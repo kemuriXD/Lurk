@@ -4,8 +4,6 @@ import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Page
-import io.github.kemurixd.lurk.core.model.Platform
-import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.twitch.gql.GqlClient
 import kotlinx.serialization.json.JsonObject
 
@@ -21,7 +19,7 @@ internal suspend fun GqlClient.categories(
     sessions: SessionRepository,
     cursor: String?,
 ): Outcome<Page<Category>> =
-    sessions.authed(Platform.TWITCH, anonymousFallback = true) { token ->
+    sessions.twitchCall { token ->
         query(GAMES_OPERATION, GAMES_QUERY, pageVariables(cursor), token, ::decodeGames)
     }
 

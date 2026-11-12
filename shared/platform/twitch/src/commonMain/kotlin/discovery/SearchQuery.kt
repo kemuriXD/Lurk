@@ -2,9 +2,7 @@ package io.github.kemurixd.lurk.platform.twitch.discovery
 
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.Outcome
-import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.SearchResults
-import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.twitch.gql.GqlClient
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -25,7 +23,7 @@ internal suspend fun GqlClient.search(
     sessions: SessionRepository,
     query: String,
 ): Outcome<SearchResults> =
-    sessions.authed(Platform.TWITCH, anonymousFallback = true) { token ->
+    sessions.twitchCall { token ->
         query(SEARCH_OPERATION, SEARCH_QUERY, buildJsonObject { put("query", query) }, token, ::decodeSearch)
     }
 

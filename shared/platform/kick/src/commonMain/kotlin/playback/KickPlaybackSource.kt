@@ -9,6 +9,7 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.kick.api.KickApi
 import io.github.kemurixd.lurk.platform.kick.api.KickBase
+import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
 import io.github.kemurixd.lurk.platform.kick.channel.decodeKickChannel
 import io.github.kemurixd.lurk.playback.AdPolicy
 import io.github.kemurixd.lurk.playback.PlaybackGrant
@@ -44,7 +45,7 @@ class KickPlaybackSource(
         slug: String,
         token: String?,
     ): Outcome<PlaybackGrant?> =
-        when (val reply = api.get(KickBase.API, "v2/channels/$slug", token)) {
+        when (val reply = api.get(KickBase.API, "v2/channels/${slug.asPathSegment()}", token)) {
             is Outcome.Failure -> {
                 reply
             }
