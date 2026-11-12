@@ -7,9 +7,9 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":shared:platform:api"))
-            implementation(project(":shared:core:network"))
-            implementation(project(":shared:core:config"))
-            implementation(project(":shared:core:storage"))
+            api(project(":shared:core:network"))
+            api(project(":shared:core:config"))
+            api(project(":shared:core:storage"))
         }
         commonTest.dependencies {
             implementation(libs.kotlinx.io.core)

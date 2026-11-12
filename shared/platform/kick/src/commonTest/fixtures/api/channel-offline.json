@@ -1,0 +1,128 @@
+{
+  "id": 1000001,
+  "user_id": 1000001,
+  "slug": "streamer1",
+  "is_banned": false,
+  "playback_url": "?token=0",
+  "vod_enabled": true,
+  "subscription_enabled": true,
+  "is_affiliate": true,
+  "followers_count": "1000",
+  "subscriber_badges": [
+    {
+      "id": 1,
+      "channel_id": 1000001,
+      "months": 1,
+      "badge_image": {
+        "srcset": "",
+        "src": "https://cdn.example/a/1.png"
+      }
+    },
+    {
+      "id": 1,
+      "channel_id": 1000001,
+      "months": 3,
+      "badge_image": {
+        "srcset": "",
+        "src": "https://cdn.example/a/3.png"
+      }
+    },
+    {
+      "id": 1,
+      "channel_id": 1000001,
+      "months": 6,
+      "badge_image": {
+        "srcset": "",
+        "src": "https://cdn.example/a/6.png"
+      }
+    }
+  ],
+  "banner_image": {
+    "url": "https://cdn.example/a/1.png"
+  },
+  "livestream": null,
+  "role": null,
+  "muted": false,
+  "follower_badges": [],
+  "offline_banner_image": {
+    "src": "https://cdn.example/a/1.png",
+    "srcset": ""
+  },
+  "verified": true,
+  "recent_categories": [
+    {
+      "id": 1,
+      "category_id": 1,
+      "name": "Category 1",
+      "slug": "category-1",
+      "tags": [],
+      "description": null,
+      "deleted_at": null,
+      "is_mature": false,
+      "viewers": 49044,
+      "is_fallback": false,
+      "banner": {
+        "responsive": "",
+        "src": "https://cdn.example/a/1.png"
+      },
+      "category": {
+        "id": 1,
+        "name": "Games",
+        "slug": "games",
+        "icon": ""
+      }
+    },
+    {
+      "id": 2,
+      "category_id": 1,
+      "name": "Category 2",
+      "slug": "category-2",
+      "tags": [],
+      "description": null,
+      "deleted_at": null,
+      "is_mature": false,
+      "viewers": 423461,
+      "is_fallback": false,
+      "banner": {
+        "responsive": "",
+        "src": "https://cdn.example/a/1.png"
+      },
+      "category": {
+        "id": 1,
+        "name": "Games",
+        "slug": "games",
+        "icon": ""
+      }
+    }
+  ],
+  "can_host": true,
+  "user": {
+    "id": 1000001,
+    "username": "Streamer One",
+    "bio": "Bio 1",
+    "instagram": null,
+    "twitter": "",
+    "youtube": "",
+    "discord": "",
+    "tiktok": "",
+    "facebook": "",
+    "club": null,
+    "profile_pic": "https://cdn.example/a/1.png"
+  },
+  "chatroom": {
+    "id": 2000001,
+    "chatable_type": "App\\Models\\Channel",
+    "channel_id": 1000001,
+    "created_at": "2023-07-08T02:01:26.000000Z",
+    "updated_at": "2026-09-21T12:59:26.000000Z",
+    "chat_mode_old": "public",
+    "chat_mode": "public",
+    "slow_mode": true,
+    "chatable_id": 1000001,
+    "followers_mode": true,
+    "subscribers_mode": false,
+    "emotes_mode": false,
+    "message_interval": 5,
+    "following_min_duration": 60
+  }
+}
