@@ -6,6 +6,7 @@ import io.github.kemurixd.lurk.core.network.EngineProxy
 import io.github.kemurixd.lurk.core.network.createHttpClient
 import io.github.kemurixd.lurk.playback.ProxyCredentials
 import io.github.kemurixd.lurk.playback.ProxyEndpoint
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respondOk
 import io.ktor.client.request.get
@@ -21,15 +22,41 @@ class RouteClientsTest {
     private val direct = createHttpClient(MockEngine { respondOk() })
     private val seen = mutableListOf<EngineProxy>()
 
+    private val engines = mutableListOf<RecordingEngine>()
+
+    private class RecordingEngine(
+        private val delegate: HttpClientEngine,
+    ) : HttpClientEngine by delegate {
+        var closeCount = 0
+
+        override fun close() {
+            closeCount++
+            delegate.close()
+        }
+    }
+
     private fun clients(
         timeoutMillis: Long = 10_000,
         handler: suspend () -> Unit = {},
-    ) = DefaultRouteClients(direct, timeoutMillis) { proxy ->
+    ) = DefaultRouteClients(direct, { proxy ->
         seen += proxy
-        MockEngine {
-            handler()
-            respondOk()
-        }
+        RecordingEngine(
+            MockEngine {
+                handler()
+                respondOk()
+            },
+        ).also { engines += it }
+    }, timeoutMillis)
+
+    @Test
+    fun closeClosesProxiedEnginesButNotDirect() {
+        val clients = clients()
+        clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 1)))
+        clients.clientFor(Route.ViaProxy(ProxyEndpoint.Socks5("127.0.0.1", 2)))
+        clients.close()
+        assertEquals(listOf(1, 1), engines.map { it.closeCount })
+        clients.close()
+        assertEquals(listOf(1, 1), engines.map { it.closeCount })
     }
 
     @Test

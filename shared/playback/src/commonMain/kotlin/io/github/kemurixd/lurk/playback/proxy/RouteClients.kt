@@ -33,10 +33,10 @@ private const val PROXY_REQUEST_TIMEOUT_MS = 10_000L
 @OptIn(ExperimentalAtomicApi::class)
 class DefaultRouteClients(
     private val direct: HttpClient,
-    private val requestTimeoutMillis: Long = PROXY_REQUEST_TIMEOUT_MS,
     private val engineFor: (EngineProxy) -> HttpClientEngine = ::proxiedEngine,
+    private val requestTimeoutMillis: Long = PROXY_REQUEST_TIMEOUT_MS,
 ) : RouteClients {
-    private val proxied = AtomicReference<Map<ProxyEndpoint, HttpClient>>(emptyMap())
+    private val proxied = AtomicReference<Map<ProxyEndpoint, Entry>>(emptyMap())
 
     override fun clientFor(route: Route): HttpClient =
         when (route) {
@@ -54,16 +54,27 @@ class DefaultRouteClients(
         while (true) {
             val current = proxied.load()
             val existing = current[endpoint]
-            if (existing != null) return existing
-            val created =
-                createHttpClient(engine = engineFor(engineProxy), requestTimeoutMs = requestTimeoutMillis)
-            if (proxied.compareAndSet(current, current + (endpoint to created))) return created
+            if (existing != null) return existing.client
+            val engine = engineFor(engineProxy)
+            val created = Entry(engine, createHttpClient(engine = engine, requestTimeoutMs = requestTimeoutMillis))
+            if (proxied.compareAndSet(current, current + (endpoint to created))) return created.client
             created.close()
         }
     }
 
+    /** The client does not own its engine, so both are closed together. */
+    private class Entry(
+        val engine: HttpClientEngine,
+        val client: HttpClient,
+    ) {
+        fun close() {
+            client.close()
+            engine.close()
+        }
+    }
+
     fun close() {
-        proxied.exchange(emptyMap()).values.forEach(HttpClient::close)
+        proxied.exchange(emptyMap()).values.forEach(Entry::close)
     }
 }
 

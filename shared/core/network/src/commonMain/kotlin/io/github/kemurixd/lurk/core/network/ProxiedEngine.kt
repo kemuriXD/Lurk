@@ -12,4 +12,5 @@ import io.ktor.client.engine.HttpClientEngine
  */
 expect fun proxiedEngine(proxy: EngineProxy): HttpClientEngine
 
-internal fun EngineProxy.needsUnsupportedSocksAuth(): Boolean = this is EngineProxy.Socks5 && username != null
+internal fun EngineProxy.needsUnsupportedSocksAuth(): Boolean =
+    this is EngineProxy.Socks5 && (username != null || password != null)

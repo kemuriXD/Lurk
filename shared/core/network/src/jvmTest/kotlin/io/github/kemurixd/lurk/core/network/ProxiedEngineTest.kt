@@ -112,4 +112,47 @@ class ProxiedEngineTest {
             assertTrue("proxy.example" in text)
         }
     }
+
+    @Test
+    fun httpProxyAuthEncodesNonAsciiCredentialsAsUtf8() =
+        runBlocking {
+            server.enqueue(challenge())
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(200)
+                    .body("ok")
+                    .build(),
+            )
+            val client = createHttpClient(engine = proxiedEngine(http("us\u00e9r", "p\u00e4ss")))
+            client.get("http://target.example/x.m3u8")
+            client.close()
+            server.takeRequest()
+            val expected =
+                "Basic " +
+                    java.util.Base64
+                        .getEncoder()
+                        .encodeToString("us\u00e9r:p\u00e4ss".toByteArray(Charsets.UTF_8))
+            assertEquals(expected, server.takeRequest().headers["Proxy-Authorization"])
+        }
+
+    @Test
+    fun socksPasswordWithoutUsernameAlsoFails() =
+        runBlocking {
+            val client = createHttpClient(engine = proxiedEngine(EngineProxy.Socks5("127.0.0.1", 1, null, "p")))
+            val failure = assertFailsWith<LurkException> { client.get("https://target.example/x.m3u8") }
+            client.close()
+            assertEquals(LurkError.ProxyFailed, failure.error)
+        }
+
+    @Test
+    fun closingTheEngineShutsDownTheOkHttpClient() {
+        val okHttp = proxiedOkHttpClient(EngineProxy.Http("127.0.0.1", 1))
+        shuttingDownEngine(
+            io.ktor.client.engine.okhttp.OkHttp
+                .create { preconfigured = okHttp },
+            okHttp,
+        ).close()
+        assertTrue(okHttp.dispatcher.executorService.isShutdown)
+    }
 }
