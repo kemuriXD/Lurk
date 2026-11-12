@@ -27,6 +27,7 @@ expect fun defaultEngine(): HttpClientEngine
 fun createHttpClient(
     engine: HttpClientEngine = defaultEngine(),
     cookies: CookiesStorage = AcceptAllCookiesStorage(),
+    requestTimeoutMs: Long = REQUEST_TIMEOUT_MS,
 ): HttpClient =
     HttpClient(engine) {
         expectSuccess = false
@@ -40,7 +41,7 @@ fun createHttpClient(
         }
         install(HttpTimeout) {
             connectTimeoutMillis = CONNECT_TIMEOUT_MS
-            requestTimeoutMillis = REQUEST_TIMEOUT_MS
+            requestTimeoutMillis = requestTimeoutMs
         }
         install(WebSockets)
         install(HttpCookies) {

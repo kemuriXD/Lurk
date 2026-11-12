@@ -15,14 +15,17 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.okhttp)
         }
         jvmMain.dependencies {
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.okhttp)
         }
         commonTest.dependencies {
             implementation(libs.ktor.client.mock)
         }
         jvmTest.dependencies {
+            implementation(libs.okhttp.mockwebserver3)
             implementation(libs.ktor.server.cio)
             implementation(libs.ktor.server.websockets)
         }
