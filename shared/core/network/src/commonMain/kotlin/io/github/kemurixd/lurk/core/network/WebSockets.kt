@@ -10,6 +10,8 @@ import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterIsInstance
@@ -18,7 +20,12 @@ import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
  * One open WebSocket. [incoming] carries text frames only; it completes on a normal close and
- * throws [LurkException] when the connection fails.
+ * throws [LurkException] when the connection fails, including a drop without a close frame
+ * (reported as Offline). [send] also throws [LurkException] once the server has closed.
+ *
+ * [incoming] supports a single collector: a second collector would split the frames with the
+ * first. Cancelling the collector does not close the connection. The caller owns [close] and
+ * should call it in a `finally` block.
  */
 interface WebSocketConnection {
     val incoming: Flow<String>
@@ -60,7 +67,9 @@ private suspend fun <T> asLurk(block: suspend () -> T): T =
     try {
         block()
     } catch (e: CancellationException) {
-        throw e
+        // A session closed by the peer reports cancellation; only the caller's own cancellation propagates.
+        currentCoroutineContext().ensureActive()
+        throw LurkException(LurkError.Offline, e)
     } catch (e: LurkException) {
         throw e
     } catch (e: Exception) {

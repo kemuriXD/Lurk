@@ -14,6 +14,8 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -111,5 +113,44 @@ class KtorWebSocketConnectorTest {
             val connection = KtorWebSocketConnector(client).connect(url, mapOf("X-Probe" to "seen"))
             assertEquals("seen", withTimeout(TIMEOUT_MS) { connection.incoming.first() })
             connection.close()
+        }
+
+    @Test
+    fun abruptDropSurfacesAsLurkException() =
+        runBlocking {
+            val sent = CompletableDeferred<Unit>()
+            val url =
+                startServer {
+                    webSocket("/ws") {
+                        send(Frame.Text("last"))
+                        flush()
+                        sent.complete(Unit)
+                        awaitCancellation()
+                    }
+                }
+            val connection = KtorWebSocketConnector(client).connect(url, emptyMap())
+            val received = mutableListOf<String>()
+            sent.invokeOnCompletion { server?.stop(0, 0) }
+            val failure =
+                assertFailsWith<LurkException> {
+                    withTimeout(TIMEOUT_MS) { connection.incoming.collect { received += it } }
+                }
+            assertEquals(listOf("last"), received)
+            assertTrue(failure.error == LurkError.Offline || failure.error == LurkError.Timeout)
+        }
+
+    @Test
+    fun sendAfterServerCloseThrowsLurkException() =
+        runBlocking {
+            val url =
+                startServer {
+                    webSocket("/ws") {
+                        close(CloseReason(CloseReason.Codes.NORMAL, "bye"))
+                    }
+                }
+            val connection = KtorWebSocketConnector(client).connect(url, emptyMap())
+            withTimeout(TIMEOUT_MS) { connection.incoming.toList() }
+            val failure = assertFailsWith<LurkException> { connection.send("late") }
+            assertTrue(failure.error == LurkError.Offline || failure.error == LurkError.Timeout)
         }
 }
