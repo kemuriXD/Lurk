@@ -1,0 +1,83 @@
+[
+  {
+    "id": 1000001,
+    "user_id": 1000001,
+    "slug": "streamer1",
+    "is_banned": false,
+    "playback_url": "https://playback.example/x.m3u8",
+    "name_updated_at": null,
+    "vod_enabled": true,
+    "subscription_enabled": true,
+    "is_affiliate": true,
+    "emotes": [
+      {
+        "id": 1000001,
+        "channel_id": 1000001,
+        "name": "chanWave",
+        "subscribers_only": false
+      },
+      {
+        "id": 1000002,
+        "channel_id": 1000001,
+        "name": "chanHype",
+        "subscribers_only": false
+      },
+      {
+        "id": 1000003,
+        "channel_id": 1000001,
+        "name": "chanSub",
+        "subscribers_only": true
+      }
+    ],
+    "can_host": true,
+    "user": {
+      "id": 1000001,
+      "username": "Streamer One",
+      "bio": "Bio 1",
+      "instagram": null,
+      "twitter": null,
+      "youtube": null,
+      "discord": null,
+      "tiktok": null,
+      "facebook": null,
+      "club": null,
+      "profile_pic": "https://cdn.example/a/1.png"
+    }
+  },
+  {
+    "name": "Global",
+    "id": "Global",
+    "emotes": [
+      {
+        "id": 1000011,
+        "channel_id": null,
+        "name": "globalOne",
+        "subscribers_only": false
+      },
+      {
+        "id": 1000012,
+        "channel_id": null,
+        "name": "globalTwo",
+        "subscribers_only": false
+      }
+    ]
+  },
+  {
+    "name": "Emojis",
+    "id": "Emoji",
+    "emotes": [
+      {
+        "id": 1000021,
+        "channel_id": null,
+        "name": "emojiOne",
+        "subscribers_only": false
+      },
+      {
+        "id": 1000022,
+        "channel_id": null,
+        "name": "emojiTwo",
+        "subscribers_only": false
+      }
+    ]
+  }
+]

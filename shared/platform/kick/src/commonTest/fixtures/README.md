@@ -28,3 +28,12 @@ Responses from Kick's web API, anonymised. Nothing here can be fetched, and no a
 - `realtime-connection.json`, `realtime-chat-connection.json`: the shape of the signed-out `POST web.kick.com/api/v1/realtime/connection` and `.../realtime/channels/{channelId}/chat/connection` replies. The server picked `centrifugo`; the socket host is `realtime.example`.
 - `realtime-auth.json`: the shape of the signed-out `POST .../realtime/auth/connection` reply. The connection token is the stand-in `eyJ0.e30.sig`.
 - `centrifugo-frames.txt`: one recorded frame per line from that socket: the connect reply, the five subscribe replies and the first three pushes. The client id, IDs, usernames, message text, colours, image URLs and timestamps are stand-ins.
+
+`chat/`
+
+- `history.json`: the shape of the signed-out `GET web.kick.com/api/v1/chat/{channelId}/history` reply (`chat_id` is the channel ID, not the chatroom ID), cut to 3 messages, newest first, with stand-in IDs, names, text, colours, image paths and timestamps. One message carries an `[emote:id:name]` token.
+- `send-ok.json`: **hand-built.** A plausible 200 body for the send call, which the probe never makes. Only the request (method, path, bearer header, body) is checked.
+
+`assets/`
+
+- `emotes.json`: the shape of the signed-out `GET kick.com/emotes/{slug}` reply: an array whose first entry is the channel (with its `emotes`) followed by the `Global` and `Emojis` sets. Stand-in IDs and names; each set is cut to 3 emotes or fewer.

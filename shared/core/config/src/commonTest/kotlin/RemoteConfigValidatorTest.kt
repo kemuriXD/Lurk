@@ -53,4 +53,11 @@ class RemoteConfigValidatorTest {
         val config = base.copy(kick = base.kick.copy(searchApiBase = "http://search.example.test/"))
         assertEquals(listOf("kick.searchApiBase does not start with https://"), RemoteConfigValidator.errors(config))
     }
+
+    @Test
+    fun nonHttpsSiteBaseIsAnError() {
+        val base = validConfig()
+        val config = base.copy(kick = base.kick.copy(siteBase = "http://kick.example.test/"))
+        assertEquals(listOf("kick.siteBase does not start with https://"), RemoteConfigValidator.errors(config))
+    }
 }

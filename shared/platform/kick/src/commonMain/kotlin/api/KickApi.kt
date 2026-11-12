@@ -22,7 +22,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
 /** Which of Kick's web API roots a request goes to. */
-enum class KickBase { API, WEB, SEARCH }
+enum class KickBase { API, WEB, SEARCH, SITE }
 
 /**
  * Sends requests to Kick's web API with browser headers, and an optional bearer token for signed-in calls.
@@ -91,6 +91,7 @@ class KickApi(
                 KickBase.API -> kick.apiBase
                 KickBase.WEB -> kick.webApiBase
                 KickBase.SEARCH -> kick.searchApiBase
+                KickBase.SITE -> kick.siteBase
             }
         return URLBuilder(root.trimEnd('/') + "/" + path.trimStart('/'))
             .apply { query.forEach { (key, value) -> parameters.append(key, value) } }

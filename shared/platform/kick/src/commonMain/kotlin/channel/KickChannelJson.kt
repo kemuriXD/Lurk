@@ -27,6 +27,7 @@ internal data class KickChannelJson(
     @SerialName("recent_categories") val recentCategories: List<KickCategoryJson>? = null,
     val user: KickUserJson? = null,
     val chatroom: KickChatroomJson? = null,
+    @SerialName("subscriber_badges") val subscriberBadges: List<JsonElement>? = null,
 )
 
 @Serializable
