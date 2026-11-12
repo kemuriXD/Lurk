@@ -135,7 +135,7 @@ sealed interface ProxyParseResult {
 
 enum class ProxyParseError { EMPTY, UNKNOWN_SCHEME, TLS_PROXY_UNSUPPORTED, BAD_HOST, BAD_PORT }
 
-private fun hostOf(url: String): String =
+internal fun hostOf(url: String): String =
     url
         .substringAfter("://")
         .takeWhile { it != '/' && it != '?' && it != '#' }

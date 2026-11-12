@@ -62,7 +62,7 @@ class PlaybackSession internal constructor(
     /** The session's own child of the caller's scope. A supervisor, so a failing tracker task stays in here. */
     private val job = SupervisorJob(parent.coroutineContext[Job])
     private val scope = CoroutineScope(parent.coroutineContext + job + router.dispatchers.default)
-    private val routing = SessionRouting(channel, source, settings, router, initial)
+    private val routing = SessionRouting(channel, source, settings, router, scope, initial)
     private val mutableTypical = MutableStateFlow<Duration?>(null)
 
     private val tracker: AdTracker? =

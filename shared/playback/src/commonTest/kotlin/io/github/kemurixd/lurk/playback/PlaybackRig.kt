@@ -21,6 +21,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -109,7 +110,7 @@ class FakeRoutes(
     var reply: suspend (Route, String) -> Reply = { _, url -> Reply.Text(serve(url)) }
 
     private val log = AtomicReference<List<Request>>(emptyList())
-    private val clients = AtomicReference<Map<Route, HttpClient>>(emptyMap())
+    private val clients = AtomicReference<Map<Route, Pair<HttpClient, MockEngine>>>(emptyMap())
 
     val requests: List<Request> get() = log.load()
 
@@ -120,10 +121,22 @@ class FakeRoutes(
     override fun clientFor(route: Route): HttpClient {
         while (true) {
             val current = clients.load()
-            current[route]?.let { return it }
-            val client = createHttpClient(engine(route))
-            if (clients.compareAndSet(current, current + (route to client))) return client
+            current[route]?.let { return it.first }
+            val engine = engine(route)
+            val entry = createHttpClient(engine) to engine
+            if (clients.compareAndSet(current, current + (route to entry))) return entry.first
+            close(entry)
         }
+    }
+
+    /** Closes every client handed out so far, and its engine: a client does not own an engine passed to it. */
+    fun close() {
+        clients.exchange(emptyMap()).values.forEach(::close)
+    }
+
+    private fun close(entry: Pair<HttpClient, MockEngine>) {
+        entry.first.close()
+        entry.second.close()
     }
 
     private fun engine(route: Route): MockEngine {
@@ -170,6 +183,13 @@ class Rig(
             override val default: CoroutineDispatcher = dispatcher
             override val main: CoroutineDispatcher = dispatcher
         }
+
+    init {
+        // backgroundScope is cancelled when the test body ends: release the mock clients then.
+        test.backgroundScope.coroutineContext.job
+            .invokeOnCompletion { routes.close() }
+    }
+
     val resolver =
         PlaylistResolver(
             sources = listOf(source),

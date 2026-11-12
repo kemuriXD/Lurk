@@ -13,6 +13,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -287,11 +289,17 @@ class PlaybackSessionTest {
             stream.session.fetch(MEDIA)
             runCurrent()
             assertIs<AdState.Avoided>(stream.adState.value)
-            assertTrue(scope.activeChildren() > 0)
+            // caller scope -> session job -> tracker job -> ticker: the countdown is running.
+            assertEquals(1, scope.activeAt(depth = 3), "the ticker runs while the cue lasts")
+            val states = record(stream.adState)
 
             stream.session.close()
             runCurrent()
+            assertEquals(0, scope.activeAt(depth = 3), "the ticker is cancelled")
             assertEquals(0, scope.activeChildren())
+            val seen = states.size
+            advanceTimeBy(2.minutes)
+            assertEquals(seen, states.size, "nothing ticks after close")
             assertEquals(AdState.None, stream.adState.value)
             assertTrue(scope.isActive, "the caller's scope is not cancelled")
         }
@@ -374,4 +382,213 @@ class PlaybackSessionTest {
         }
 
     private fun CoroutineScope.activeChildren(): Int = coroutineContext.job.children.count { it.isActive }
+
+    /** Active jobs [depth] levels below this scope's job. */
+    private fun CoroutineScope.activeAt(depth: Int): Int {
+        var level = sequenceOf(coroutineContext.job)
+        repeat(depth) { level = level.flatMap { it.children } }
+        return level.count { it.isActive }
+    }
+
+    @Test
+    fun adsSwitchSurvivesCancelledFetch() =
+        runTest {
+            val rig = Rig(this)
+            val gate = CompletableDeferred<Unit>()
+            rig.routes.reply = { route, url ->
+                if (route == via(A)) gate.await()
+                Reply.Text(rig.routes.serve(url))
+            }
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val events = record(stream.session.events)
+            rig.routes.media = preroll
+            val delivering = launch { stream.session.fetch(MEDIA) }
+            runCurrent()
+            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)), "the switch is in flight")
+            delivering.cancel()
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
+            assertEquals(via(A), stream.session.route.value)
+            assertEquals(ProxyStatus.Active(A.label), stream.session.proxyStatus.value)
+            stream.session.close()
+        }
+
+    @Test
+    fun adsSwitchDoesNotCommitAfterClose() =
+        runTest {
+            val rig = Rig(this)
+            val gate = CompletableDeferred<Unit>()
+            rig.routes.reply = { route, url ->
+                if (route == via(A)) gate.await()
+                Reply.Text(rig.routes.serve(url))
+            }
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val events = record(stream.session.events)
+            rig.routes.media = preroll
+            val delivering = launch { stream.session.fetch(MEDIA) }
+            runCurrent()
+            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)))
+            stream.session.close()
+            gate.complete(Unit)
+            runCurrent()
+            delivering.join()
+            assertEquals(emptyList(), events)
+            assertEquals(Route.Direct, stream.session.route.value)
+            assertEquals(ProxyStatus.NotUsed, stream.session.proxyStatus.value)
+        }
+
+    @Test
+    fun adsSwitchOnDeadProxiesIsUnavailableAndKeepsPlaying() =
+        runTest {
+            val rig = Rig(this)
+            rig.script { route, _ -> if (route == via(A)) Reply.Offline else null }
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val session = stream.session
+            val events = record(session.events)
+            rig.routes.media = preroll
+            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
+            runCurrent()
+            assertEquals(ProxyStatus.Unavailable, session.proxyStatus.value)
+            assertEquals(Route.Direct, session.route.value)
+            assertEquals(emptyList(), events)
+            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
+            assertEquals(listOf(MASTER, MEDIA, MEDIA), rig.routes.urlsVia(Route.Direct))
+            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)))
+            session.close()
+        }
+
+    @Test
+    fun adsSwitchRetriesWithFreshGrantOnStreamError() =
+        runTest {
+            val rig = Rig(this)
+            // The proxy works, but the first grant's master has expired by the time the ad shows up.
+            rig.script { route, url -> if (route == via(A) && url == MASTER) Reply.Status(403) else null }
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val session = stream.session
+            val events = record(session.events)
+            rig.routes.media = preroll
+            session.fetch(MEDIA)
+            runCurrent()
+            assertEquals(2, rig.source.calls)
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
+            assertEquals(listOf(MASTER, MASTER_2), rig.routes.urlsVia(via(A)))
+            assertEquals(via(A), session.route.value)
+            assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
+            session.close()
+        }
+
+    @Test
+    fun reResolveToAdFreeGrantSkipsProxy() =
+        runTest {
+            val rig = Rig(this)
+            rig.source.next = { call ->
+                Outcome.Success(
+                    if (call == 0) {
+                        PlaybackGrant(MASTER)
+                    } else {
+                        PlaybackGrant(
+                            MASTER_2,
+                            tokenFlags = TokenFlags(subscriber = true, turbo = false, showAds = true),
+                        )
+                    },
+                )
+            }
+            var forbidden = 0
+            rig.script { route, url ->
+                if (route == via(A) && url == MEDIA &&
+                    forbidden++ == 0
+                ) {
+                    Reply.Status(403)
+                } else {
+                    null
+                }
+            }
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
+            val session = stream.session
+            val events = record(session.events)
+            assertEquals(Outcome.Failure(LurkError.Http(403)), session.fetch(MEDIA))
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
+            assertEquals(Route.Direct, session.route.value)
+            assertEquals(ProxyStatus.SkippedAdFree, session.proxyStatus.value)
+            assertEquals(listOf(MASTER_2), rig.routes.urlsVia(Route.Direct))
+            session.fetch(MEDIA)
+            assertEquals(listOf(MASTER_2, MEDIA), rig.routes.urlsVia(Route.Direct))
+            session.close()
+        }
+
+    @Test
+    fun templateMasterFailureReopensOnNextProxy() =
+        runTest {
+            val rig = Rig(this)
+            var templateDown = false
+            rig.script { route, _ -> if (templateDown && route == via(TEMPLATE)) Reply.Offline else null }
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, TEMPLATE, B))
+            val session = stream.session
+            val events = record(session.events)
+            assertEquals(via(TEMPLATE), session.route.value)
+            templateDown = true
+            assertEquals(Outcome.Success(rig.routes.master), session.fetch(stream.masterUrl))
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
+            assertEquals(via(B), session.route.value)
+            assertEquals(ProxyStatus.Active(B.label), session.proxyStatus.value)
+            // B carries the source's own master, never the template URL.
+            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(B)))
+            assertEquals(emptyList(), rig.routes.urlsVia(Route.Direct))
+            // A stale request for the old template master afterwards is not sent through B either.
+            session.fetch(stream.masterUrl)
+            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(B)))
+            assertNoGrantHeadersToTemplateHost(rig)
+            session.close()
+        }
+
+    @Test
+    fun templateMasterFailureWithNoProxyLeftGoesDirectVisibly() =
+        runTest {
+            val rig = Rig(this)
+            var templateDown = false
+            rig.script { route, _ -> if (templateDown && route == via(TEMPLATE)) Reply.Offline else null }
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, TEMPLATE))
+            val session = stream.session
+            val events = record(session.events)
+            templateDown = true
+            assertEquals(Outcome.Success(rig.routes.master), session.fetch(stream.masterUrl))
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
+            assertEquals(Route.Direct, session.route.value)
+            assertEquals(ProxyStatus.Unavailable, session.proxyStatus.value)
+            assertEquals(listOf(MASTER), rig.routes.urlsVia(Route.Direct))
+            assertEquals(
+                "1",
+                rig.routes.requests
+                    .last()
+                    .headers["X-Test-Header"],
+            )
+            assertNoGrantHeadersToTemplateHost(rig)
+            session.close()
+        }
+
+    @Test
+    fun templateRelativeMediaGetsNoGrantHeaders() =
+        runTest {
+            val rig = Rig(this)
+            val relativeMaster = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=1280x720\nv1/720p.m3u8\n"
+            rig.routes.reply = { _, url -> Reply.Text(if (url.contains("/v1/")) live else relativeMaster) }
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, TEMPLATE))
+            val mediaUrl = stream.variants.single().url
+            assertTrue(mediaUrl.startsWith("https://lol.example/"), mediaUrl)
+            assertEquals(Outcome.Success(live), stream.session.fetch(mediaUrl))
+            assertEquals(listOf(mediaUrl), rig.routes.urlsVia(Route.Direct))
+            assertNoGrantHeadersToTemplateHost(rig)
+            stream.session.close()
+        }
+
+    private fun assertNoGrantHeadersToTemplateHost(rig: Rig) {
+        val toTemplate = rig.routes.requests.filter { it.url.startsWith("https://lol.example/") }
+        assertTrue(toTemplate.isNotEmpty())
+        toTemplate.forEach { assertNull(it.headers["X-Test-Header"], it.url) }
+    }
+
+    private companion object {
+        val TEMPLATE = ProxyEndpoint.UrlTemplate("https://lol.example/live/{channel}?x=1")
+    }
 }

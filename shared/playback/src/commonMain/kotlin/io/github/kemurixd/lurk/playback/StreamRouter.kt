@@ -97,27 +97,23 @@ internal class StreamRouter(
                 .bodyAsText()
         }
 
-    private suspend fun viaProxies(
+    /**
+     * The master through the first of [endpoints] that works; when none does (or the list is empty), directly as
+     * [ProxyStatus.Unavailable]. A stream error from a proxy is returned as it came.
+     */
+    suspend fun viaProxies(
         channel: ChannelRef,
         grant: PlaybackGrant,
         endpoints: List<ProxyEndpoint>,
-    ): Outcome<Opening> =
-        when (val result = proxiedMaster(channel, grant, endpoints)) {
-            is ChainResult.Success -> {
-                Outcome.Success(result.value)
-            }
-
-            is ChainResult.AllFailed -> {
-                val error = result.lastError
-                if (error == null ||
-                    error.blamesProxy()
-                ) {
-                    direct(grant, ProxyStatus.Unavailable)
-                } else {
-                    Outcome.Failure(error)
-                }
-            }
+    ): Outcome<Opening> {
+        val result = proxiedMaster(channel, grant, endpoints)
+        val error = (result as? ChainResult.AllFailed)?.lastError
+        return when {
+            result is ChainResult.Success -> Outcome.Success(result.value)
+            error != null && !error.blamesProxy() -> Outcome.Failure(error)
+            else -> direct(grant, ProxyStatus.Unavailable)
         }
+    }
 
     private suspend fun direct(
         grant: PlaybackGrant,
