@@ -83,6 +83,7 @@ class AdDetector(
         return when {
             klass == QUARTILE_CLASS || klass in m.cueClasses -> false
             klass != null && (klass in m.stitchedClasses || klass.contains(STITCHED_HINT)) -> true
+            range.id.startsWith(STITCHED_ID_PREFIX) -> true
             else -> range.attributes.keys.any { it.startsWith(AD_ATTRIBUTE_PREFIX) }
         }
     }
@@ -166,6 +167,7 @@ class AdDetector(
         val MERGE_GAP = 1.seconds
         const val QUARTILE_CLASS = "twitch-ad-quartile"
         const val STITCHED_HINT = "stitched-ad"
+        const val STITCHED_ID_PREFIX = "stitched-ad-"
         const val AD_ATTRIBUTE_PREFIX = "X-TV-TWITCH-AD-"
         const val ROLL_ATTRIBUTE = "X-TV-TWITCH-AD-ROLL-TYPE"
         const val POD_LENGTH_ATTRIBUTE = "X-TV-TWITCH-AD-POD-LENGTH"

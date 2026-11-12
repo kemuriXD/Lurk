@@ -93,6 +93,26 @@ class AdDetectorTest {
     }
 
     @Test
+    fun stitchedByIdPrefixWithNeutralClass() {
+        val text =
+            """
+            #EXTM3U
+            #EXT-X-VERSION:3
+            #EXT-X-TARGETDURATION:2
+            #EXT-X-MEDIA-SEQUENCE:100
+            #EXT-X-DATERANGE:ID="stitched-ad-123",CLASS="neutral",START-DATE="2026-11-07T22:33:21.117Z",DURATION=15.0
+            #EXT-X-PROGRAM-DATE-TIME:2026-11-07T22:33:21.117Z
+            #EXTINF:2.000,live
+            seg100.ts
+            """.trimIndent()
+        val info = AdDetector { defaults }.inspect(assertNotNull(MediaPlaylist.parse(text)))
+        val w = info.stitched.single()
+        assertEquals(Instant.parse("2026-11-07T22:33:21.117Z"), w.start)
+        assertEquals(w.start + 15.seconds, w.end)
+        assertTrue(info.cues.isEmpty())
+    }
+
+    @Test
     fun stitchedByClassSubstringAndOtherClassesIgnored() {
         val markers = AdMarkers(listOf("twitch-maf-ad"), listOf("other"))
         val info = inspect("twitch/media-stitched-preroll.m3u8", markers)

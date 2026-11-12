@@ -33,6 +33,34 @@ class ProxyEndpointTest {
     }
 
     @Test
+    fun dollarChannelIsATemplateToo() {
+        val https = valid("https://lol.example/playlist/\$channel.m3u8")
+        assertEquals(ProxyEndpoint.UrlTemplate("https://lol.example/playlist/\$channel.m3u8"), https)
+        assertTrue(valid("http://lol.example/p/\$channel") is ProxyEndpoint.UrlTemplate)
+        assertTrue(valid("https://lol.example:8443/p/\$channel") is ProxyEndpoint.UrlTemplate)
+        assertTrue(valid("https://lol.example:8443/p/{channel}") is ProxyEndpoint.UrlTemplate)
+    }
+
+    @Test
+    fun expandReplacesBothPlaceholdersAndEncodesTheLogin() {
+        assertEquals(
+            "https://x.example/a/some_user.m3u8",
+            ProxyEndpoint.UrlTemplate("https://x.example/a/{channel}.m3u8").expand("some_user"),
+        )
+        assertEquals(
+            "https://x.example/a/some_user.m3u8?c=some_user",
+            ProxyEndpoint.UrlTemplate("https://x.example/a/\$channel.m3u8?c={channel}").expand("some_user"),
+        )
+        assertEquals(
+            "https://x.example/a/a%20b%2Fc",
+            ProxyEndpoint.UrlTemplate("https://x.example/a/\$channel").expand("a b/c"),
+        )
+        assertTrue(ProxyEndpoint.UrlTemplate.hasPlaceholder("x/\$channel"))
+        assertTrue(ProxyEndpoint.UrlTemplate.hasPlaceholder("x/{channel}"))
+        assertFalse(ProxyEndpoint.UrlTemplate.hasPlaceholder("x/channel"))
+    }
+
+    @Test
     fun trimsInput() {
         assertEquals(ProxyEndpoint.Http("proxy.example", 8080), valid("  http://proxy.example:8080 "))
     }

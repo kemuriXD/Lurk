@@ -35,18 +35,23 @@ class RouteClientsTest {
         }
     }
 
+    private fun engineFactory(handler: suspend () -> Unit): (EngineProxy) -> HttpClientEngine =
+        { proxy ->
+            seen += proxy
+            RecordingEngine(
+                MockEngine {
+                    handler()
+                    respondOk()
+                },
+            ).also { engines += it }
+        }
+
     private fun clients(
-        timeoutMillis: Long = 10_000,
+        timeoutMillis: Long,
         handler: suspend () -> Unit = {},
-    ) = DefaultRouteClients(direct, { proxy ->
-        seen += proxy
-        RecordingEngine(
-            MockEngine {
-                handler()
-                respondOk()
-            },
-        ).also { engines += it }
-    }, timeoutMillis)
+    ) = DefaultRouteClients(direct, engineFactory(handler), timeoutMillis)
+
+    private fun clients(handler: suspend () -> Unit = {}) = DefaultRouteClients(direct, engineFactory(handler))
 
     @Test
     fun closeClosesProxiedEnginesButNotDirect() {
@@ -95,5 +100,15 @@ class RouteClientsTest {
             val client = clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 2)))
             val failure = assertFailsWith<LurkException> { client.get("https://target.example/x.m3u8") }
             assertEquals(LurkError.Timeout, failure.error)
+        }
+
+    @Test
+    fun defaultProxyTimeoutIsFiveSeconds() =
+        runTest {
+            val slow = clients { delay(7_000) }.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 3)))
+            val failure = assertFailsWith<LurkException> { slow.get("https://target.example/x.m3u8") }
+            assertEquals(LurkError.Timeout, failure.error)
+            val ok = clients { delay(3_000) }.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 4)))
+            ok.get("https://target.example/x.m3u8")
         }
 }

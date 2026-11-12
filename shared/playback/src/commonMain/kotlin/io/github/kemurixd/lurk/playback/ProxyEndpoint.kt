@@ -19,7 +19,21 @@ sealed interface ProxyEndpoint {
     ) : ProxyEndpoint {
         override val label: String get() = hostOf(template)
 
+        /** Replaces every `{channel}` and `$channel` placeholder with the URL-encoded [login]. */
+        fun expand(login: String): String {
+            val encoded = percentEncode(login)
+            return template.replace(BRACE_PLACEHOLDER, encoded).replace(DOLLAR_PLACEHOLDER, encoded)
+        }
+
         override fun toString(): String = "UrlTemplate($label)"
+
+        companion object {
+            private const val BRACE_PLACEHOLDER = "{channel}"
+            private const val DOLLAR_PLACEHOLDER = "\$channel"
+
+            /** True when [text] holds a `{channel}` or `$channel` placeholder, so it is a URL template. */
+            fun hasPlaceholder(text: String): Boolean = BRACE_PLACEHOLDER in text || DOLLAR_PLACEHOLDER in text
+        }
     }
 
     /** An HTTP proxy. HTTPS still travels through it with CONNECT. */
@@ -34,7 +48,6 @@ sealed interface ProxyEndpoint {
     }
 
     companion object {
-        private const val TEMPLATE_MARKER = "{channel}"
         private const val SCHEME_SEPARATOR = "://"
         private const val MAX_PORT = 65535
 
@@ -68,7 +81,7 @@ sealed interface ProxyEndpoint {
         ): ProxyParseResult {
             val isWeb = scheme == "http" || scheme == "https"
             return when {
-                isWeb && TEMPLATE_MARKER in text -> ProxyParseResult.Valid(UrlTemplate(text))
+                isWeb && UrlTemplate.hasPlaceholder(text) -> ProxyParseResult.Valid(UrlTemplate(text))
                 scheme == "https" -> invalid(ProxyParseError.TLS_PROXY_UNSUPPORTED)
                 scheme == "http" -> parseHostPort(rest) { h, p, c -> Http(h, p, c) }
                 else -> invalid(ProxyParseError.UNKNOWN_SCHEME)
@@ -152,4 +165,25 @@ private fun percentDecode(text: String): String {
         }
     }
     return bytes.toByteArray().decodeToString()
+}
+
+private const val UNRESERVED_MARKS = "-._~"
+private const val HEX_DIGITS = "0123456789ABCDEF"
+private const val NIBBLE_BITS = 4
+private const val NIBBLE_MASK = 0xF
+private const val BYTE_MASK = 0xFF
+private const val ASCII_LIMIT = 0x80
+
+private fun percentEncode(text: String): String {
+    val out = StringBuilder(text.length)
+    for (byte in text.encodeToByteArray()) {
+        val value = byte.toInt() and BYTE_MASK
+        val c = value.toChar()
+        if (value < ASCII_LIMIT && (c.isLetterOrDigit() || c in UNRESERVED_MARKS)) {
+            out.append(c)
+        } else {
+            out.append('%').append(HEX_DIGITS[value shr NIBBLE_BITS]).append(HEX_DIGITS[value and NIBBLE_MASK])
+        }
+    }
+    return out.toString()
 }

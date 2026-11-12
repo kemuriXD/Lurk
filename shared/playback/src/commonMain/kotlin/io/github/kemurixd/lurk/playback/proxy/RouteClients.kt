@@ -23,12 +23,12 @@ interface RouteClients {
     fun clientFor(route: Route): HttpClient
 }
 
-private const val PROXY_REQUEST_TIMEOUT_MS = 10_000L
+private const val PROXY_REQUEST_TIMEOUT_MS = 5_000L
 
 /**
  * Builds one client per proxy endpoint, built on [createHttpClient] so its error mapping applies.
  * [Route.Direct] and URL templates (a rewrite, not a proxy) use [direct]. Proxied clients time out after
- * [requestTimeoutMillis], so a dead proxy fails fast. [close] closes the clients it built, not [direct].
+ * [requestTimeoutMillis] (5 s by default), so a dead proxy fails fast. [close] closes the clients it built, not [direct].
  */
 @OptIn(ExperimentalAtomicApi::class)
 class DefaultRouteClients(
