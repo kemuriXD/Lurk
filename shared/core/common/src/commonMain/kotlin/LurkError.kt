@@ -20,6 +20,10 @@ sealed interface LurkError {
 
     data object NotFound : LurkError
 
+    data object NotSignedIn : LurkError
+
+    data object Unsupported : LurkError
+
     /** A failure no layer expected; logged where it was caught so it stays visible. */
     data object Unexpected : LurkError
 
