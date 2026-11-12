@@ -19,6 +19,10 @@ import kotlin.time.Clock
  *
  * The caller creates the registries (`get<EmoteRegistry>()` returns a new one each time) and passes the same
  * instances to both factories.
+ *
+ * `get<EmoteLoader>()` or `get<SevenTvEventClient>()` without `parametersOf` throws at runtime, when the factory asks
+ * for its missing parameter. Koin's `verify()` cannot detect this, because the parameters are only known at the call
+ * site.
  */
 val emotesModule: Module =
     module {
