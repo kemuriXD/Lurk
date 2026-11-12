@@ -11,14 +11,23 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * The raw text frames of one chat connection. The flow is cold: each collection opens one connection, and the flow
- * completes or throws when that connection drops. Cancelling the collection closes the connection. Twitch frames are
- * IRC text and may hold several CRLF-separated lines; Kick frames are Pusher/Centrifugo JSON. Implemented in P6.
+ * completes or throws when that connection drops. Cancelling the collection closes the connection. Implemented in P6.
+ *
+ * Twitch frames are IRC text and may hold several CRLF-separated lines. Kick frames must be Centrifugo push frames:
+ * [ChatParsers.kick] reads only the `push.pub.data` envelope, so a bare Pusher frame yields no events and the chat
+ * stays silent. A Pusher fallback in P6 needs its own parser, or must re-wrap its frames in that envelope.
  */
 fun interface ChatTransport {
     fun frames(): Flow<String>
 }
 
-/** Fetches the recent chat history of one channel and returns the raw response body. Implemented in P6. */
+/**
+ * Fetches the recent chat history of one channel and returns the raw response body. Implemented in P6.
+ *
+ * On failure, throw (a [io.github.kemurixd.lurk.core.common.LurkException] is preferred, but anything goes). A
+ * channel with no history returns a body that holds no messages. [ChatSession] guards every call: a throw or a fetch
+ * that takes more than 10 seconds is logged, and live chat carries on without history.
+ */
 fun interface ChatHistorySource {
     suspend fun fetch(): String
 }
