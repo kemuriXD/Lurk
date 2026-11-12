@@ -20,6 +20,9 @@ sealed interface LurkError {
 
     data object NotFound : LurkError
 
+    /** A failure no layer expected; logged where it was caught so it stays visible. */
+    data object Unexpected : LurkError
+
     data class Http(
         val code: Int,
     ) : LurkError

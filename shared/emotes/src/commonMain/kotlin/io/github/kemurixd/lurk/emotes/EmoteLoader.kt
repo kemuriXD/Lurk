@@ -1,6 +1,7 @@
 package io.github.kemurixd.lurk.emotes
 
 import co.touchlab.kermit.Logger
+import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.common.outcomeOf
 import io.github.kemurixd.lurk.core.config.RemoteConfig
@@ -11,6 +12,7 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.network.Backoff
 import io.github.kemurixd.lurk.core.storage.CacheStore
 import io.github.kemurixd.lurk.core.storage.CachedValue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -89,28 +91,58 @@ class EmoteLoader(
         source: EmoteSource,
         channel: EmoteChannel,
         retryScope: CoroutineScope,
-    ): Outcome<Int> {
-        val entry = cache.get(cacheKey(source, channel))
-        val cached = entry?.let { decode(it) }
-        val cachedSetId = if (source == EmoteSource.SEVENTV_CHANNEL) cache.get(setKey(channel))?.value else null
-        if (entry != null && cached != null && isFresh(entry, clock.now())) {
-            apply(source, channel, cached, cachedSetId)
-            return Outcome.Success(cached.size)
-        }
-        return when (val outcome = outcomeOf { fetch(source, channel) }) {
-            is Outcome.Success -> {
-                store(source, channel, outcome.value)
-                Outcome.Success(outcome.value.emotes.size)
+    ): Outcome<Int> =
+        guarded(source) {
+            val entry = cache.get(cacheKey(source, channel))
+            val cached = entry?.let { decode(it) }
+            val cachedSetId = if (source == EmoteSource.SEVENTV_CHANNEL) cache.get(setKey(channel))?.value else null
+            if (entry != null && cached != null && isFresh(entry, clock.now())) {
+                apply(source, channel, cached, cachedSetId)
+                Outcome.Success(cached.size)
+            } else {
+                fetchAndStore(source, channel).also { outcome ->
+                    if (outcome is Outcome.Failure) {
+                        if (cached != null) apply(source, channel, cached, cachedSetId)
+                        retryScope.launch { retry(source, channel) }
+                    }
+                }
             }
+        }
 
-            is Outcome.Failure -> {
-                log.w { "Emote source $source failed: ${outcome.error}" }
-                if (cached != null) apply(source, channel, cached, cachedSetId)
-                retryScope.launch { retry(source, channel) }
-                outcome
+    /** Fetches and stores [source]; any failure, expected or not, becomes a [Outcome.Failure] and is logged. */
+    private suspend fun fetchAndStore(
+        source: EmoteSource,
+        channel: EmoteChannel,
+    ): Outcome<Int> =
+        guarded(source) {
+            when (val outcome = outcomeOf { fetch(source, channel) }) {
+                is Outcome.Success -> {
+                    registerFetched(source, channel, outcome.value)
+                    Outcome.Success(outcome.value.emotes.size)
+                }
+
+                is Outcome.Failure -> {
+                    log.w { "Emote source $source failed: ${outcome.error}" }
+                    outcome
+                }
             }
         }
-    }
+
+    /** Runs [block]; cancellation propagates, any other exception is logged and becomes `Failure(Unexpected)`. */
+    private suspend fun guarded(
+        source: EmoteSource,
+        block: suspend () -> Outcome<Int>,
+    ): Outcome<Int> =
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            log.w(e) { "Emote source $source failed unexpectedly" }
+            Outcome.Failure(LurkError.Unexpected)
+        }
 
     private suspend fun retry(
         source: EmoteSource,
@@ -118,11 +150,7 @@ class EmoteLoader(
     ) {
         repeat(MAX_RETRIES) { attempt ->
             delay(backoff.delayFor(attempt))
-            val outcome = outcomeOf { fetch(source, channel) }
-            if (outcome is Outcome.Success) {
-                store(source, channel, outcome.value)
-                return
-            }
+            if (fetchAndStore(source, channel) is Outcome.Success) return
         }
         log.w { "Giving up on emote source $source after $MAX_RETRIES retries" }
     }
@@ -165,18 +193,27 @@ class EmoteLoader(
         }
     }
 
-    private suspend fun store(
+    /** Puts [fetched] in the registry first, then caches it; a cache failure is logged and does not undo the put. */
+    private suspend fun registerFetched(
         source: EmoteSource,
         channel: EmoteChannel,
         fetched: Fetched,
     ) {
-        val now = clock.now()
-        if (source == EmoteSource.SEVENTV_CHANNEL) {
-            // A missing set id is stored as an empty string, so an old id never outlives a channel that lost its set.
-            cache.put(setKey(channel), fetched.setId.orEmpty(), now)
-        }
-        cache.put(cacheKey(source, channel), emoteListJson.encodeToString(emoteListSerializer, fetched.emotes), now)
         apply(source, channel, fetched.emotes, fetched.setId)
+        try {
+            val now = clock.now()
+            if (source == EmoteSource.SEVENTV_CHANNEL) {
+                // An empty string means "no set", so an old id never outlives a channel that lost its set.
+                cache.put(setKey(channel), fetched.setId.orEmpty(), now)
+            }
+            cache.put(cacheKey(source, channel), emoteListJson.encodeToString(emoteListSerializer, fetched.emotes), now)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            log.w(e) { "Could not cache emote source $source" }
+        }
     }
 
     private fun apply(

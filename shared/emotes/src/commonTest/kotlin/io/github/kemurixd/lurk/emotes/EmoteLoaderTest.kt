@@ -1,5 +1,8 @@
 package io.github.kemurixd.lurk.emotes
 
+import app.cash.sqldelight.db.QueryResult
+import app.cash.sqldelight.db.SqlDriver
+import app.cash.sqldelight.db.SqlPreparedStatement
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
@@ -16,20 +19,19 @@ import io.github.kemurixd.lurk.core.storage.db.LurkDatabase
 import io.github.kemurixd.lurk.emotes.provider.BttvParser
 import io.github.kemurixd.lurk.emotes.provider.FfzParser
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
@@ -42,14 +44,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
-
-private const val REAL_SETTLE_MS = 100L
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EmoteLoaderTest {
@@ -96,11 +95,16 @@ class EmoteLoaderTest {
             else -> error("unexpected url $url")
         }
 
-    private fun engine(override: (HttpRequestData) -> HttpStatusCode? = { null }) =
-        MockEngine { request ->
-            val status = override(request)
-            if (status != null) respond("", status) else respond(body(request.url.toString()))
-        }
+    private fun TestScope.engine(override: (HttpRequestData) -> HttpStatusCode? = { null }) =
+        MockEngine(
+            MockEngineConfig().apply {
+                dispatcher = StandardTestDispatcher(testScheduler)
+                addHandler { request ->
+                    val status = override(request)
+                    if (status != null) respond("", status) else respond(body(request.url.toString()))
+                }
+            },
+        )
 
     private fun loader(
         cache: CacheStore,
@@ -136,21 +140,6 @@ class EmoteLoaderTest {
     private val bttvUserCount = BttvParser.user(fixture("bttv/user.json"), emptySet()).size
     private val ffzRoomCount = FfzParser.room(fixture("ffz/room.json")).size
 
-    /** The mock engine answers on a real thread, so each step of virtual time is followed by a short real wait. */
-    private suspend fun TestScope.advanceWithRealIo(
-        total: Duration,
-        step: Duration,
-    ) {
-        var elapsed = Duration.ZERO
-        while (elapsed < total) {
-            advanceTimeBy(step)
-            runCurrent()
-            withContext(Dispatchers.Default) { delay(REAL_SETTLE_MS) }
-            runCurrent()
-            elapsed += step
-        }
-    }
-
     private fun HttpRequestData.has(part: String) = part in url.toString()
 
     @Test
@@ -173,7 +162,7 @@ class EmoteLoaderTest {
             val results = loader(cacheStore(), e).load(twitch, all, backgroundScope)
             assertEquals(Outcome.Success(0), outcomeOf(results, EmoteSource.SEVENTV_CHANNEL))
             val requests = e.requestHistory.size
-            advanceTimeBy(10.minutes)
+            advanceTimeBy(5.minutes)
             runCurrent()
             assertEquals(requests, e.requestHistory.size)
         }
@@ -280,7 +269,8 @@ class EmoteLoaderTest {
                 }
             loader(cacheStore(), e).load(twitch, all, backgroundScope)
             assertEquals(0, count(EmoteProvider.BTTV, EmoteScope.CHANNEL))
-            advanceWithRealIo(total = 5.seconds, step = 1.seconds)
+            advanceTimeBy(5.seconds)
+            runCurrent()
             assertEquals(bttvUserCount, count(EmoteProvider.BTTV, EmoteScope.CHANNEL))
             assertEquals(2, bttvCalls)
         }
@@ -299,7 +289,8 @@ class EmoteLoaderTest {
                     }
                 }
             loader(cacheStore(), e).load(twitch, setOf(EmoteProvider.FFZ), backgroundScope)
-            advanceWithRealIo(total = 2.minutes, step = 5.seconds)
+            advanceTimeBy(2.minutes)
+            runCurrent()
             assertEquals(1 + 5, calls)
         }
 
@@ -314,5 +305,54 @@ class EmoteLoaderTest {
             val results = loader(cache, e).load(twitch, all, backgroundScope)
             assertEquals(cached, registry.snapshot.value.sources[EmoteKey(EmoteProvider.BTTV, EmoteScope.CHANNEL)])
             assertIs<Outcome.Failure>(outcomeOf(results, EmoteSource.BTTV_CHANNEL))
+        }
+
+    private class FailingWrites(
+        private val delegate: SqlDriver,
+    ) : SqlDriver by delegate {
+        override fun execute(
+            identifier: Int?,
+            sql: String,
+            parameters: Int,
+            binders: (SqlPreparedStatement.() -> Unit)?,
+        ): QueryResult<Long> = throw IllegalStateException("disk full")
+    }
+
+    @Test
+    fun throwingNativeSourceIsIsolated() =
+        runTest {
+            val throwing = NativeEmoteSource { throw IllegalStateException("boom") }
+            val results = loader(cacheStore(), engine(), throwing).load(twitch, all, backgroundScope)
+            assertEquals(Outcome.Failure(LurkError.Unexpected), outcomeOf(results, EmoteSource.NATIVE))
+            assertEquals(6, count(EmoteProvider.SEVENTV, EmoteScope.CHANNEL))
+            assertIs<Outcome.Success<Int>>(outcomeOf(results, EmoteSource.FFZ_CHANNEL))
+        }
+
+    @Test
+    fun throwingCacheWriteStillFillsRegistry() =
+        runTest {
+            val cache =
+                CacheStore(
+                    LurkDatabase(FailingWrites(inMemoryDriver())),
+                    TestDispatchers(StandardTestDispatcher(testScheduler)),
+                )
+            val results = loader(cache, engine()).load(twitch, all, backgroundScope)
+            assertEquals(6, results.size)
+            assertEquals(6, count(EmoteProvider.SEVENTV, EmoteScope.CHANNEL))
+        }
+
+    @Test
+    fun unexpectedRetryFailureNeitherEscapesNorCancelsScope() =
+        runTest {
+            var calls = 0
+            val flaky =
+                NativeEmoteSource {
+                    if (calls++ == 0) throw IllegalStateException("first") else throw IllegalStateException("again")
+                }
+            loader(cacheStore(), engine(), flaky).load(twitch, setOf(EmoteProvider.FFZ), backgroundScope)
+            advanceTimeBy(2.minutes)
+            runCurrent()
+            assertEquals(6, calls)
+            assertEquals(true, backgroundScope.isActive)
         }
 }
