@@ -15,6 +15,7 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlinx.io.core)
             implementation(libs.ktor.client.mock)
+            implementation(libs.koin.test)
         }
         jvmTest.dependencies {
             implementation(libs.sqldelight.sqlite.driver)

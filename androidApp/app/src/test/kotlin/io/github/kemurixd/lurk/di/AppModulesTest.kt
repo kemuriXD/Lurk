@@ -56,8 +56,8 @@ class AppModulesTest {
     }
 
     @Test
-    fun appModulesCoverEveryCoreModule() {
+    fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(5, modules.size)
+        assertEquals(7, modules.size)
     }
 }

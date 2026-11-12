@@ -12,5 +12,6 @@ kotlin {
     }
     sourceSets.commonTest.dependencies {
         implementation(libs.kotlinx.io.core)
+        implementation(libs.koin.test)
     }
 }
