@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":shared:core:config"))
     implementation(project(":shared:emotes"))
     implementation(project(":shared:chat"))
+    implementation(project(":shared:playback"))
     implementation(libs.koin.android)
     // Dispatchers.Main on Android comes from this artifact at runtime.
     runtimeOnly(libs.kotlinx.coroutines.android)
