@@ -58,11 +58,12 @@ object FfzParser {
         item: Item,
         scope: EmoteScope,
     ): Emote {
-        val animatedUrls = item.animated.orEmpty()
+        // FFZ sends null for a scale it does not have; skip that scale, never the emote.
+        val animatedUrls = item.animated.orEmpty().filterValues { it != null }
         val source = animatedUrls.ifEmpty { item.urls }
         val images =
             source
-                .mapNotNull { (key, url) -> key.toIntOrNull()?.let { EmoteImage(it, url) } }
+                .mapNotNull { (key, url) -> url?.let { u -> key.toIntOrNull()?.let { EmoteImage(it, u) } } }
                 .sortedBy { it.scale }
         val effects = if (item.modifier) FfzEffect.fromFlags(item.modifierFlags) else emptySet()
         return Emote(
@@ -81,8 +82,8 @@ object FfzParser {
     private class Item(
         val id: Int,
         val name: String,
-        val urls: Map<String, String> = emptyMap(),
-        val animated: Map<String, String>? = null,
+        val urls: Map<String, String?> = emptyMap(),
+        val animated: Map<String, String?>? = null,
         val hidden: Boolean = false,
         val modifier: Boolean = false,
         @SerialName("modifier_flags") val modifierFlags: Int = 0,

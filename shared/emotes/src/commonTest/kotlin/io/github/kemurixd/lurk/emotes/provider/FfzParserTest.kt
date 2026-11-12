@@ -87,4 +87,20 @@ class FfzParserTest {
         assertTrue(FfzParser.global(fixture("broken/html.json")).isEmpty())
         assertTrue(FfzParser.room(fixture("broken/html.json")).isEmpty())
     }
+
+    @Test
+    fun nullScaleKeepsTheEmote() {
+        val json =
+            """
+            {"sets":{"9":{"emoticons":[
+              {"id":1,"name":"Still","urls":{"1":"https://cdn.frankerfacez.com/emote/1/1","2":null,"4":"https://cdn.frankerfacez.com/emote/1/4"}},
+              {"id":2,"name":"Moving","urls":{"1":"https://cdn.frankerfacez.com/emote/2/1"},"animated":{"1":"https://cdn.frankerfacez.com/emote/2/animated/1","2":null}}
+            ]}}}
+            """.trimIndent()
+        val emotes = FfzParser.room(json)
+        assertEquals(listOf("Still", "Moving"), emotes.map { it.name })
+        assertEquals(listOf(1, 4), emotes[0].images.map { it.scale })
+        assertEquals(listOf("https://cdn.frankerfacez.com/emote/2/animated/1"), emotes[1].images.map { it.url })
+        assertTrue(emotes[1].animated)
+    }
 }
