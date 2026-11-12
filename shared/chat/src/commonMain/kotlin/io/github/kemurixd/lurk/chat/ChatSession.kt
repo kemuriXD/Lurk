@@ -103,7 +103,7 @@ class ChatSession(
                 transport.frames().collect { frame ->
                     if (first) {
                         first = false
-                        inputs.send(Input.Connected)
+                        inputs.send(Input.Connected(clock.now()))
                     }
                     emit(frame)
                 }
@@ -169,8 +169,10 @@ class ChatSession(
             val backfill: Boolean,
         ) : Input
 
-        /** The first frame of a connection arrived. */
-        data object Connected : Input
+        /** The first frame of a connection arrived at [at]. */
+        class Connected(
+            val at: Instant,
+        ) : Input
 
         /** The connection dropped; the room answers with how long to wait before reconnecting. */
         class Dropped(
@@ -198,16 +200,14 @@ class ChatSession(
         private val seen = HashSet<String>()
         private var pinned: ChatItem? = null
         private var connection = ConnectionState.CONNECTING
-        private var attempt = 0
+        private val reconnects = Reconnects(backoff, HEALTHY_AFTER)
         private var newestSentAt: Instant? = null
         private var systemLines = 0
-
-        /** True once this outage has its reconnecting line; the next first frame ends the outage. */
-        private var outageAnnounced = false
 
         fun handle(input: Input) {
             when (input) {
                 is Input.Batch -> {
+                    if (input.events.any { it is ChatEvent.Message }) reconnects.messageArrived()
                     if (apply(input.events)) publish()
                 }
 
@@ -216,28 +216,17 @@ class ChatSession(
                     if (apply(events)) publish()
                 }
 
-                Input.Connected -> {
-                    attempt = 0
-                    outageAnnounced = false
+                is Input.Connected -> {
+                    reconnects.connected(input.at)
                     setConnection(ConnectionState.CONNECTED)
                 }
 
                 is Input.Dropped -> {
-                    // One line per outage: failed retries inside it add nothing and publish nothing.
-                    val announce = !outageAnnounced
-                    if (announce) {
-                        outageAnnounced = true
-                        append(listOf(reconnectingLine()))
-                    }
-                    if (announce || connection != ConnectionState.RECONNECTING) {
-                        connection = ConnectionState.RECONNECTING
-                        publish()
-                    }
-                    input.retryDelay.complete(backoff.delayFor(attempt))
-                    attempt++
+                    onDropped(input.retryDelay)
                 }
 
                 Input.ReconnectRequested -> {
+                    reconnects.ended(clock.now())
                     setConnection(ConnectionState.RECONNECTING)
                 }
 
@@ -249,6 +238,18 @@ class ChatSession(
                     onPreferences(input.value)
                 }
             }
+        }
+
+        private fun onDropped(retryDelay: CompletableDeferred<Duration>) {
+            reconnects.ended(clock.now())
+            // One line per outage: failed retries inside it add nothing and publish nothing.
+            val announce = reconnects.startOutage()
+            if (announce) append(listOf(reconnectingLine()))
+            if (announce || connection != ConnectionState.RECONNECTING) {
+                connection = ConnectionState.RECONNECTING
+                publish()
+            }
+            retryDelay.complete(reconnects.nextDelay())
         }
 
         private fun publish() {
@@ -434,8 +435,60 @@ class ChatSession(
     private companion object {
         const val BUFFER_CAPACITY = 1000
         val HISTORY_TIMEOUT = 10.seconds
+        val HEALTHY_AFTER = 30.seconds
         const val SYSTEM_TAG = "system"
         const val RECONNECTING = "reconnecting"
+    }
+}
+
+/**
+ * The reconnect attempt and the outage of one session. A connection counts as healthy once it delivers a chat message
+ * or stays up for [healthyAfter]; only then do the backoff and the outage reset. A server that accepts each connection
+ * and closes it again at once therefore still backs off, and the whole outage gets one reconnecting line.
+ */
+private class Reconnects(
+    private val backoff: Backoff,
+    private val healthyAfter: Duration,
+) {
+    private var attempt = 0
+
+    /** True once this outage has its reconnecting line; the next healthy connection ends the outage. */
+    private var outageAnnounced = false
+
+    /** When the current connection sent its first frame, or null while there is none. */
+    private var connectedAt: Instant? = null
+    private var healthy = false
+
+    fun connected(at: Instant) {
+        connectedAt = at
+        healthy = false
+    }
+
+    fun messageArrived() {
+        if (!healthy) markHealthy()
+    }
+
+    /** The current connection is gone; one that stayed up for [healthyAfter] counts as healthy. */
+    fun ended(now: Instant) {
+        val upSince = connectedAt
+        if (!healthy && upSince != null && now - upSince >= healthyAfter) markHealthy()
+        connectedAt = null
+        healthy = false
+    }
+
+    /** Returns true when this drop starts a new outage, which then needs its reconnecting line. */
+    fun startOutage(): Boolean {
+        if (outageAnnounced) return false
+        outageAnnounced = true
+        return true
+    }
+
+    fun nextDelay(): Duration = backoff.delayFor(attempt++)
+
+    private fun markHealthy() {
+        healthy = true
+        attempt = 0
+        outageAnnounced = false
     }
 }
 

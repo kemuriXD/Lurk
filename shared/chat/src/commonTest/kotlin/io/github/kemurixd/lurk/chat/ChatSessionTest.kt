@@ -133,6 +133,9 @@ private class FakeTransport(
     val connections = mutableListOf<FakeConnection>()
     var failure: (() -> Throwable)? = null
 
+    /** Runs on each new connection before the session collects it: a server that behaves the same every time. */
+    var onOpen: ((FakeConnection) -> Unit)? = null
+
     val last: FakeConnection get() = connections.last()
 
     override fun frames(): Flow<String> =
@@ -140,6 +143,7 @@ private class FakeTransport(
             val connection = FakeConnection(now())
             connections += connection
             failure?.let { throw it() }
+            onOpen?.invoke(connection)
             try {
                 emitAll(connection.frames.consumeAsFlow())
             } finally {
@@ -442,7 +446,7 @@ class ChatSessionTest {
         }
 
     @Test
-    fun attemptResetsOnFirstFrame() =
+    fun attemptResetsOnFirstMessage() =
         runTest {
             val rig = Rig(this)
             rig.transport.failure = { IllegalStateException("connection refused") }
@@ -463,7 +467,7 @@ class ChatSessionTest {
             assertEquals(ConnectionState.CONNECTED, rig.state.connection)
             rig.transport.last.drop()
             runCurrent()
-            // The first frame reset the attempt, so the wait is drawn from the attempt-0 range again.
+            // The first chat message reset the attempt, so the wait is drawn from the attempt-0 range again.
             val retry = expected.delayFor(0).inWholeMilliseconds
             advanceTimeBy(retry)
             runCurrent()
@@ -776,5 +780,61 @@ class ChatSessionTest {
             runCurrent()
 
             assertEquals(listOf("m-1", "m-2", "system:reconnecting:1"), rig.ids)
+        }
+
+    @Test
+    fun acceptThenCloseBacksOff() =
+        runTest {
+            val rig = Rig(this)
+            // Line 2 is a ROOMSTATE: the server answers once and then closes, on every connect.
+            rig.transport.onOpen = { connection ->
+                connection.send(ircLine(2))
+                connection.drop()
+            }
+            rig.start()
+            advanceTimeBy(10 * 60 * 1000L)
+            runCurrent()
+
+            val expected = Backoff(base = 1.seconds, max = 30.seconds, random = Random(1))
+            val opens = rig.transport.connections.map { it.openedAt }
+            val gaps = opens.zipWithNext { a, b -> b - a }
+            assertEquals(
+                gaps.indices.map { expected.delayFor(it).inWholeMilliseconds },
+                gaps,
+                "gaps follow the backoff",
+            )
+            assertTrue(opens.size < 40, "${opens.size} connects in ten minutes")
+            assertEquals(listOf("system:reconnecting:1"), rig.ids, "one line for the whole outage")
+        }
+
+    @Test
+    fun connectionUpThirtySecondsResetsAttempt() =
+        runTest {
+            val rig = Rig(this)
+            rig.transport.failure = { IllegalStateException("connection refused") }
+            rig.start()
+            val expected = Backoff(base = 1.seconds, max = 30.seconds, random = Random(1))
+            var at = 0L
+            for (attempt in 0 until 4) {
+                at += expected.delayFor(attempt).inWholeMilliseconds
+                if (attempt == 3) rig.transport.failure = null
+                advanceTimeBy(at - currentTime)
+                runCurrent()
+            }
+            assertEquals(5, rig.transport.connections.size)
+
+            // No chat message, but the connection stays up for 30 seconds: it counts as healthy.
+            rig.transport.last.send(ircLine(2))
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            rig.transport.last.drop()
+            runCurrent()
+            val droppedAt = currentTime
+            val retry = expected.delayFor(0).inWholeMilliseconds
+            advanceTimeBy(retry)
+            runCurrent()
+            assertEquals(6, rig.transport.connections.size)
+            assertEquals(droppedAt + retry, rig.transport.last.openedAt)
+            assertEquals(listOf("system:reconnecting:1", "system:reconnecting:2"), rig.ids, "a new outage, a new line")
         }
 }
