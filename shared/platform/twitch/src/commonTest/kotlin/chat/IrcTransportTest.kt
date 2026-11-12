@@ -43,7 +43,7 @@ class IrcTransportTest {
             val sent = connector.connections.single().sent
             assertEquals("CAP REQ :twitch.tv/tags twitch.tv/commands", sent[0])
             assertEquals("PASS oauth:tok", sent[1])
-            assertTrue(sent[2].startsWith("NICK ") && sent[2].length > "NICK ".length)
+            assertTrue(Regex("NICK justinfan[0-9]{4,5}").matches(sent[2]), sent[2])
             assertEquals("JOIN #streamer1", sent[3])
             assertFalse(t.toString().contains("tok"))
         }

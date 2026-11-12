@@ -2,21 +2,28 @@ package io.github.kemurixd.lurk.platform.twitch.chat
 
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class IrcSenderTest {
-    private fun sender(
+    private fun TestScope.sender(
         connector: FakeIrcConnector,
         token: String? = "tok",
         tokenCalls: MutableList<Unit> = mutableListOf(),
     ) = IrcSender(connector, chatConfig, "streamer1", {
         tokenCalls += Unit
         token
-    })
+    }, backgroundScope, Random(1))
 
     @Test
     fun sendFormatsPrivmsg() =
@@ -92,11 +99,13 @@ class IrcSenderTest {
     fun sendReconnectsOnceAfterDrop() =
         runTest {
             val connector = FakeIrcConnector()
-            val s = sender(connector)
+            val calls = mutableListOf<Unit>()
+            val s = sender(connector, tokenCalls = calls)
             s.send("a", null)
             connector.connections.first().failSends = true
             assertEquals(Outcome.Success(Unit), s.send("b", null))
             assertEquals(2, connector.connections.size)
+            assertEquals(2, calls.size)
             assertTrue(connector.connections[0].closed)
             assertEquals("PRIVMSG #streamer1 :b", connector.connections[1].sent.last())
             assertTrue(connector.connections[1].sent.contains("PASS oauth:tok"))
@@ -109,5 +118,67 @@ class IrcSenderTest {
             val result = sender(connector).send("a", null)
             assertEquals(Outcome.Failure(LurkError.Offline), result)
             assertEquals(2, connector.connections.size)
+        }
+
+    @Test
+    fun pingOnSenderConnectionGetsPong() =
+        runTest {
+            val connector = FakeIrcConnector()
+            sender(connector).send("a", null)
+            runCurrent()
+            val connection = connector.connections.single()
+            connection.inbound.send("PING :tmi.twitch.tv\r\n")
+            runCurrent()
+            assertEquals("PONG :tmi.twitch.tv", connection.sent.last())
+        }
+
+    @Test
+    fun closedIncomingMakesNextSendReconnect() =
+        runTest {
+            val connector = FakeIrcConnector()
+            val s = sender(connector)
+            s.send("a", null)
+            runCurrent()
+            // The server hung up: incoming completes, but the fake still accepts writes.
+            connector.connections
+                .single()
+                .inbound
+                .close()
+            runCurrent()
+            assertEquals(Outcome.Success(Unit), s.send("b", null))
+            assertEquals(2, connector.connections.size)
+            assertTrue(connector.connections[0].closed)
+            assertEquals("PRIVMSG #streamer1 :b", connector.connections[1].sent.last())
+        }
+
+    @Test
+    fun failedHandshakeClosesSocket() =
+        runTest {
+            val connector = FakeIrcConnector { FakeIrcConnection().also { it.failSends = true } }
+            sender(connector).send("a", null)
+            assertTrue(connector.connections.all { it.closed })
+        }
+
+    @Test
+    fun unexpectedHandshakeFailureClosesSocket() =
+        runTest {
+            val connector =
+                FakeIrcConnector { FakeIrcConnection().also { it.failWith = IllegalStateException("boom") } }
+            assertFailsWith<IllegalStateException> { sender(connector).send("a", null) }
+            assertTrue(connector.connections.single().closed)
+        }
+
+    @Test
+    fun signedInNickIsAnonymousStyle() =
+        runTest {
+            val connector = FakeIrcConnector()
+            sender(connector).send("a", null)
+            val nick =
+                connector.connections
+                    .single()
+                    .sent
+                    .first { it.startsWith("NICK ") }
+            assertTrue(Regex("NICK justinfan[0-9]{4,5}").matches(nick), nick)
+            assertNotEquals("NICK streamer1", nick)
         }
 }

@@ -11,10 +11,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
-private const val ANONYMOUS_NICK_PREFIX = "justinfan"
+private const val NICK_PREFIX = "justinfan"
 private const val MIN_NICK_DIGITS = 1_000
 private const val MAX_NICK_DIGITS = 100_000
 private const val PING_PREFIX = "PING "
+internal const val CAPABILITIES = "CAP REQ :twitch.tv/tags twitch.tv/commands"
 
 /**
  * Twitch chat over IRC-on-WebSocket. Each collection opens one connection and sends the capability request, the
@@ -37,11 +38,7 @@ class IrcTransport(
                 handshake(connection, oauth)
                 connection.incoming.collect { frame ->
                     emit(frame)
-                    frame.lineSequence().forEach { line ->
-                        if (line.startsWith(PING_PREFIX)) {
-                            connection.send("PONG ${line.removePrefix(PING_PREFIX).trimEnd('\r')}")
-                        }
-                    }
+                    answerPings(connection, frame)
                 }
             } finally {
                 withContext(NonCancellable) { connection.close() }
@@ -54,17 +51,22 @@ class IrcTransport(
     ) {
         connection.send(CAPABILITIES)
         if (oauth != null) connection.send("PASS oauth:$oauth")
-        val nick =
-            if (oauth !=
-                null
-            ) {
-                login
-            } else {
-                "$ANONYMOUS_NICK_PREFIX${random.nextInt(MIN_NICK_DIGITS, MAX_NICK_DIGITS)}"
-            }
-        connection.send("NICK $nick")
+        connection.send("NICK ${ircNick(random)}")
         connection.send("JOIN #${login.lowercase()}")
     }
 }
 
-internal const val CAPABILITIES = "CAP REQ :twitch.tv/tags twitch.tv/commands"
+/** The same justinfan-style nick signed in or out: Twitch takes the identity from the token, not the nick. */
+internal fun ircNick(random: Random): String = "$NICK_PREFIX${random.nextInt(MIN_NICK_DIGITS, MAX_NICK_DIGITS)}"
+
+/** Replies `PONG :x` to every `PING :x` line of [frame]. */
+internal suspend fun answerPings(
+    connection: WebSocketConnection,
+    frame: String,
+) {
+    frame.lineSequence().forEach { line ->
+        if (line.startsWith(PING_PREFIX)) {
+            connection.send("PONG ${line.removePrefix(PING_PREFIX).trimEnd('\r')}")
+        }
+    }
+}

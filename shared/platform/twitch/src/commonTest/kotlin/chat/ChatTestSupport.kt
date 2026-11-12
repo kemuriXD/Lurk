@@ -46,10 +46,12 @@ internal class FakeIrcConnection : WebSocketConnection {
     val sent = mutableListOf<String>()
     var closed = false
     var failSends = false
+    var failWith: Throwable? = null
 
     override val incoming: Flow<String> = inbound.consumeAsFlow()
 
     override suspend fun send(text: String) {
+        failWith?.let { throw it }
         if (closed || failSends) throw LurkException(LurkError.Offline)
         sent += text
     }
