@@ -33,17 +33,6 @@ sealed interface ProxyEndpoint {
         override fun toString(): String = "Http($label)"
     }
 
-    /** A SOCKS5 proxy. DNS is always resolved by the proxy. */
-    data class Socks5(
-        val host: String,
-        val port: Int,
-        val credentials: ProxyCredentials? = null,
-    ) : ProxyEndpoint {
-        override val label: String get() = "$host:$port"
-
-        override fun toString(): String = "Socks5($label)"
-    }
-
     companion object {
         private const val TEMPLATE_MARKER = "{channel}"
         private const val SCHEME_SEPARATOR = "://"
@@ -82,7 +71,6 @@ sealed interface ProxyEndpoint {
                 isWeb && TEMPLATE_MARKER in text -> ProxyParseResult.Valid(UrlTemplate(text))
                 scheme == "https" -> invalid(ProxyParseError.TLS_PROXY_UNSUPPORTED)
                 scheme == "http" -> parseHostPort(rest) { h, p, c -> Http(h, p, c) }
-                scheme == "socks5" || scheme == "socks5h" -> parseHostPort(rest) { h, p, c -> Socks5(h, p, c) }
                 else -> invalid(ProxyParseError.UNKNOWN_SCHEME)
             }
         }

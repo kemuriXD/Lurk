@@ -52,7 +52,7 @@ class RouteClientsTest {
     fun closeClosesProxiedEnginesButNotDirect() {
         val clients = clients()
         clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 1)))
-        clients.clientFor(Route.ViaProxy(ProxyEndpoint.Socks5("127.0.0.1", 2)))
+        clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 2)))
         clients.close()
         assertEquals(listOf(1, 1), engines.map { it.closeCount })
         clients.close()
@@ -83,16 +83,16 @@ class RouteClientsTest {
     fun endpointsMapToEngineProxies() {
         val clients = clients()
         clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 1, ProxyCredentials("u", "p"))))
-        clients.clientFor(Route.ViaProxy(ProxyEndpoint.Socks5("127.0.0.1", 2)))
+        clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 2)))
         assertEquals(EngineProxy.Http("127.0.0.1", 1, "u", "p"), seen[0])
-        assertEquals(EngineProxy.Socks5("127.0.0.1", 2, null, null), seen[1])
+        assertEquals(EngineProxy.Http("127.0.0.1", 2, null, null), seen[1])
     }
 
     @Test
     fun proxiedClientsTimeOutFast() =
         runTest {
             val clients = clients(timeoutMillis = 50) { delay(5_000) }
-            val client = clients.clientFor(Route.ViaProxy(ProxyEndpoint.Socks5("127.0.0.1", 2)))
+            val client = clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 2)))
             val failure = assertFailsWith<LurkException> { client.get("https://target.example/x.m3u8") }
             assertEquals(LurkError.Timeout, failure.error)
         }

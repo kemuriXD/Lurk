@@ -82,5 +82,4 @@ private fun ProxyEndpoint.toEngineProxy(): EngineProxy? =
     when (this) {
         is ProxyEndpoint.UrlTemplate -> null
         is ProxyEndpoint.Http -> EngineProxy.Http(host, port, credentials?.username, credentials?.password)
-        is ProxyEndpoint.Socks5 -> EngineProxy.Socks5(host, port, credentials?.username, credentials?.password)
     }

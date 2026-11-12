@@ -21,7 +21,7 @@ class ProxyChainTest {
     private val chain = ProxyChain(health, time)
     private val a: ProxyEndpoint = ProxyEndpoint.Http("127.0.0.1", 8080)
     private val b: ProxyEndpoint = ProxyEndpoint.Http("127.0.0.1", 8081)
-    private val c: ProxyEndpoint = ProxyEndpoint.Socks5("127.0.0.1", 1080)
+    private val c: ProxyEndpoint = ProxyEndpoint.Http("127.0.0.1", 8082)
     private val calls = mutableListOf<ProxyEndpoint>()
 
     private fun fail(error: LurkError) = Outcome.Failure(error)

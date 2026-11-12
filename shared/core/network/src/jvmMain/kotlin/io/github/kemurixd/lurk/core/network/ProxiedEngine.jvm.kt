@@ -9,10 +9,7 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 
 actual fun proxiedEngine(proxy: EngineProxy): HttpClientEngine =
-    if (proxy.needsUnsupportedSocksAuth()) {
-        proxyFailedEngine()
-    } else {
-        val okHttp = proxiedOkHttpClient(proxy)
+    proxiedOkHttpClient(proxy).let { okHttp ->
         shuttingDownEngine(OkHttp.create { preconfigured = okHttp }, okHttp)
     }
 
@@ -51,10 +48,6 @@ internal fun proxiedOkHttpClient(proxy: EngineProxy): OkHttpClient {
                     },
                 )
             }
-        }
-
-        is EngineProxy.Socks5 -> {
-            builder.proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(proxy.host, proxy.port)))
         }
     }
     return builder.build()

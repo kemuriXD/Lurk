@@ -7,8 +7,6 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
-import java.net.InetSocketAddress
-import java.net.Proxy
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -87,30 +85,12 @@ class ProxiedEngineTest {
         }
 
     @Test
-    fun socksUsesRemoteDns() {
-        val proxy = proxiedOkHttpClient(EngineProxy.Socks5("proxy.example", 1080, null, null)).proxy
-        assertEquals(Proxy.Type.SOCKS, proxy?.type())
-        assertTrue((proxy?.address() as InetSocketAddress).isUnresolved)
-    }
-
-    @Test
-    fun socksWithCredentialsFailsEveryRequest() =
-        runBlocking {
-            val client = createHttpClient(engine = proxiedEngine(EngineProxy.Socks5("127.0.0.1", 1, "u", "p")))
-            val failure = assertFailsWith<LurkException> { client.get("https://target.example/x.m3u8") }
-            client.close()
-            assertEquals(LurkError.ProxyFailed, failure.error)
-        }
-
-    @Test
     fun engineToStringHidesSecrets() {
         val http = EngineProxy.Http("proxy.example", 8080, "user1", "hunter2")
-        val socks = EngineProxy.Socks5("proxy.example", 1080, "user1", "hunter2")
-        for (text in listOf(http.toString(), socks.toString())) {
-            assertFalse("user1" in text)
-            assertFalse("hunter2" in text)
-            assertTrue("proxy.example" in text)
-        }
+        val text = http.toString()
+        assertFalse("user1" in text)
+        assertFalse("hunter2" in text)
+        assertTrue("proxy.example" in text)
     }
 
     @Test
@@ -134,15 +114,6 @@ class ProxiedEngineTest {
                         .getEncoder()
                         .encodeToString("us\u00e9r:p\u00e4ss".toByteArray(Charsets.UTF_8))
             assertEquals(expected, server.takeRequest().headers["Proxy-Authorization"])
-        }
-
-    @Test
-    fun socksPasswordWithoutUsernameAlsoFails() =
-        runBlocking {
-            val client = createHttpClient(engine = proxiedEngine(EngineProxy.Socks5("127.0.0.1", 1, null, "p")))
-            val failure = assertFailsWith<LurkException> { client.get("https://target.example/x.m3u8") }
-            client.close()
-            assertEquals(LurkError.ProxyFailed, failure.error)
         }
 
     @Test

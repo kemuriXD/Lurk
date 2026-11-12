@@ -21,7 +21,7 @@ class ProxyHealthTest {
     private val time = TestTimeSource()
     private val health = ProxyHealth(time)
     private val a = ProxyEndpoint.Http("127.0.0.1", 8080)
-    private val b = ProxyEndpoint.Socks5("127.0.0.1", 1080)
+    private val b = ProxyEndpoint.Http("127.0.0.1", 8081)
 
     @Test
     fun unknownEndpointIsHealthyWithEmptyStats() {

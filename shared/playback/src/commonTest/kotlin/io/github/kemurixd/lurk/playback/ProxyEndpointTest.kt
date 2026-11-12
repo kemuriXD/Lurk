@@ -19,9 +19,9 @@ class ProxyEndpointTest {
     }
 
     @Test
-    fun parsesSocks5hWithoutCredentials() {
-        assertEquals(ProxyEndpoint.Socks5("proxy.example", 1080, null), valid("socks5h://proxy.example:1080"))
-        assertEquals(ProxyEndpoint.Socks5("proxy.example", 1080, null), valid("socks5://proxy.example:1080"))
+    fun socksSchemesAreUnknown() {
+        assertEquals(ProxyParseError.UNKNOWN_SCHEME, invalid("socks5h://proxy.example:1080"))
+        assertEquals(ProxyParseError.UNKNOWN_SCHEME, invalid("socks5://proxy.example:1080"))
     }
 
     @Test
@@ -51,7 +51,6 @@ class ProxyEndpointTest {
     @Test
     fun labelIsHostAndPort() {
         assertEquals("proxy.example:8080", ProxyEndpoint.Http("proxy.example", 8080).label)
-        assertEquals("proxy.example:1080", ProxyEndpoint.Socks5("proxy.example", 1080).label)
     }
 
     @Test

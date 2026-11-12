@@ -18,14 +18,4 @@ sealed interface EngineProxy {
     ) : EngineProxy {
         override fun toString(): String = "Http($host:$port)"
     }
-
-    /** A SOCKS5 proxy. The proxy resolves target hostnames. */
-    data class Socks5(
-        override val host: String,
-        override val port: Int,
-        override val username: String? = null,
-        override val password: String? = null,
-    ) : EngineProxy {
-        override fun toString(): String = "Socks5($host:$port)"
-    }
 }
