@@ -331,10 +331,11 @@ internal class SessionRouting(
             url: String,
             templateHosts: Set<String>,
         ): Map<String, String> = if (onTemplateHost(url, templateHosts)) emptyMap() else s.grant.headers
-
-        fun onTemplateHost(
-            url: String,
-            templateHosts: Set<String>,
-        ): Boolean = templateHosts.isNotEmpty() && hostOf(url).lowercase() in templateHosts
     }
 }
+
+/** Whether [url] is on a URL template's host (lower-case labels): a third party that gets no source headers. */
+internal fun onTemplateHost(
+    url: String,
+    templateHosts: Set<String>,
+): Boolean = templateHosts.isNotEmpty() && hostOf(url).lowercase() in templateHosts

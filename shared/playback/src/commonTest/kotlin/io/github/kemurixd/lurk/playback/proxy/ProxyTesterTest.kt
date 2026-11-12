@@ -7,14 +7,15 @@ import io.github.kemurixd.lurk.playback.FakePlaybackSource
 import io.github.kemurixd.lurk.playback.FakeRoutes
 import io.github.kemurixd.lurk.playback.MARKERS
 import io.github.kemurixd.lurk.playback.MASTER
-import io.github.kemurixd.lurk.playback.MEDIA
 import io.github.kemurixd.lurk.playback.ProxyEndpoint
 import io.github.kemurixd.lurk.playback.Reply
 import io.github.kemurixd.lurk.playback.RollType
 import io.github.kemurixd.lurk.playback.TWITCH
 import io.github.kemurixd.lurk.playback.ads.AdDetector
 import io.github.kemurixd.lurk.playback.fixture
+import io.github.kemurixd.lurk.playback.hls.MasterPlaylist
 import io.github.kemurixd.lurk.playback.via
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -35,7 +36,7 @@ class ProxyTesterTest {
         val tester = ProxyTester(source, routes, AdDetector { MARKERS }, test.testScheduler.timeSource)
 
         init {
-            test.backgroundScope.coroutineContext[kotlinx.coroutines.Job]!!.invokeOnCompletion { routes.close() }
+            test.backgroundScope.coroutineContext[Job]!!.invokeOnCompletion { routes.close() }
         }
     }
 
@@ -107,7 +108,7 @@ class ProxyTesterTest {
             assertFalse(master.headers.containsKey("X-Test-Header"))
             val media = s.routes.requests.last()
             assertEquals(Route.Direct, media.route)
-            assertFalse(media.headers.containsKey("X-Test-Header"))
+            assertEquals("1", media.headers["X-Test-Header"])
         }
 
     @Test
@@ -133,7 +134,7 @@ class ProxyTesterTest {
             val s = Setup(this)
             s.tester.test(A, TWITCH)
             val variants =
-                io.github.kemurixd.lurk.playback.hls.MasterPlaylist
+                MasterPlaylist
                     .variants(s.routes.master, MASTER)
                     .filter { !it.audioOnly }
             assertEquals(
@@ -142,6 +143,58 @@ class ProxyTesterTest {
                     .last()
                     .url,
             )
-            assertTrue(MEDIA.isNotEmpty())
+        }
+
+    @Test
+    fun cueOnlyMediaPasses() =
+        runTest {
+            val s = Setup(this)
+            s.routes.media = fixture("twitch/media-cue.m3u8")
+            assertEquals(ProxyTestResult.Passed(0.milliseconds, mediaThroughProxy = true), s.tester.test(A, TWITCH))
+        }
+
+    @Test
+    fun templateMediaTimeoutBlamesTheStreamNotTheProxy() =
+        runTest {
+            val s = Setup(this)
+            s.routes.reply = { _, url ->
+                if (url.startsWith("https://video-weaver.example/")) Reply.Timeout else Reply.Text(s.routes.serve(url))
+            }
+            val template = ProxyEndpoint.UrlTemplate("https://lol.example/live/{channel}")
+            assertEquals(ProxyTestResult.StreamFailed(LurkError.Timeout), s.tester.test(template, TWITCH))
+        }
+
+    @Test
+    fun templateMediaGetsSourceHeadersOffTheTemplateHost() =
+        runTest {
+            val s = Setup(this)
+            val template = ProxyEndpoint.UrlTemplate("https://lol.example/live/{channel}")
+            s.tester.test(template, TWITCH)
+            assertEquals(
+                "1",
+                s.routes.requests
+                    .last()
+                    .headers["X-Test-Header"],
+            )
+        }
+
+    @Test
+    fun templateMediaOnTheTemplateHostGetsNoHeaders() =
+        runTest {
+            val s = Setup(this)
+            s.routes.master =
+                fixture("twitch/master.m3u8").replace("https://video-weaver.example/", "https://lol.example/")
+            s.routes.reply =
+                {
+                    _,
+                    url,
+                    ->
+                    Reply.Text(if (url.startsWith("https://lol.example/v1/")) s.routes.media else s.routes.master)
+                }
+            val template = ProxyEndpoint.UrlTemplate("https://lol.example/live/{channel}")
+            assertIs<ProxyTestResult.Passed>(s.tester.test(template, TWITCH))
+            val media = s.routes.requests.last()
+            assertTrue(media.url.startsWith("https://lol.example/v1/"))
+            assertFalse(media.headers.containsKey("X-Test-Header"))
         }
 }
