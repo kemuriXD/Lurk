@@ -16,6 +16,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.URLBuilder
 import io.ktor.http.content.TextContent
+import io.ktor.http.encodeURLPathPart
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -98,3 +99,6 @@ class KickApi(
 
     override fun toString(): String = "KickApi"
 }
+
+/** A slug as one path segment: `/`, `?` and `#` in it cannot reach another path or the query. */
+internal fun String.asPathSegment(): String = encodeURLPathPart()

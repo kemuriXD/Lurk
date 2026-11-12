@@ -2,7 +2,6 @@ package io.github.kemurixd.lurk.platform.kick.account
 
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
-import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -110,7 +109,7 @@ class KickFollowsTest {
                     channelId = "",
                     displayName = "Streamer Two",
                     title = "Stream title 2",
-                    category = Category(Platform.KICK, "", "Category 1", null, null),
+                    category = null,
                     viewers = 100,
                     startedAt = null,
                     thumbnailUrl = null,
@@ -150,12 +149,54 @@ class KickFollowsTest {
                 Rig(
                     mockEngine {
                         seen += it
-                        json(fixture("account/followed-page1.json"))
+                        json(
+                            fixture(
+                                "account/followed-page1.json",
+                            ).replace("\"nextCursor\": 3", "\"nextCursor\": ${seen.size + 100}"),
+                        )
                     },
                 ).api
             api.followed(rigSessions(signedIn = true)).value()
 
             assertEquals(20, seen.size)
+        }
+
+    @Test
+    fun followedStopsWhenTheCursorRepeats() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("account/followed-page1.json"))
+                    },
+                ).api
+            api.followed(rigSessions(signedIn = true)).value()
+
+            assertEquals(2, seen.size)
+        }
+
+    @Test
+    fun followPathEscapesTheSlug() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("account/follow-ok.json"))
+                    },
+                ).api
+            api.setFollow(rigSessions(signedIn = true), ChannelRef(Platform.KICK, "a/b?c#d"), follow = true)
+
+            assertEquals("/api/v2/channels/a%2Fb%3Fc%23d/follow", seen.single().url.encodedPath)
+            assertTrue(
+                seen
+                    .single()
+                    .url.encodedQuery
+                    .isEmpty(),
+            )
         }
 
     @Test

@@ -133,6 +133,39 @@ class KickDiscoveryTest {
         }
 
     @Test
+    fun blankCategoryIsNotFoundWithoutARequest() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/top-live.json"))
+                    },
+                ).api
+
+            assertEquals(Outcome.Failure(LurkError.NotFound), api.categoryLive(rigSessions(), "", null))
+            assertEquals(Outcome.Failure(LurkError.NotFound), api.categoryLive(rigSessions(), "  ", null))
+            assertEquals(emptyList(), seen)
+        }
+
+    @Test
+    fun channelPathEscapesTheSlug() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("api/channel-live.json"))
+                    },
+                ).api
+            api.channel(rigSessions(), ChannelRef(Platform.KICK, "a/b?c#d"))
+
+            assertEquals("/api/v2/channels/a%2Fb%3Fc%23d", seen.single().url.encodedPath)
+        }
+
+    @Test
     fun categoriesPageCursor() =
         runTest {
             val seen = mutableListOf<HttpRequestData>()

@@ -13,6 +13,7 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.kick.api.KickApi
 import io.github.kemurixd.lurk.platform.kick.api.KickBase
+import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
 import io.github.kemurixd.lurk.platform.kick.channel.KickCategoryJson
 import io.github.kemurixd.lurk.platform.kick.channel.decodeKickChannel
 import io.github.kemurixd.lurk.platform.kick.channel.toCategory
@@ -30,12 +31,16 @@ internal suspend fun KickApi.topLive(
     cursor: String?,
 ): Outcome<Page<Stream>> = livestreams(sessions, categoryId = null, cursor = cursor)
 
-/** One page of the live streams in a category, most viewers first. [categoryId] is `Category.id`. */
+/**
+ * One page of the live streams in a category, most viewers first. [categoryId] is `Category.id`. A blank ID is
+ * `NotFound` with no request: Kick would answer an empty filter with the unfiltered list.
+ */
 internal suspend fun KickApi.categoryLive(
     sessions: SessionRepository,
     categoryId: String,
     cursor: String?,
-): Outcome<Page<Stream>> = livestreams(sessions, categoryId, cursor)
+): Outcome<Page<Stream>> =
+    if (categoryId.isBlank()) Outcome.Failure(LurkError.NotFound) else livestreams(sessions, categoryId, cursor)
 
 private suspend fun KickApi.livestreams(
     sessions: SessionRepository,
@@ -85,7 +90,7 @@ internal suspend fun KickApi.channel(
     ref: ChannelRef,
 ): Outcome<Channel> =
     sessions.authed(Platform.KICK, anonymousFallback = true) { token ->
-        get(KickBase.API, "v2/channels/${ref.login}", token).decode {
+        get(KickBase.API, "v2/channels/${ref.login.asPathSegment()}", token).decode {
             decodeKickChannel(it).toChannel() ?: throw LurkException(LurkError.SchemaChanged)
         }
     }

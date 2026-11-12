@@ -29,10 +29,21 @@ class KickProfileFetcherTest {
                 ).api
             val result = KickProfileFetcher(api).profile("some-token")
 
-            val expected = Account(Platform.KICK, "1000099", "Viewer One", "Viewer One", "https://cdn.example/a/v1.png")
+            val expected = Account(Platform.KICK, "1000099", "viewer1", "Viewer One", "https://cdn.example/a/v1.png")
             assertEquals(Outcome.Success(expected), result)
             assertEquals("/api/v1/user", seen.single().url.encodedPath)
             assertEquals("Bearer some-token", seen.single().headers[HttpHeaders.Authorization])
+        }
+
+    @Test
+    fun loginFallsBackToLowercasedUsername() =
+        runTest {
+            val body = fixture("account/user.json").replace("\"slug\": \"viewer1\"", "\"slug\": null")
+            val api = Rig(mockEngine { json(body) }).api
+            val account = (KickProfileFetcher(api).profile("some-token") as Outcome.Success).value
+
+            assertEquals("viewer one", account.login)
+            assertEquals("Viewer One", account.displayName)
         }
 
     @Test
