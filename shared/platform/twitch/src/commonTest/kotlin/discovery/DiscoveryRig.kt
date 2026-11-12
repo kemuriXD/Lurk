@@ -3,7 +3,6 @@ package io.github.kemurixd.lurk.platform.twitch.discovery
 import io.github.kemurixd.lurk.auth.ProfileFetcher
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
-import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.config.EmoteConfig
 import io.github.kemurixd.lurk.core.config.KickConfig
@@ -35,6 +34,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+
+internal const val RIG_TOKEN = "rig-token"
 
 /** A GQL client over a mock engine, with a session repository, for the discovery tests. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -71,10 +72,11 @@ private class MemoryStore : SecureStore {
     override suspend fun clear() = values.clear()
 }
 
-private class NoProfiles : ProfileFetcher {
+private class RigProfiles : ProfileFetcher {
     override val platform = Platform.TWITCH
 
-    override suspend fun profile(token: String): Outcome<Account> = Outcome.Failure(LurkError.AuthExpired)
+    override suspend fun profile(token: String): Outcome<Account> =
+        Outcome.Success(Account(Platform.TWITCH, "1000099", "viewer1", "Viewer One", null))
 }
 
 private class TestDispatchers(
@@ -116,12 +118,14 @@ internal fun MockRequestHandleScope.reply(
     status: HttpStatusCode = HttpStatusCode.OK,
 ): HttpResponseData = respond(body, status, headersOf(HttpHeaders.ContentType, "application/json"))
 
-/** Signed out, so each call reaches the mock engine without a token. */
+/** Signed out unless [signedIn], so each call reaches the mock engine without a token by default. */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal fun TestScope.discoveryRig(
+internal suspend fun TestScope.discoveryRig(
+    signedIn: Boolean = false,
     handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
 ): DiscoveryRig {
-    val sessions = SessionRepository(MemoryStore(), listOf(NoProfiles()), backgroundScope)
+    val sessions = SessionRepository(MemoryStore(), listOf(RigProfiles()), backgroundScope)
+    if (signedIn) sessions.signIn(Platform.TWITCH, RIG_TOKEN)
     val seen = mutableListOf<HttpRequestData>()
     val dispatcher = StandardTestDispatcher(testScheduler)
     val engine =
