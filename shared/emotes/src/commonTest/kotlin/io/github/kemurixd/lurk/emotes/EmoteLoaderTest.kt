@@ -22,7 +22,9 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -414,5 +416,35 @@ class EmoteLoaderTest {
             runCurrent()
             assertEquals(3, userCalls, "a retry was scheduled")
             assertEquals(setId, l.sevenTvSetId.value)
+        }
+
+    @Test
+    fun retryHonoursRetryAfter() =
+        runTest {
+            var calls = 0
+            val e =
+                MockEngine(
+                    MockEngineConfig().apply {
+                        dispatcher = StandardTestDispatcher(testScheduler)
+                        addHandler { request ->
+                            if (request.has("/set/global") && calls++ == 0) {
+                                respond("", HttpStatusCode.TooManyRequests, headersOf(HttpHeaders.RetryAfter, "40"))
+                            } else {
+                                respond(body(request.url.toString()))
+                            }
+                        }
+                    },
+                )
+            val results = loader(cacheStore(), e).load(twitch, setOf(EmoteProvider.FFZ), backgroundScope)
+            assertIs<LurkError.RateLimited>(assertIs<Outcome.Failure>(outcomeOf(results, EmoteSource.FFZ_GLOBAL)).error)
+
+            // The backoff alone would retry within 2 seconds; the server asked for 40.
+            advanceTimeBy(39.seconds)
+            runCurrent()
+            assertEquals(1, calls, "no retry before Retry-After")
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertEquals(2, calls)
+            assertEquals(FfzParser.global(fixture("ffz/global.json")).size, count(EmoteProvider.FFZ, EmoteScope.GLOBAL))
         }
 }

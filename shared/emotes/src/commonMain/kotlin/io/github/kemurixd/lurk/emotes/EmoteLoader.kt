@@ -103,7 +103,7 @@ class EmoteLoader(
                 fetchAndStore(source, channel).also { outcome ->
                     if (outcome is Outcome.Failure) {
                         if (cached != null) apply(source, channel, cached, cachedSetId)
-                        retryScope.launch { retry(source, channel) }
+                        retryScope.launch { retry(source, channel, outcome.error) }
                     }
                 }
             }
@@ -144,13 +144,19 @@ class EmoteLoader(
             Outcome.Failure(LurkError.Unexpected)
         }
 
+    /** Retries [source] with backoff; a rate limit's `Retry-After` stretches the wait before the next attempt. */
     private suspend fun retry(
         source: EmoteSource,
         channel: EmoteChannel,
+        firstError: LurkError,
     ) {
+        var error = firstError
         repeat(MAX_RETRIES) { attempt ->
-            delay(backoff.delayFor(attempt))
-            if (fetchAndStore(source, channel) is Outcome.Success) return
+            delay(backoff.delayFor(attempt, (error as? LurkError.RateLimited)?.retryAfter))
+            when (val outcome = fetchAndStore(source, channel)) {
+                is Outcome.Success -> return
+                is Outcome.Failure -> error = outcome.error
+            }
         }
         log.w { "Giving up on emote source $source after $MAX_RETRIES retries" }
     }
