@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.playback
 
+import co.touchlab.kermit.Logger
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.common.getOrNull
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -22,8 +23,11 @@ import kotlin.concurrent.Volatile
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.ComparableTimeMark
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /** Where one session's playlists go right now. [generation] goes up with every change. */
 internal data class RouteState(
@@ -50,17 +54,23 @@ internal data class Routed(
  * that is what makes the walk single-flight. The 403 re-resolve and the ads switch are also single-flight under the
  * same lock, and their once-per-30-s and once-per-session checks are made inside it.
  *
- * The ads switch runs in [scope], not in the fetch that found the ad, so the player cancelling that load cannot lose
- * it. Nothing is committed once [close] has been called.
+ * The ads switch and the 403 re-resolve run in [scope], not in the fetch that set them off, so the player cancelling
+ * that load cannot lose them and the fetch is not held up. Nothing is committed once [close] has been called.
  *
  * A session playing direct as [ProxyStatus.Unavailable] probes the proxies again once [PROXY_COOLDOWN] has passed
- * since it went there (or since the last probe failed). The probe is started by a fetch but runs in [scope], so that
- * fetch is not held up; it is single-flight under [transitions], and on success the session moves back with a Reload.
+ * since a walk last left it there (or since the last probe failed). The probe is started by a fetch but runs in
+ * [scope], so that fetch is not held up; it is single-flight under [transitions], and on success the session moves
+ * back with a Reload. A probe refused for a stream reason (most likely an expired grant) tries once more with a fresh
+ * grant, under the re-resolve throttle.
+ *
+ * Work launched in [scope] catches its own unexpected exceptions (a throwing [PlaybackSource.grant], say): the route
+ * stays as it was and the claims are freed as on any other failure.
  *
  * A URL template's host is a third party: requests to it never carry the source's headers and never go through an
  * HTTP proxy, and they time out like a proxied request.
  *
- * [onRouteReload] runs, holding [transitions], after every Reload that moved the session to another route.
+ * [onRouteReload] runs, holding [transitions], after every Reload that moved the session to another route, with the
+ * new route's generation.
  */
 @OptIn(ExperimentalAtomicApi::class)
 internal class SessionRouting(
@@ -70,14 +80,18 @@ internal class SessionRouting(
     private val router: StreamRouter,
     private val scope: CoroutineScope,
     initial: Opening,
-    private val onRouteReload: () -> Unit = {},
+    private val onRouteReload: (generation: Int) -> Unit = {},
 ) {
     private val transitions = Mutex()
     private val templateHosts = templateHostsOf(settings.endpoints)
 
-    /** The resolve's master text, served once for the first fetch of its URL unless a Reload came first. */
+    /**
+     * The resolve's master text, served once for the first fetch of its URL unless a Reload came first. Only within
+     * [RESOLVED_MASTER_WINDOW] (10 s) of the resolve: a player that prepares later gets a live copy.
+     */
     private val resolvedMasterUrl = initial.masterUrl
     private val resolvedMaster = AtomicReference<String?>(initial.masterText)
+    private val resolvedAt = router.timeSource.markNow()
 
     /** When a session playing direct as Unavailable may probe the proxies again. Read only while Unavailable. */
     @Volatile
@@ -85,14 +99,15 @@ internal class SessionRouting(
         if (initial.status == ProxyStatus.Unavailable) router.timeSource.markNow() + PROXY_COOLDOWN else null
 
     private val recovering = AtomicBoolean(false)
+    private val reResolving = AtomicBoolean(false)
 
     /** Written only while holding [transitions]; read anywhere. */
     @Volatile
     var current = RouteState(initial.grant, initial.route, initial.status, initial.masterUrl, generation = 0)
         private set
 
-    /** Guarded by [transitions]. */
-    private var lastReResolve: ComparableTimeMark? = null
+    /** The 403 re-resolve's once-per-30-s throttle, shared with the fresh grants of the ads switch and the probe. */
+    private val reResolves = Throttle(router.timeSource, RE_RESOLVE_INTERVAL)
 
     private val adSwitchClaimed = AtomicBoolean(false)
 
@@ -117,8 +132,11 @@ internal class SessionRouting(
 
     /** Fetches [url] on the current route, failing over when a proxy lets it down. */
     suspend fun fetch(url: String): Routed {
-        if (url == resolvedMasterUrl) resolvedMaster.exchange(null)?.let { return Routed(current, Outcome.Success(it)) }
-        var result = current.let { Routed(it, attempt(it, url)) }
+        if (url == resolvedMasterUrl) {
+            val text = resolvedMaster.exchange(null)?.takeIf { resolvedAt.elapsedNow() < RESOLVED_MASTER_WINDOW }
+            if (text != null) return Routed(current, Outcome.Success(text))
+        }
+        var result = current.let { Routed(it, router.attempt(it, url, templateHosts)) }
         val maxRounds = settings.endpoints.size + 1
         var rounds = 0
         var stop = closed
@@ -134,14 +152,26 @@ internal class SessionRouting(
                 }
             // An answer that left the generation alone (a failed template re-open) would only repeat itself.
             stop = closed || handled?.state?.generation == seen.generation
-            result = handled ?: current.let { Routed(it, attempt(it, url)) }
+            result = handled ?: current.let { Routed(it, router.attempt(it, url, templateHosts)) }
         }
         recoverIfDue(result.state)
         return result
     }
 
-    /** After a playlist 403: a fresh grant and route, then a Reload. At most once per 30 s; failures change nothing. */
-    suspend fun reResolve() = transitions.withLock { renew() }
+    /**
+     * After a playlist 403: starts a fresh grant and route, then a Reload, in [scope] and returns at once. At most
+     * once per 30 s and one at a time; failures change nothing.
+     */
+    fun reResolveSoon() {
+        if (closed || !reResolving.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                transitions.withLock { guarded("Re-resolve", onFailure = {}) { renew() } }
+            } finally {
+                reResolving.store(false)
+            }
+        }
+    }
 
     /**
      * A stitched ad arrived over [used]. In [ProxyMode.WHEN_ADS_DETECTED] the first one on the unproxied direct route
@@ -170,17 +200,6 @@ internal class SessionRouting(
         closed = true
     }
 
-    private suspend fun attempt(
-        s: RouteState,
-        url: String,
-    ): Outcome<String> {
-        val headers = headersFor(s, url, templateHosts)
-        return when (val endpoint = proxyFor(s, url, templateHosts)) {
-            null -> router.get(Route.Direct, url, headers, toTemplateHost = onTemplateHost(url, templateHosts))
-            else -> router.throughProxy(endpoint, url, headers)
-        }
-    }
-
     /**
      * When [seen] is Unavailable and the cooldown is over, starts one probe in [scope] and returns without waiting.
      * The probe takes [transitions] and, with the session still where [seen] left it, fetches the master through the
@@ -196,13 +215,39 @@ internal class SessionRouting(
                     val s = current
                     val unchanged = s.generation == seen.generation && s.status == ProxyStatus.Unavailable
                     if (closed || !unchanged || recoverAfter?.hasPassedNow() != true) return@withLock
-                    when (val result = router.proxiedMaster(channel, s.grant, settings.endpoints)) {
-                        is ChainResult.Success -> commit(result.value.after(s), reload = true)
-                        is ChainResult.AllFailed -> recoverAfter = router.timeSource.markNow() + PROXY_COOLDOWN
+                    val opening = guarded("Recovery probe", onFailure = { null }) { probe(s) }
+                    if (opening != null) {
+                        commit(opening.after(s), reload = true)
+                    } else {
+                        recoverAfter = router.timeSource.markNow() + PROXY_COOLDOWN
                     }
                 }
             } finally {
                 recovering.store(false)
+            }
+        }
+    }
+
+    /**
+     * Holding [transitions]: the master through the proxies with [s]'s grant or, when that is refused for a stream
+     * reason, once with a fresh grant if the re-resolve throttle allows one. Null when neither works. Nothing is
+     * committed here, so a failed probe never moves the session.
+     */
+    private suspend fun probe(s: RouteState): Opening? {
+        val result = router.proxiedMaster(channel, s.grant, settings.endpoints)
+        val error = (result as? ChainResult.AllFailed)?.lastError
+        return when {
+            result is ChainResult.Success -> {
+                result.value
+            }
+
+            error == null || error.blamesProxy() || !reResolves.tryTake() -> {
+                null
+            }
+
+            else -> {
+                val grant = source.grant(channel).getOrNull() ?: return null
+                (router.proxiedMaster(channel, grant, settings.endpoints) as? ChainResult.Success)?.value
             }
         }
     }
@@ -218,7 +263,19 @@ internal class SessionRouting(
         url: String,
     ): Routed? {
         val failed = (seen.route as Route.ViaProxy).endpoint
-        if (failed is ProxyEndpoint.UrlTemplate) return reopen(seen, failed)
+        if (failed is ProxyEndpoint.UrlTemplate) {
+            // The template failed on its own master: open it again over the other proxies (or directly, as
+            // Unavailable) with a Reload, and hand the caller the new master's text in place of the template's.
+            return when (val opened = router.viaProxies(channel, seen.grant, settings.endpoints - failed)) {
+                is Outcome.Success -> {
+                    Routed(commit(opened.value.after(seen), reload = true), Outcome.Success(opened.value.masterText))
+                }
+
+                is Outcome.Failure -> {
+                    Routed(seen, opened)
+                }
+            }
+        }
         val headers = headersFor(seen, url, templateHosts)
         var reached: ProxyEndpoint? = null
         val result =
@@ -247,33 +304,9 @@ internal class SessionRouting(
         }
     }
 
-    /**
-     * Holding [transitions]: the template [failed] on its own master. The master is opened again over the other
-     * proxies, or directly as [ProxyStatus.Unavailable], and the player is told to reload; the caller gets the new
-     * master's text in place of the template's.
-     */
-    private suspend fun reopen(
-        seen: RouteState,
-        failed: ProxyEndpoint,
-    ): Routed =
-        when (val opened = router.viaProxies(channel, seen.grant, settings.endpoints - failed)) {
-            is Outcome.Success -> {
-                Routed(
-                    commit(opened.value.after(seen), reload = true),
-                    Outcome.Success(opened.value.masterText),
-                )
-            }
-
-            is Outcome.Failure -> {
-                Routed(seen, opened)
-            }
-        }
-
     /** Holding [transitions]: a fresh grant and route, then a Reload. At most once per 30 s. */
     private suspend fun renew() {
-        val last = lastReResolve
-        if (closed || (last != null && last.elapsedNow() < RE_RESOLVE_INTERVAL)) return
-        lastReResolve = router.timeSource.markNow()
+        if (closed || !reResolves.tryTake()) return
         val opening =
             source.grant(channel).getOrNull()?.let { grant ->
                 router.open(channel, grant, source.adPolicy, settings, forceProxy = adSwitchClaimed.load()).getOrNull()
@@ -286,30 +319,43 @@ internal class SessionRouting(
      * ([ProxyStatus.Unavailable]). A stream error is most likely an expired grant, so a fresh one is taken through
      * the re-resolve path (its 30 s throttle included) and the proxies are tried again with it. When that commits
      * nothing (inside the throttle window, no grant, or the fresh master fails too), the claim is freed with a retry
-     * mark at the end of the throttle window.
+     * mark at the end of the throttle window. An unexpected exception frees it the same way, 30 s from now.
      */
     private suspend fun switchForAds() {
         transitions.withLock<Unit> {
             val s = current
             if (closed || s.route != Route.Direct || s.status != ProxyStatus.NotUsed) return@withLock
-            val result = router.proxiedMaster(channel, s.grant, settings.endpoints)
-            val error = (result as? ChainResult.AllFailed)?.lastError
-            when {
-                result is ChainResult.Success -> {
-                    commit(result.value.after(s), reload = true)
+            val threw =
+                guarded("Ads switch", onFailure = { true }) {
+                    trySwitchForAds(s)
+                    false
                 }
+            if (threw && current.generation == s.generation) {
+                adSwitchRetryAfter = router.timeSource.markNow() + RE_RESOLVE_INTERVAL
+                adSwitchClaimed.store(false)
+            }
+        }
+    }
 
-                error != null && !error.blamesProxy() -> {
-                    renew()
-                    if (current.generation == s.generation) {
-                        adSwitchRetryAfter = lastReResolve?.plus(RE_RESOLVE_INTERVAL)
-                        adSwitchClaimed.store(false)
-                    }
-                }
+    /** Holding [transitions], with the session still on [s]: the switch itself. */
+    private suspend fun trySwitchForAds(s: RouteState) {
+        val result = router.proxiedMaster(channel, s.grant, settings.endpoints)
+        val error = (result as? ChainResult.AllFailed)?.lastError
+        when {
+            result is ChainResult.Success -> {
+                commit(result.value.after(s), reload = true)
+            }
 
-                else -> {
-                    commit(s.moved(Route.Direct, ProxyStatus.Unavailable), reload = false)
+            error != null && !error.blamesProxy() -> {
+                renew()
+                if (current.generation == s.generation) {
+                    adSwitchRetryAfter = reResolves.last?.plus(RE_RESOLVE_INTERVAL)
+                    adSwitchClaimed.store(false)
                 }
+            }
+
+            else -> {
+                commit(s.moved(Route.Direct, ProxyStatus.Unavailable), reload = false)
             }
         }
     }
@@ -325,9 +371,8 @@ internal class SessionRouting(
     ): RouteState {
         if (!closed) {
             val previous = current
-            if (next.status == ProxyStatus.Unavailable && previous.status != ProxyStatus.Unavailable) {
-                recoverAfter = router.timeSource.markNow() + PROXY_COOLDOWN
-            }
+            // Every move to Unavailable follows a failed walk of the proxies, so the cooldown starts again.
+            if (next.status == ProxyStatus.Unavailable) recoverAfter = router.timeSource.markNow() + PROXY_COOLDOWN
             if (reload) resolvedMaster.store(null)
             current = next
             if (!closed) {
@@ -335,7 +380,7 @@ internal class SessionRouting(
                 mutableStatus.value = next.status
             }
             if (reload && !closed) {
-                if (next.route != previous.route) onRouteReload()
+                if (next.route != previous.route) onRouteReload(next.generation)
                 mutableEvents.tryEmit(PlaybackEvent.Reload(next.masterUrl))
             }
         }
@@ -344,6 +389,7 @@ internal class SessionRouting(
 
     private companion object {
         val RE_RESOLVE_INTERVAL = 30.seconds
+        val RESOLVED_MASTER_WINDOW = 10.seconds
         const val EVENT_BUFFER = 8
 
         fun RouteState.moved(
@@ -353,6 +399,19 @@ internal class SessionRouting(
 
         fun Opening.after(previous: RouteState): RouteState =
             RouteState(grant, route, status, masterUrl, previous.generation + 1)
+
+        /** One request for [url] over [s]'s route, with the headers that route allows. */
+        suspend fun StreamRouter.attempt(
+            s: RouteState,
+            url: String,
+            templateHosts: Set<String>,
+        ): Outcome<String> {
+            val headers = headersFor(s, url, templateHosts)
+            return when (val endpoint = proxyFor(s, url, templateHosts)) {
+                null -> get(Route.Direct, url, headers, toTemplateHost = onTemplateHost(url, templateHosts))
+                else -> throughProxy(endpoint, url, headers)
+            }
+        }
 
         fun failedOnProxy(
             result: Routed,
@@ -399,3 +458,43 @@ internal fun templateHostsOf(endpoints: List<ProxyEndpoint>): Set<String> =
         .filterIsInstance<ProxyEndpoint.UrlTemplate>()
         .map { it.label.lowercase() }
         .toSet()
+
+/** Allows one take per [interval]. Not thread-safe: [SessionRouting] uses it holding its lock. */
+private class Throttle(
+    private val timeSource: TimeSource.WithComparableMarks,
+    private val interval: Duration,
+) {
+    /** When the last take was allowed; null before the first. */
+    var last: ComparableTimeMark? = null
+        private set
+
+    fun tryTake(): Boolean {
+        val previous = last
+        if (previous != null && previous.elapsedNow() < interval) return false
+        last = timeSource.markNow()
+        return true
+    }
+}
+
+private val log = Logger.withTag("SessionRouting")
+
+/**
+ * Runs [block] for work a session launches in its own scope. An unexpected exception is logged (its type only:
+ * messages can carry URLs) and replaced by [onFailure]'s value, so it never reaches the platform's default handler.
+ * Cancellation is rethrown.
+ */
+private suspend fun <T> guarded(
+    what: String,
+    onFailure: () -> T,
+    block: suspend () -> T,
+): T =
+    try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (
+        @Suppress("TooGenericExceptionCaught") e: Exception,
+    ) {
+        log.w { "$what failed unexpectedly: ${e::class.simpleName}" }
+        onFailure()
+    }

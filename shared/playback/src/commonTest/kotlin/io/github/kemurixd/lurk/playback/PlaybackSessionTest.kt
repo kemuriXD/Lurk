@@ -118,6 +118,7 @@ class PlaybackSessionTest {
             val session = stream.session
             val events = record(session.events)
             assertEquals(Outcome.Failure(LurkError.Http(403)), session.fetch(MEDIA))
+            runCurrent() // the re-resolve runs beside the fetch
             assertEquals(2, rig.source.calls)
             assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
             assertEquals(listOf(MASTER, MEDIA, MASTER_2), rig.routes.urlsVia(via(A)))
@@ -244,6 +245,7 @@ class PlaybackSessionTest {
             runCurrent()
             gate.complete(Unit)
             fetches.awaitAll().forEach { assertEquals(Outcome.Failure(LurkError.Http(403)), it) }
+            runCurrent()
             assertEquals(2, rig.source.calls)
             assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
             stream.session.close()
@@ -283,6 +285,7 @@ class PlaybackSessionTest {
             val session = stream.session
             val events = record(session.events)
             assertEquals(Outcome.Failure(LurkError.Http(403)), session.fetch(MEDIA))
+            runCurrent()
             assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
             assertEquals(Route.Direct, session.route.value)
             assertEquals(ProxyStatus.SkippedAdFree, session.proxyStatus.value)
@@ -402,87 +405,117 @@ class PlaybackSessionTest {
         }
 
     @Test
-    fun unavailableRecoversAfterCooldown() =
+    fun reResolveSurvivesCancelledFetch() =
         runTest {
             val rig = Rig(this)
-            var proxyDown = false
-            rig.script { route, _ -> if (proxyDown && route == via(A)) Reply.Offline else null }
+            val grantGate = CompletableDeferred<Unit>()
+            var forbidden = 0
+            rig.script { route, url ->
+                if (route == via(A) && url == MEDIA &&
+                    forbidden++ == 0
+                ) {
+                    Reply.Status(403)
+                } else {
+                    null
+                }
+            }
             val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
             val session = stream.session
             val events = record(session.events)
-            proxyDown = true
-            assertEquals(Outcome.Success(live), session.fetch(MEDIA))
-            assertEquals(ProxyStatus.Unavailable, session.proxyStatus.value)
-
-            proxyDown = false
-            delay(2.minutes)
-            // The refresh that notices goes direct as before; the proxies are probed beside it.
-            assertEquals(Outcome.Success(live), session.fetch(MEDIA))
-            assertEquals(listOf(MEDIA, MEDIA), rig.routes.urlsVia(Route.Direct))
+            rig.source.onGrant = { grantGate.await() }
+            val fetching = launch { session.fetch(MEDIA) }
             runCurrent()
-            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
+            fetching.cancel()
+            grantGate.complete(Unit)
+            runCurrent()
+            assertEquals(2, rig.source.calls)
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
+            assertEquals(via(A), session.route.value)
+            session.close()
+        }
+
+    @Test
+    fun forbiddenReturnsWithoutWaitingForTheGrant() =
+        runTest {
+            val rig = Rig(this)
+            val grantGate = CompletableDeferred<Unit>()
+            var forbidden = 0
+            rig.script { route, url ->
+                if (route == via(A) && url == MEDIA &&
+                    forbidden++ == 0
+                ) {
+                    Reply.Status(403)
+                } else {
+                    null
+                }
+            }
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
+            val session = stream.session
+            val events = record(session.events)
+            rig.source.onGrant = { grantGate.await() }
+            val fetching = async { session.fetch(MEDIA) }
+            runCurrent()
+            assertTrue(fetching.isCompleted, "the 403 is not held back by the grant")
+            assertEquals(Outcome.Failure(LurkError.Http(403)), fetching.await())
+            assertEquals(emptyList(), events)
+            grantGate.complete(Unit)
+            runCurrent()
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
+            session.close()
+        }
+
+    @Test
+    fun reResolveSurvivesAThrowingGrant() =
+        runTest {
+            val rig = Rig(this)
+            rig.source.next = { call ->
+                check(call == 0) { "grant failed unexpectedly" }
+                Outcome.Success(PlaybackGrant(MASTER, headers = FakePlaybackSource.HEADERS))
+            }
+            var forbidden = 0
+            rig.script { route, url ->
+                if (route == via(A) && url == MEDIA &&
+                    forbidden++ == 0
+                ) {
+                    Reply.Status(403)
+                } else {
+                    null
+                }
+            }
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
+            val session = stream.session
+            val events = record(session.events)
+            assertEquals(Outcome.Failure(LurkError.Http(403)), session.fetch(MEDIA))
+            runCurrent()
+            assertEquals(2, rig.source.calls)
+            assertEquals(emptyList(), events)
             assertEquals(via(A), session.route.value)
             assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
-            repeat(3) {
-                session.fetch(MEDIA)
-                runCurrent()
-            }
-            assertEquals(listOf(MASTER, MEDIA, MASTER, MEDIA, MEDIA, MEDIA), rig.routes.urlsVia(via(A)))
-            assertEquals(1, events.size)
+            assertEquals(Outcome.Success(live), session.fetch(MEDIA))
             session.close()
         }
 
     @Test
-    fun noRecoveryProbeBeforeCooldown() =
+    fun malformedUrlOnTheDirectRouteIsAFailure() =
         runTest {
             val rig = Rig(this)
-            var proxyDown = false
-            rig.script { route, _ -> if (proxyDown && route == via(A)) Reply.Offline else null }
-            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
-            val session = stream.session
-            proxyDown = true
-            session.fetch(MEDIA)
-            proxyDown = false
-            repeat(59) {
-                delay(2.seconds)
-                session.fetch(MEDIA)
-                runCurrent()
-            }
-            assertEquals(listOf(MASTER, MEDIA), rig.routes.urlsVia(via(A)))
-            assertEquals(ProxyStatus.Unavailable, session.proxyStatus.value)
-            session.close()
+            val stream = rig.resolve(PlaybackPrefs())
+            assertEquals(
+                Outcome.Failure(LurkError.Unexpected),
+                stream.session.fetch("https://video-weaver.example:99999/v1/playlist/720p60.m3u8"),
+            )
+            stream.session.close()
         }
 
     @Test
-    fun failedRecoveryProbeStaysUnavailableAndWaitsAgain() =
+    fun resolvedMasterIsOnlyServedShortlyAfterTheResolve() =
         runTest {
             val rig = Rig(this)
-            var proxyDown = false
-            rig.script { route, _ -> if (proxyDown && route == via(A)) Reply.Offline else null }
             val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
-            val session = stream.session
-            val events = record(session.events)
-            val statuses = record(session.proxyStatus)
-            proxyDown = true
-            session.fetch(MEDIA)
-            delay(2.minutes)
-            session.fetch(MEDIA)
-            runCurrent()
-            assertEquals(listOf(MASTER, MEDIA, MASTER), rig.routes.urlsVia(via(A)), "one probe")
-            repeat(59) {
-                delay(2.seconds)
-                session.fetch(MEDIA)
-                runCurrent()
-            }
-            assertEquals(3, rig.routes.urlsVia(via(A)).size, "no probe loop inside the next cooldown")
-            delay(2.seconds)
-            session.fetch(MEDIA)
-            runCurrent()
-            assertEquals(listOf(MASTER, MEDIA, MASTER, MASTER), rig.routes.urlsVia(via(A)))
-            assertEquals(ProxyStatus.Unavailable, session.proxyStatus.value)
-            assertEquals(emptyList(), events)
-            assertEquals(listOf<ProxyStatus>(ProxyStatus.Active(A.label), ProxyStatus.Unavailable), statuses)
-            session.close()
+            delay(11.seconds)
+            assertEquals(Outcome.Success(rig.routes.master), stream.session.fetch(stream.masterUrl))
+            assertEquals(listOf(MASTER, MASTER), rig.routes.urlsVia(via(A)), "a late first fetch goes live")
+            stream.session.close()
         }
 
     private fun assertNoGrantHeadersToTemplateHost(rig: Rig) {

@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.playback
 
+import co.touchlab.kermit.Logger
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -7,6 +8,7 @@ import io.github.kemurixd.lurk.playback.ads.AdDetector
 import io.github.kemurixd.lurk.playback.ads.AdTracker
 import io.github.kemurixd.lurk.playback.hls.MediaPlaylist
 import io.github.kemurixd.lurk.playback.proxy.Route
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -44,12 +46,15 @@ interface PlaylistFetcher {
  * - When a proxy fails a request, the same URL is retried on the next HTTP proxy and the session moves there. When
  *   none is left the session plays direct with [ProxyStatus.Unavailable]. A proxy problem never stops playback, and a
  *   session that should be proxied never goes direct without saying so.
- * - The first fetch of the resolved master URL is answered with the text the resolve already fetched, unless a
- *   Reload came first, so the player does not fetch the master twice.
- * - A playlist 403 takes a fresh grant, picks the route again and emits [PlaybackEvent.Reload], at most once per
- *   30 s. The 403 itself is returned.
- * - Twitch media playlists feed the ad tracker and [typicalSegment]. In [ProxyMode.WHEN_ADS_DETECTED] the first
- *   stitched ad seen on the direct route moves the session onto the proxies for good, with a Reload. Cues never do.
+ * - The first fetch of the resolved master URL, within 10 s of the resolve, is answered with the text the resolve
+ *   already fetched, unless a Reload came first, so the player does not fetch the master twice.
+ * - A playlist 403 is returned at once. Beside it, in the session's own scope, a fresh grant is taken, the route is
+ *   picked again and [PlaybackEvent.Reload] is emitted, at most once per 30 s.
+ * - Twitch media playlists feed the ad tracker and [typicalSegment]. A refresh fetched on a route the session has
+ *   since reloaded away from feeds [typicalSegment] only. In [ProxyMode.WHEN_ADS_DETECTED] the first stitched ad
+ *   seen on the direct route moves the session onto the proxies for good, with a Reload. Cues never do.
+ * - [fetch] never throws, except to cancel. Background route work that fails unexpectedly leaves the route as it
+ *   was.
  * - [AdPolicy.UNTOUCHED] (Kick) playlists are passed through unread: no tracker, no parsing, no proxy.
  *
  * Route changes are serialised without locking ordinary fetches; see [SessionRouting]. Built by [PlaylistResolver]
@@ -68,9 +73,10 @@ class PlaybackSession internal constructor(
     AutoCloseable {
     /** The session's own child of the caller's scope. A supervisor, so a failing tracker task stays in here. */
     private val job = SupervisorJob(parent.coroutineContext[Job])
-    private val scope = CoroutineScope(parent.coroutineContext + job + router.dispatchers.default)
+    private val scope =
+        CoroutineScope(parent.coroutineContext + job + router.dispatchers.default + backstop)
     private val routing =
-        SessionRouting(channel, source, settings, router, scope, initial, onRouteReload = { tracker?.onReload() })
+        SessionRouting(channel, source, settings, router, scope, initial, onRouteReload = { tracker?.onReload(it) })
     private val mutableTypical = MutableStateFlow<Duration?>(null)
 
     private val tracker: AdTracker? =
@@ -96,7 +102,7 @@ class PlaybackSession internal constructor(
         val (used, outcome) = routing.fetch(url)
         when (outcome) {
             is Outcome.Success -> inspect(outcome.value, used)
-            is Outcome.Failure -> if (outcome.error == FORBIDDEN) routing.reResolve()
+            is Outcome.Failure -> if (outcome.error == FORBIDDEN) routing.reResolveSoon()
         }
         return outcome
     }
@@ -123,7 +129,7 @@ class PlaybackSession internal constructor(
             withContext(router.dispatchers.default) {
                 MediaPlaylist.parse(text)?.let { playlist ->
                     playlist.typicalSegment?.let { mutableTypical.value = it }
-                    tracker.onMediaPlaylist(playlist)
+                    tracker.onMediaPlaylist(playlist, used.generation)
                 }
             }
         if (info?.hasStitched == true) routing.onStitchedAd(used)
@@ -131,5 +137,15 @@ class PlaybackSession internal constructor(
 
     private companion object {
         val FORBIDDEN = LurkError.Http(403)
+
+        /**
+         * Last resort for a session task that throws. [SessionRouting] already catches its own failures; this only
+         * keeps a missed one from reaching the platform's default handler. Only the type is logged: messages can
+         * carry URLs.
+         */
+        val backstop =
+            CoroutineExceptionHandler { _, e ->
+                Logger.withTag("PlaybackSession").w { "Session task failed: ${e::class.simpleName}" }
+            }
     }
 }

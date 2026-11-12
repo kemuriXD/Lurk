@@ -12,6 +12,7 @@ import io.github.kemurixd.lurk.playback.proxy.Route
 import io.github.kemurixd.lurk.playback.proxy.RouteClients
 import io.github.kemurixd.lurk.playback.proxy.blamesProxy
 import io.github.kemurixd.lurk.playback.proxy.getText
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.TimeSource
 
 /** A grant whose master playlist has been fetched over [route]. */
@@ -81,13 +82,28 @@ internal class StreamRouter(
             is ChainResult.AllFailed -> Outcome.Failure(result.lastError ?: LurkError.ProxyFailed)
         }
 
-    /** A plain GET over [route]'s client; see [getText]. */
+    /**
+     * A plain GET over [route]'s client; see [getText]. On [Route.Direct] an unexpected exception (a URL that does
+     * not parse, say) is [LurkError.Unexpected], so a direct fetch never throws except to cancel. A proxied request
+     * leaves it to [ProxyChain], which blames the proxy for it.
+     */
     suspend fun get(
         route: Route,
         url: String,
         headers: Map<String, String>,
         toTemplateHost: Boolean = false,
-    ): Outcome<String> = routes.getText(route, url, headers, toTemplateHost)
+    ): Outcome<String> {
+        if (route != Route.Direct) return routes.getText(route, url, headers, toTemplateHost)
+        return try {
+            routes.getText(route, url, headers, toTemplateHost)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+        ) {
+            Outcome.Failure(LurkError.Unexpected)
+        }
+    }
 
     /**
      * The master through the first of [endpoints] that works; when none does (or the list is empty), directly as

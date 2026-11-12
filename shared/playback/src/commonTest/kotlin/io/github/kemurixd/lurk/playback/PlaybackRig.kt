@@ -85,7 +85,7 @@ class FakePlaybackSource(
     private val count = AtomicInt(0)
     val calls: Int get() = count.load()
 
-    var onGrant: () -> Unit = {}
+    var onGrant: suspend () -> Unit = {}
     var next: (call: Int) -> Outcome<PlaybackGrant> = { call ->
         Outcome.Success(PlaybackGrant(masterUrl = if (call == 0) MASTER else MASTER_2, headers = HEADERS))
     }

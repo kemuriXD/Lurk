@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -116,6 +117,7 @@ class AdsSwitchTest {
             assertEquals(via(A), session.route.value)
             forbidden = true
             session.fetch(MEDIA)
+            runCurrent()
             assertEquals(listOf(PlaybackEvent.Reload(MASTER), PlaybackEvent.Reload(MASTER_2)), events)
             assertEquals(listOf(MASTER, MEDIA, MASTER_2), rig.routes.urlsVia(via(A)))
             assertEquals(via(A), session.route.value)
@@ -252,6 +254,7 @@ class AdsSwitchTest {
             val events = record(session.events)
             // t = 0: a playlist 403 re-resolves, which starts the 30 s throttle window.
             assertEquals(Outcome.Failure(LurkError.Http(403)), session.fetch(MEDIA))
+            runCurrent()
             assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(master(1))), events)
 
             rig.routes.media = preroll
@@ -387,6 +390,70 @@ class AdsSwitchTest {
             assertEquals(via(A), session.route.value)
             assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
             assertEquals(listOf(MASTER, MASTER), rig.routes.urlsVia(via(A)))
+            session.close()
+        }
+
+    @Test
+    fun staleDirectRefreshDoesNotBringBackTheAd() =
+        runTest {
+            val rig = Rig(this)
+            val gate = CompletableDeferred<Unit>()
+            rig.routes.media = stitchedMidAd()
+            rig.routes.reply = { route, url ->
+                if (route == Route.Direct && url == MEDIA_480) gate.await()
+                Reply.Text(rig.routes.serve(url))
+            }
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val session = stream.session
+            // A direct refresh is in flight while another one finds the ad and the session switches.
+            val inFlight = async { session.fetch(MEDIA_480) }
+            runCurrent()
+            session.fetch(MEDIA)
+            runCurrent()
+            assertEquals(via(A), session.route.value)
+            assertFalse(session.adState.value is AdState.Playing, "the switch forgot the direct ad")
+            val states = record(session.adState)
+
+            // It lands after the switch, carrying the direct route's ad.
+            gate.complete(Unit)
+            assertEquals(Outcome.Success(stitchedMidAd()), inFlight.await())
+            runCurrent()
+            assertTrue(states.none { it is AdState.Playing }, "stale direct ad came back: $states")
+            session.close()
+        }
+
+    @Test
+    fun adsSwitchSurvivesAThrowingGrant() =
+        runTest {
+            val rig = Rig(this)
+            rig.source.next = { call ->
+                check(call == 0) { "grant failed unexpectedly" }
+                Outcome.Success(PlaybackGrant(MASTER, headers = FakePlaybackSource.HEADERS))
+            }
+            // The proxy refuses the first grant's master, so the switch asks for a fresh grant, which throws.
+            rig.script { route, url -> if (route == via(A) && url == MASTER) Reply.Status(403) else null }
+            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
+            val session = stream.session
+            val events = record(session.events)
+            rig.routes.media = preroll
+            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
+            runCurrent()
+            assertEquals(2, rig.source.calls)
+            assertEquals(emptyList(), events)
+            assertEquals(Route.Direct, session.route.value)
+            assertEquals(ProxyStatus.NotUsed, session.proxyStatus.value)
+            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
+            runCurrent()
+            assertEquals(2, rig.source.calls, "no retry inside the 30 s window")
+
+            // The claim was freed: once the window is over and grants work again, the switch goes through.
+            rig.source.next = { Outcome.Success(PlaybackGrant(MASTER_2, headers = FakePlaybackSource.HEADERS)) }
+            delay(31.seconds)
+            session.fetch(MEDIA)
+            runCurrent()
+            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
+            assertEquals(via(A), session.route.value)
+            assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
             session.close()
         }
 }

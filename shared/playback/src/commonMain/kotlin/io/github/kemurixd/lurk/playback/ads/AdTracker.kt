@@ -67,14 +67,23 @@ internal class AdTracker(
     private val cues = ArrayList<Window>()
     private var stitched = listOf<StitchedWindow>()
     private var ticker: Job? = null
+    private var reloadedAt = 0
 
-    /** Feeds one refresh and returns what [AdDetector] found in it, so the caller need not inspect it twice. */
-    fun onMediaPlaylist(playlist: MediaPlaylist): PlaylistAdInfo {
+    /**
+     * Feeds one refresh and returns what [AdDetector] found in it, so the caller need not inspect it twice.
+     * [generation] is the route generation the refresh was fetched on. A refresh from before the last [onReload]
+     * is dropped, since its ads belong to a stream the player no longer loads.
+     */
+    fun onMediaPlaylist(
+        playlist: MediaPlaylist,
+        generation: Int = 0,
+    ): PlaylistAdInfo {
         val at = timeSource.markNow()
         val info = detector.inspect(playlist)
         val serverTime = playlist.serverTime
         val edge = liveEdge(playlist)
         post {
+            if (generation < reloadedAt) return@post
             serverClock = forward(serverClock, serverTime, at)
             edgeClock = forward(edgeClock, edge, at)
             for (cue in info.cues) {
@@ -96,10 +105,15 @@ internal class AdTracker(
 
     /**
      * The session moved to another route with a Reload, so the stitched ads seen on the old route are not in the
-     * stream the player now loads; they are forgotten. Cue windows, and the cue IDs already seen, stay.
+     * stream the player now loads; they are forgotten. Cue windows, and the cue IDs already seen, stay. [generation]
+     * is the new route's: later input from an older generation is dropped. Both calls go through the same serial
+     * queue, so a refresh that was in flight across the reload cannot bring the old ads back.
      */
-    fun onReload() {
-        post { stitched = emptyList() }
+    fun onReload(generation: Int) {
+        post {
+            reloadedAt = maxOf(reloadedAt, generation)
+            stitched = emptyList()
+        }
     }
 
     /** Publishes [AdState.None] and cancels the tracker's coroutines at once. Later input is ignored. */

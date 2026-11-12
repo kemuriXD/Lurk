@@ -206,7 +206,20 @@ class PlaylistResolverTest {
             listOf("sigvalue1", "tokenvalue1", "headervalue1", "Authorization").forEach {
                 assertFalse(it in text, "$it leaked: $text")
             }
-            assertTrue("usher.example/api/channel/hls/testchannel.m3u8" in text, text)
+            assertTrue("masterUrl=https://usher.example," in text, text)
+            assertFalse("/api/" in text, text)
+            stream.session.close()
+        }
+
+    @Test
+    fun resolvedStreamToStringHidesTheTemplatePath() =
+        runTest {
+            val rig = Rig(this)
+            val template = ProxyEndpoint.UrlTemplate("https://lol.example/keyvalue1/live/{channel}")
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, template))
+            val text = stream.toString()
+            listOf("keyvalue1", "/live/").forEach { assertFalse(it in text, "$it leaked: $text") }
+            assertTrue("masterUrl=https://lol.example," in text, text)
             stream.session.close()
         }
 }

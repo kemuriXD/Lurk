@@ -197,6 +197,27 @@ class AdTrackerTest {
         }
 
     @Test
+    fun inputFromBeforeARouteReloadIsDropped() =
+        runTest {
+            val tracker = tracker()
+            tracker.onMediaPlaylist(parse(prerollMidAd()), generation = 0)
+            runCurrent()
+            assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), tracker.state.value)
+            tracker.onReload(generation = 1)
+            runCurrent()
+            assertEquals(AdState.None, tracker.state.value)
+            // A refresh fetched on the old route lands after the reload: it is ignored.
+            tracker.onMediaPlaylist(parse(prerollMidAd()), generation = 0)
+            runCurrent()
+            assertEquals(AdState.None, tracker.state.value)
+            // One fetched on the new route still counts.
+            tracker.onMediaPlaylist(parse(prerollMidAd()), generation = 1)
+            runCurrent()
+            assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), tracker.state.value)
+            tracker.close()
+        }
+
+    @Test
     fun stitchedWinsOverCue() =
         runTest {
             val cue =
