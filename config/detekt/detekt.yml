@@ -3,6 +3,10 @@ naming:
   FunctionNaming:
     ignoreAnnotated:
       - Composable
+  # Folders leave out each module's root package, which this rule cannot express.
+  # The checkPackageLayout task enforces the layout instead.
+  InvalidPackageDeclaration:
+    active: false
 
 Compose:
   ComposableAnnotationNaming:

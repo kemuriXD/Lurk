@@ -25,7 +25,7 @@ jobs:
       - name: Build-logic tests
         run: ./gradlew -p build-logic :convention:test --stacktrace
       - name: Lint, test and assemble
-        run: ./gradlew spotlessCheck detekt checkModuleBoundaries allTests :androidApp:app:testDebugUnitTest :androidApp:app:assembleDebug --stacktrace
+        run: ./gradlew spotlessCheck detekt checkModuleBoundaries checkPackageLayout allTests :androidApp:app:testDebugUnitTest :androidApp:app:assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: lurk-debug-apk

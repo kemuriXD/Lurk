@@ -24,7 +24,9 @@ val generateBundledConfig by tasks.registering {
                             .replace("\$", "\\\$")
                     "    \"$body\\n\""
                 }
-        val file = outputDir.get().file("io/github/kemurixd/lurk/core/config/BundledRemoteConfig.kt").asFile
+        // Start clean so a file left by an older layout cannot redeclare the constant.
+        outputDir.get().asFile.deleteRecursively()
+        val file = outputDir.get().file("BundledRemoteConfig.kt").asFile
         file.parentFile.mkdirs()
         file.writeText(
             """

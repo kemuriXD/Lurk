@@ -36,8 +36,9 @@ class LurkKmpLibraryPlugin : Plugin<Project> {
 
     /** `:shared:core:model` becomes `io.github.kemurixd.lurk.core.model`. */
     private fun namespaceFor(path: String): String {
-        val segments = path.split(':').filter { it.isNotEmpty() }
-        require(segments.firstOrNull() == "shared") { "lurk.kmp.library only applies under :shared, got $path" }
-        return (listOf("io.github.kemurixd.lurk") + segments.drop(1)).joinToString(".")
+        require(path == ":shared" || path.startsWith(":shared:")) {
+            "lurk.kmp.library only applies under :shared, got $path"
+        }
+        return PackageLayout.rootPackageFor(path)
     }
 }
