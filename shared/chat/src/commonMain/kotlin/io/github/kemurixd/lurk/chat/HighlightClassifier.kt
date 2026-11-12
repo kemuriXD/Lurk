@@ -110,5 +110,5 @@ object HighlightClassifier {
     private fun wordIs(
         word: String,
         selfLogin: String,
-    ): Boolean = word.trim { !it.isLetterOrDigit() && it != '_' }.equals(selfLogin, ignoreCase = true)
+    ): Boolean = bareWord(word).equals(selfLogin, ignoreCase = true)
 }
