@@ -45,10 +45,10 @@ object KickEventParser {
                 if (payload == null) emptySequence() else sequenceOfNotNull(map(event, payload, channel))
             }
         } catch (e: SerializationException) {
-            log.w { "Skipping a reply that is not valid JSON: ${e.message}" }
+            log.w { "Skipping a reply that is not valid JSON (${e::class.simpleName})" }
             emptySequence()
         } catch (e: IllegalArgumentException) {
-            log.w { "Skipping a reply with an unexpected shape: ${e.message}" }
+            log.w { "Skipping a reply with an unexpected shape (${e::class.simpleName})" }
             emptySequence()
         }
     }
@@ -149,7 +149,7 @@ object KickEventParser {
         val id =
             payload.string("id")
                 ?: payload.string("gift_transaction_id")
-                ?: "kick:$event:${createdAt ?: payload.toString().hashCode()}"
+                ?: "kick:$event:${createdAt.orEmpty()}:${payload.toString().hashCode()}"
         val text =
             when (kind) {
                 MessageKind.KICKS_GIFT -> payload.string("message").orEmpty()
@@ -222,7 +222,7 @@ internal object KickMessages {
                     try {
                         Json.parseToJsonElement(element.content) as? JsonObject
                     } catch (e: SerializationException) {
-                        log.d { "Ignoring unreadable message metadata: ${e.message}" }
+                        log.d { "Ignoring unreadable message metadata (${e::class.simpleName})" }
                         null
                     }
                 } else {
@@ -251,7 +251,7 @@ internal object KickMessages {
         val identity = obj.obj("identity")
         return ChatUser(
             id = id,
-            login = username,
+            login = username.lowercase(),
             displayName = username,
             color = identity?.string("color"),
             badges = (identity?.get("badges") as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::badge) },
@@ -274,7 +274,7 @@ internal object KickMessages {
         return name?.let {
             ChatUser(
                 id = idKey?.let(obj::string) ?: it,
-                login = it,
+                login = it.lowercase(),
                 displayName = it,
                 color = colorKey?.let(obj::string),
             )
@@ -288,7 +288,7 @@ internal object KickMessages {
         return try {
             if (seconds != null) Instant.fromEpochSeconds(seconds) else Instant.parse(raw)
         } catch (e: IllegalArgumentException) {
-            log.d { "Unreadable timestamp: ${e.message}" }
+            log.d { "Unreadable timestamp (${e::class.simpleName})" }
             epoch
         }
     }

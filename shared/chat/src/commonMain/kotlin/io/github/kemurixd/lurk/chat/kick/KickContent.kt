@@ -8,7 +8,7 @@ import io.github.kemurixd.lurk.core.model.NativeEmoteSpan
 
 /** Turns Kick's `[emote:<id>:<name>]` markup into plain text plus emote spans. */
 object KickContent {
-    private val token = Regex("""\[emote:(\d+):([^\]\s]+)]""")
+    private val token = Regex("""\[emote:(\d+):([^\[\]\s]+)]""")
 
     /**
      * Replaces each token with its name and returns the new text with a span per emote (UTF-16 indices, exclusive

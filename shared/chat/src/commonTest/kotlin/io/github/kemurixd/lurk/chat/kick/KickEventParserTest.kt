@@ -232,4 +232,49 @@ class KickEventParserTest {
         assertEquals(Instant.fromEpochMilliseconds(0), at("""\"soon\""""))
         assertEquals(Instant.fromEpochMilliseconds(0), at("null"))
     }
+
+    private fun subFrame(
+        user: String,
+        createdAt: String = "2026-11-07T18:00:01+00:00",
+    ): String =
+        """{"push":{"channel":"chatrooms.7.v2","pub":{"data":{"event":"App\\Events\\SubscriptionEvent",""" +
+            """"data":"{\"username\":\"$user\",\"months\":1,\"created_at\":\"$createdAt\"}"}}}}"""
+
+    private fun idOf(frame: String): String =
+        assertIs<ChatEvent.Message>(KickEventParser.parseFrame(frame).single()).message.id
+
+    @Test
+    fun syntheticIdsDifferForDifferentPayloadsInTheSameSecond() {
+        assertTrue(idOf(subFrame("aaa")) != idOf(subFrame("bbb")))
+        assertEquals(idOf(subFrame("aaa")), idOf(subFrame("aaa")))
+    }
+
+    @Test
+    fun loginIsLowercaseAndDisplayNameKeepsCase() {
+        val inner =
+            """{\"id\":\"m\",\"chatroom_id\":7,\"content\":\"x\",\"sender\":{\"id\":1,\"username\":\"MixedCase\"}}"""
+        val sender = assertIs<ChatEvent.Message>(KickEventParser.parseFrame(chatFrame(inner)).single()).message.sender
+        assertEquals("mixedcase", sender?.login)
+        assertEquals("MixedCase", sender?.displayName)
+        val notice = assertIs<ChatEvent.Message>(KickEventParser.parseFrame(subFrame("MixedCase")).single()).message
+        assertEquals("mixedcase", notice.sender?.login)
+        assertEquals("MixedCase", notice.sender?.displayName)
+    }
+
+    @Test
+    fun crlfSeparatedRepliesBothParse() {
+        assertEquals(2, KickEventParser.parseFrame(frames[4] + "\r\n" + frames[5]).size)
+    }
+
+    @Test
+    fun innerDataThatIsAnObjectIsAccepted() {
+        val frame =
+            """{"push":{"channel":"chatrooms.7.v2","pub":{"data":{"event":"App\\Events\\ChatroomClearEvent",""" +
+                """"data":{"id":7}}}}}"""
+        assertEquals(listOf<ChatEvent>(ChatEvent.ChatCleared), KickEventParser.parseFrame(frame))
+        val chat =
+            """{"push":{"channel":"chatrooms.7.v2","pub":{"data":{"event":"App\\Events\\ChatMessageEvent",""" +
+                """"data":{"id":"m","chatroom_id":7,"content":"hey","sender":{"id":1,"username":"u"}}}}}}"""
+        assertEquals("hey", assertIs<ChatEvent.Message>(KickEventParser.parseFrame(chat).single()).message.text)
+    }
 }

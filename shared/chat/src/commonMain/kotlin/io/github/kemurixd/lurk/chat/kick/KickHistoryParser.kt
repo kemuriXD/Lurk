@@ -28,7 +28,7 @@ object KickHistoryParser {
             try {
                 Json.parseToJsonElement(json)
             } catch (e: SerializationException) {
-                log.w { "Kick history body is not JSON: ${e.message}" }
+                log.w { "Kick history body is not JSON (${e::class.simpleName})" }
                 return null
             }
         val messages = (root as? JsonObject)?.obj("data")?.get("messages") as? JsonArray

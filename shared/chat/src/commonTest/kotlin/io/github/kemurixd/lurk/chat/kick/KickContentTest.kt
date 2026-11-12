@@ -53,4 +53,19 @@ class KickContentTest {
         assertEquals("hello" to emptyList(), KickContent.split("hello"))
         assertEquals("" to emptyList(), KickContent.split(""))
     }
+
+    @Test
+    fun emojiBeforeTokenShiftsSpanByUtf16Units() {
+        val (text, spans) = KickContent.split("😀 [emote:1:ab]")
+        assertEquals("😀 ab", text)
+        assertEquals(3 to 5, spans.single().start to spans.single().end)
+    }
+
+    @Test
+    fun nestedTokenNeverYieldsANameWithBracket() {
+        val (text, spans) = KickContent.split("[emote:1:[emote:2:x]]")
+        assertEquals("[emote:1:x]", text)
+        assertEquals(listOf("x"), spans.map { it.emote.name })
+        assertEquals(listOf(9 to 10), spans.map { it.start to it.end })
+    }
 }
