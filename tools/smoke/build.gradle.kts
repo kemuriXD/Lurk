@@ -24,6 +24,7 @@ dependencies {
     implementation(project(":shared:platform:kick"))
     implementation(project(":shared:playback"))
     implementation(libs.koin.core)
+    implementation(libs.kermit)
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(kotlin("test"))

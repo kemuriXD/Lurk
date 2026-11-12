@@ -28,16 +28,21 @@ internal class KickChecks(
     private val sessions = koin.get<SessionRepository>()
 
     suspend fun run() {
-        val signedIn = signIn()
-        if (signedIn) followed() else report.skip("kick.followed", "not signed in")
+        val signedIn = report.guarded("kick.profile") { signIn() } ?: false
+        if (signedIn) report.guarded("kick.followed") { followed() } else report.skip("kick.followed", "not signed in")
         val ref = config.kickChannel?.let { ChannelRef(Platform.KICK, it) }
         if (ref == null) {
             listOf("kick.grant", "kick.realtime").forEach(report::skipNoChannel)
         } else {
-            realtime(ref, live = grant(ref))
+            val live = report.guarded("kick.grant") { grant(ref) } ?: false
+            report.guarded("kick.realtime") { realtime(ref, live) }
         }
         val slug = config.kickFollowTest
-        if (slug != null && signedIn) followTest(ChannelRef(Platform.KICK, slug))
+        when {
+            slug == null -> Unit
+            !signedIn -> report.skip("kick.followTest", "not signed in")
+            else -> report.guarded("kick.followTest") { runFollowTest(ChannelRef(Platform.KICK, slug), ops, report) }
+        }
     }
 
     private suspend fun signIn(): Boolean {
@@ -114,25 +119,15 @@ internal class KickChecks(
 
     private suspend fun channel(ref: ChannelRef): Channel? = (platform.channel(ref) as? Outcome.Success)?.value
 
-    /** Follows, checks, unfollows, checks. Prints `restored=true` only when the channel ends up not followed. */
-    private suspend fun followTest(ref: ChannelRef) {
-        val channel = channel(ref)
-        val before = (platform.followed() as? Outcome.Success)?.value
-        when {
-            channel == null || before == null -> report.fail("kick.followTest", "restored=true lookup failed")
-            before.contains(ref) -> report.skip("kick.followTest", "already following")
-            else -> report.pass("kick.followTest", "restored=${roundTrip(channel)}")
+    private val ops =
+        object : FollowOps {
+            override suspend fun channel(ref: ChannelRef): Channel? = this@KickChecks.channel(ref)
+
+            override suspend fun followed(): Followed? = (platform.followed() as? Outcome.Success)?.value
+
+            override suspend fun setFollow(
+                channel: Channel,
+                follow: Boolean,
+            ): Boolean = platform.setFollow(channel, follow) is Outcome.Success
         }
-    }
-
-    private suspend fun roundTrip(channel: Channel): Boolean {
-        val followed = platform.setFollow(channel, true) is Outcome.Success && platform.isFollowing(channel.ref)
-        val unfollowed = platform.setFollow(channel, false) is Outcome.Success && !platform.isFollowing(channel.ref)
-        return followed && unfollowed
-    }
-
-    private suspend fun StreamingPlatform.isFollowing(ref: ChannelRef): Boolean =
-        (followed() as? Outcome.Success)?.value?.contains(ref) == true
-
-    private fun Followed.contains(ref: ChannelRef) = live.any { it.channel == ref } || offline.any { it.ref == ref }
 }

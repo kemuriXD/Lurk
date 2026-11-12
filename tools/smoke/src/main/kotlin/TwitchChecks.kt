@@ -35,10 +35,10 @@ internal class TwitchChecks(
         if (ref == null) {
             listOf("twitch.grant.anon", "twitch.irc").forEach(report::skipNoChannel)
         } else {
-            grant("twitch.grant.anon", ref)
-            irc(ref)
+            report.guarded("twitch.grant.anon") { grant("twitch.grant.anon", ref) }
+            report.guarded("twitch.irc") { irc(ref) }
         }
-        val signedIn = signIn()
+        val signedIn = report.guarded("twitch.profile") { signIn() } ?: false
         val channelChecks = listOf("twitch.grant.signedIn", "twitch.resolve")
         when {
             ref == null -> {
@@ -50,11 +50,17 @@ internal class TwitchChecks(
             }
 
             else -> {
-                grant("twitch.grant.signedIn", ref)
-                resolve(ref)
+                report.guarded("twitch.grant.signedIn") { grant("twitch.grant.signedIn", ref) }
+                report.guarded("twitch.resolve") { resolve(ref) }
             }
         }
-        if (signedIn) followed() else report.skip("twitch.followed", "not signed in")
+        if (signedIn) {
+            report.guarded(
+                "twitch.followed",
+            ) { followed() }
+        } else {
+            report.skip("twitch.followed", "not signed in")
+        }
     }
 
     private suspend fun grant(
