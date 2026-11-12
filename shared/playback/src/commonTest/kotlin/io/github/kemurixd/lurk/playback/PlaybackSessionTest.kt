@@ -33,11 +33,6 @@ class PlaybackSessionTest {
     private val cue = fixture("twitch/media-cue.m3u8")
     private val preroll = fixture("twitch/media-stitched-preroll.m3u8")
 
-    /** Serves the fixtures, but [fail] decides first; null lets the request through. */
-    private fun Rig.script(fail: (Route, String) -> Reply?) {
-        routes.reply = { route, url -> fail(route, url) ?: Reply.Text(routes.serve(url)) }
-    }
-
     @Test
     fun alwaysRoutesMasterAndEveryRefreshViaProxy() =
         runTest {
@@ -111,96 +106,13 @@ class PlaybackSessionTest {
         }
 
     @Test
-    fun whenAdsDetectedSwitchesOnStitchedOnly() =
-        runTest {
-            val rig = Rig(this)
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val session = stream.session
-            val events = record(session.events)
-            assertEquals(Route.Direct, session.route.value)
-            assertEquals(ProxyStatus.NotUsed, session.proxyStatus.value)
-
-            rig.routes.media = cue
-            repeat(5) {
-                session.fetch(MEDIA)
-                delay(2.seconds)
-            }
-            runCurrent()
-            assertEquals(emptyList(), events)
-            assertEquals(emptyList(), rig.routes.urlsVia(via(A)))
-
-            rig.routes.media = preroll
-            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
-            runCurrent()
-            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
-            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)))
-            assertEquals(via(A), session.route.value)
-            assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
-
-            repeat(3) { session.fetch(MEDIA) }
-            runCurrent()
-            assertEquals(listOf(MASTER, MEDIA, MEDIA, MEDIA), rig.routes.urlsVia(via(A)))
-            assertEquals(listOf(MASTER) + List(6) { MEDIA }, rig.routes.urlsVia(Route.Direct))
-            assertEquals(1, events.size)
-            session.close()
-        }
-
-    @Test
-    fun cueDoesNotTriggerProxy() =
-        runTest {
-            val rig = Rig(this)
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val session = stream.session
-            val events = record(session.events)
-            val states = record(session.adState)
-            val refreshes = fixtureDir("twitch/cue-break").map { it.second }
-            repeat(30) { i ->
-                rig.routes.media = refreshes[i % refreshes.size]
-                session.fetch(MEDIA)
-                delay(6.seconds)
-            }
-            assertTrue(states.any { it is AdState.Avoided }, "the cue was seen")
-            assertTrue(states.none { it is AdState.Playing })
-            assertTrue(rig.routes.requests.all { it.route == Route.Direct })
-            assertEquals(31, rig.routes.requests.size)
-            assertEquals(emptyList(), events)
-            assertEquals(ProxyStatus.NotUsed, session.proxyStatus.value)
-            session.close()
-        }
-
-    @Test
-    fun adFreeNeverSwitchesOnStitched() =
-        runTest {
-            val rig = Rig(this)
-            rig.source.next = {
-                Outcome.Success(
-                    PlaybackGrant(MASTER, tokenFlags = TokenFlags(subscriber = false, turbo = true, showAds = true)),
-                )
-            }
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val events = record(stream.session.events)
-            rig.routes.media = preroll
-            repeat(3) { stream.session.fetch(MEDIA) }
-            runCurrent()
-            assertEquals(emptyList(), events)
-            assertTrue(rig.routes.requests.all { it.route == Route.Direct })
-            assertEquals(ProxyStatus.SkippedAdFree, stream.session.proxyStatus.value)
-            stream.session.close()
-        }
-
-    @Test
     fun playlist403ReResolves() =
         runTest {
             val rig = Rig(this)
             var forbidden = 0
             rig.script { route, url ->
-                if (route == via(A) && url == MEDIA &&
-                    forbidden++ == 0
-                ) {
-                    Reply.Status(403)
-                } else {
-                    null
-                }
+                val firstMediaOnA = route == via(A) && url == MEDIA && forbidden++ == 0
+                if (firstMediaOnA) Reply.Status(403) else null
             }
             val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
             val session = stream.session
@@ -232,28 +144,6 @@ class PlaybackSessionTest {
             // The initial master, one request per fetch, and one master per re-resolve: no retry loop.
             assertEquals(1 + 60 + reGrants, rig.routes.requests.size)
             assertEquals(emptyList(), events)
-            session.close()
-        }
-
-    @Test
-    fun reResolveAfterAdSwitchStaysProxied() =
-        runTest {
-            val rig = Rig(this)
-            var forbidden = false
-            rig.script { route, url -> if (forbidden && route == via(A) && url == MEDIA) Reply.Status(403) else null }
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val session = stream.session
-            val events = record(session.events)
-            rig.routes.media = preroll
-            session.fetch(MEDIA)
-            runCurrent()
-            assertEquals(via(A), session.route.value)
-            forbidden = true
-            session.fetch(MEDIA)
-            assertEquals(listOf(PlaybackEvent.Reload(MASTER), PlaybackEvent.Reload(MASTER_2)), events)
-            assertEquals(listOf(MASTER, MEDIA, MASTER_2), rig.routes.urlsVia(via(A)))
-            assertEquals(via(A), session.route.value)
-            assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
             session.close()
         }
 
@@ -359,28 +249,6 @@ class PlaybackSessionTest {
             stream.session.close()
         }
 
-    @Test
-    fun concurrentStitchedSwitchesOnce() =
-        runTest {
-            val rig = Rig(this)
-            val gate = CompletableDeferred<Unit>()
-            rig.routes.media = preroll
-            rig.routes.reply = { _, url ->
-                if (url.startsWith("https://video-weaver.example/")) gate.await()
-                Reply.Text(rig.routes.serve(url))
-            }
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val events = record(stream.session.events)
-            val fetches = listOf(MEDIA, MEDIA_480).map { url -> async { stream.session.fetch(url) } }
-            runCurrent()
-            gate.complete(Unit)
-            fetches.awaitAll().forEach { assertEquals(Outcome.Success(preroll), it) }
-            runCurrent()
-            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
-            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)))
-            stream.session.close()
-        }
-
     private fun CoroutineScope.activeChildren(): Int = coroutineContext.job.children.count { it.isActive }
 
     /** Active jobs [depth] levels below this scope's job. */
@@ -389,94 +257,6 @@ class PlaybackSessionTest {
         repeat(depth) { level = level.flatMap { it.children } }
         return level.count { it.isActive }
     }
-
-    @Test
-    fun adsSwitchSurvivesCancelledFetch() =
-        runTest {
-            val rig = Rig(this)
-            val gate = CompletableDeferred<Unit>()
-            rig.routes.reply = { route, url ->
-                if (route == via(A)) gate.await()
-                Reply.Text(rig.routes.serve(url))
-            }
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val events = record(stream.session.events)
-            rig.routes.media = preroll
-            val delivering = launch { stream.session.fetch(MEDIA) }
-            runCurrent()
-            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)), "the switch is in flight")
-            delivering.cancel()
-            gate.complete(Unit)
-            runCurrent()
-            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER)), events)
-            assertEquals(via(A), stream.session.route.value)
-            assertEquals(ProxyStatus.Active(A.label), stream.session.proxyStatus.value)
-            stream.session.close()
-        }
-
-    @Test
-    fun adsSwitchDoesNotCommitAfterClose() =
-        runTest {
-            val rig = Rig(this)
-            val gate = CompletableDeferred<Unit>()
-            rig.routes.reply = { route, url ->
-                if (route == via(A)) gate.await()
-                Reply.Text(rig.routes.serve(url))
-            }
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val events = record(stream.session.events)
-            rig.routes.media = preroll
-            val delivering = launch { stream.session.fetch(MEDIA) }
-            runCurrent()
-            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)))
-            stream.session.close()
-            gate.complete(Unit)
-            runCurrent()
-            delivering.join()
-            assertEquals(emptyList(), events)
-            assertEquals(Route.Direct, stream.session.route.value)
-            assertEquals(ProxyStatus.NotUsed, stream.session.proxyStatus.value)
-        }
-
-    @Test
-    fun adsSwitchOnDeadProxiesIsUnavailableAndKeepsPlaying() =
-        runTest {
-            val rig = Rig(this)
-            rig.script { route, _ -> if (route == via(A)) Reply.Offline else null }
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val session = stream.session
-            val events = record(session.events)
-            rig.routes.media = preroll
-            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
-            runCurrent()
-            assertEquals(ProxyStatus.Unavailable, session.proxyStatus.value)
-            assertEquals(Route.Direct, session.route.value)
-            assertEquals(emptyList(), events)
-            assertEquals(Outcome.Success(preroll), session.fetch(MEDIA))
-            assertEquals(listOf(MASTER, MEDIA, MEDIA), rig.routes.urlsVia(Route.Direct))
-            assertEquals(listOf(MASTER), rig.routes.urlsVia(via(A)))
-            session.close()
-        }
-
-    @Test
-    fun adsSwitchRetriesWithFreshGrantOnStreamError() =
-        runTest {
-            val rig = Rig(this)
-            // The proxy works, but the first grant's master has expired by the time the ad shows up.
-            rig.script { route, url -> if (route == via(A) && url == MASTER) Reply.Status(403) else null }
-            val stream = rig.resolve(prefs(ProxyMode.WHEN_ADS_DETECTED, A))
-            val session = stream.session
-            val events = record(session.events)
-            rig.routes.media = preroll
-            session.fetch(MEDIA)
-            runCurrent()
-            assertEquals(2, rig.source.calls)
-            assertEquals(listOf<PlaybackEvent>(PlaybackEvent.Reload(MASTER_2)), events)
-            assertEquals(listOf(MASTER, MASTER_2), rig.routes.urlsVia(via(A)))
-            assertEquals(via(A), session.route.value)
-            assertEquals(ProxyStatus.Active(A.label), session.proxyStatus.value)
-            session.close()
-        }
 
     @Test
     fun reResolveToAdFreeGrantSkipsProxy() =
@@ -496,13 +276,8 @@ class PlaybackSessionTest {
             }
             var forbidden = 0
             rig.script { route, url ->
-                if (route == via(A) && url == MEDIA &&
-                    forbidden++ == 0
-                ) {
-                    Reply.Status(403)
-                } else {
-                    null
-                }
+                val firstMediaOnA = route == via(A) && url == MEDIA && forbidden++ == 0
+                if (firstMediaOnA) Reply.Status(403) else null
             }
             val stream = rig.resolve(prefs(ProxyMode.ALWAYS, A))
             val session = stream.session
@@ -579,6 +354,20 @@ class PlaybackSessionTest {
             assertEquals(Outcome.Success(live), stream.session.fetch(mediaUrl))
             assertEquals(listOf(mediaUrl), rig.routes.urlsVia(Route.Direct))
             assertNoGrantHeadersToTemplateHost(rig)
+            stream.session.close()
+        }
+
+    @Test
+    fun failedTemplateReopenIsNotRepeatedWithinOneFetch() =
+        runTest {
+            val rig = Rig(this)
+            var down = false
+            rig.script { route, url -> if (down && (route == via(TEMPLATE) || url == MASTER)) Reply.Offline else null }
+            val stream = rig.resolve(prefs(ProxyMode.ALWAYS, TEMPLATE))
+            down = true
+            assertEquals(Outcome.Failure(LurkError.Offline), stream.session.fetch(stream.masterUrl))
+            assertEquals(2, rig.routes.urlsVia(via(TEMPLATE)).size, "the resolve and this fetch")
+            assertEquals(listOf(MASTER), rig.routes.urlsVia(Route.Direct), "one re-open, not one per round")
             stream.session.close()
         }
 

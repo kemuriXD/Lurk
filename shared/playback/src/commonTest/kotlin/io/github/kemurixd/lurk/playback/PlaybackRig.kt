@@ -169,6 +169,11 @@ class FakeRoutes(
     }
 }
 
+/** Serves the fixtures, but [fail] decides first; null lets the request through. */
+fun Rig.script(fail: (Route, String) -> Reply?) {
+    routes.reply = { route, url -> fail(route, url) ?: Reply.Text(routes.serve(url)) }
+}
+
 /** A resolver wired to fakes on the test's scheduler and virtual time. */
 class Rig(
     private val test: TestScope,

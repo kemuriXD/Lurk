@@ -80,6 +80,10 @@ internal class SessionRouting(
 
     private val adSwitchClaimed = AtomicBoolean(false)
 
+    /** When a switch that changed nothing may be tried again; null while none has failed that way. */
+    @Volatile
+    private var adSwitchRetryAfter: ComparableTimeMark? = null
+
     @Volatile
     private var closed = false
 
@@ -98,8 +102,10 @@ internal class SessionRouting(
     /** Fetches [url] on the current route, failing over when a proxy lets it down. */
     suspend fun fetch(url: String): Routed {
         var result = current.let { Routed(it, attempt(it, url)) }
+        val maxRounds = settings.endpoints.size + 1
         var rounds = 0
-        while (!closed && failedOnProxy(result, url, templateHosts) && rounds++ < settings.endpoints.size + 1) {
+        var stop = closed
+        while (!stop && rounds++ < maxRounds && failedOnProxy(result, url, templateHosts)) {
             val seen = result.state
             val handled =
                 transitions.withLock {
@@ -109,6 +115,8 @@ internal class SessionRouting(
                         else -> failOver(seen, url)
                     }
                 }
+            // An answer that left the generation alone (a failed template re-open) would only repeat itself.
+            stop = closed || handled?.state?.generation == seen.generation
             result = handled ?: current.let { Routed(it, attempt(it, url)) }
         }
         return result
@@ -120,7 +128,8 @@ internal class SessionRouting(
     /**
      * A stitched ad arrived over [used]. In [ProxyMode.WHEN_ADS_DETECTED] the first one on the unproxied direct route
      * moves the session onto the proxies for good, with a Reload. The switch runs in the session's scope, so it
-     * completes even if the fetch that found the ad is cancelled.
+     * completes even if the fetch that found the ad is cancelled. A switch that could change nothing frees its
+     * claim until a retry mark, so a later stitched playlist tries again without a walk on every refresh.
      */
     fun onStitchedAd(used: RouteState) {
         val eligible =
@@ -128,7 +137,15 @@ internal class SessionRouting(
                 settings.active &&
                 used.route == Route.Direct &&
                 used.status == ProxyStatus.NotUsed
-        if (eligible && adSwitchClaimed.compareAndSet(false, true)) scope.launch { switchForAds() }
+        if (eligible && adSwitchClaimed.compareAndSet(false, true)) {
+            // Read after the claim: a failed switch sets the mark before it frees the claim.
+            val retryAfter = adSwitchRetryAfter
+            if (retryAfter == null || retryAfter.hasPassedNow()) {
+                scope.launch { switchForAds() }
+            } else {
+                adSwitchClaimed.store(false)
+            }
+        }
     }
 
     fun close() {
@@ -221,34 +238,55 @@ internal class SessionRouting(
     }
 
     /**
-     * Runs once per session. Proxy errors leave the session direct but visibly so ([ProxyStatus.Unavailable]). A
-     * stream error is most likely an expired grant, so a fresh one is taken through the re-resolve path (its 30 s
-     * throttle included) and the proxies are tried again with it.
+     * Runs once per session, unless it changes nothing. Proxy errors leave the session direct but visibly so
+     * ([ProxyStatus.Unavailable]). A stream error is most likely an expired grant, so a fresh one is taken through
+     * the re-resolve path (its 30 s throttle included) and the proxies are tried again with it. When that commits
+     * nothing (inside the throttle window, no grant, or the fresh master fails too), the claim is freed with a retry
+     * mark at the end of the throttle window.
      */
-    private suspend fun switchForAds() =
-        transitions.withLock {
+    private suspend fun switchForAds() {
+        transitions.withLock<Unit> {
             val s = current
             if (closed || s.route != Route.Direct || s.status != ProxyStatus.NotUsed) return@withLock
             val result = router.proxiedMaster(channel, s.grant, settings.endpoints)
             val error = (result as? ChainResult.AllFailed)?.lastError
             when {
-                result is ChainResult.Success -> commit(result.value.after(s), reload = true)
-                error != null && !error.blamesProxy() -> renew()
-                else -> commit(s.moved(Route.Direct, ProxyStatus.Unavailable), reload = false)
+                result is ChainResult.Success -> {
+                    commit(result.value.after(s), reload = true)
+                }
+
+                error != null && !error.blamesProxy() -> {
+                    renew()
+                    if (current.generation == s.generation) {
+                        adSwitchRetryAfter = lastReResolve?.plus(RE_RESOLVE_INTERVAL)
+                        adSwitchClaimed.store(false)
+                    }
+                }
+
+                else -> {
+                    commit(s.moved(Route.Direct, ProxyStatus.Unavailable), reload = false)
+                }
             }
         }
+    }
 
-    /** Holding [transitions]: publishes [next], and a Reload of its master when [reload]. Inert once closed. */
+    /**
+     * Holding [transitions]: publishes [next], and a Reload of its master when [reload]. Inert once closed; [close]
+     * takes no lock, so `closed` is checked again right before each write to keep a racing close's window small.
+     */
     private fun commit(
         next: RouteState,
         reload: Boolean,
     ): RouteState {
-        if (closed) return current
-        current = next
-        mutableRoute.value = next.route
-        mutableStatus.value = next.status
-        if (reload) mutableEvents.tryEmit(PlaybackEvent.Reload(next.masterUrl))
-        return next
+        if (!closed) {
+            current = next
+            if (!closed) {
+                mutableRoute.value = next.route
+                mutableStatus.value = next.status
+            }
+            if (reload && !closed) mutableEvents.tryEmit(PlaybackEvent.Reload(next.masterUrl))
+        }
+        return current
     }
 
     private companion object {

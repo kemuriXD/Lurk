@@ -48,7 +48,9 @@ interface PlaylistFetcher {
  * - [AdPolicy.UNTOUCHED] (Kick) playlists are passed through unread: no tracker, no parsing, no proxy.
  *
  * Route changes are serialised without locking ordinary fetches; see [SessionRouting]. Built by [PlaylistResolver]
- * only. The session keeps a child job in the caller's scope until [close], so call it when the stream ends.
+ * only. The session keeps a child job in the caller's scope until [close], so call it when the stream ends. Cancel
+ * collectors of [route], [proxyStatus] and [events] at or before [close]: a route change racing [close] can still
+ * publish one last value.
  */
 class PlaybackSession internal constructor(
     channel: ChannelRef,
