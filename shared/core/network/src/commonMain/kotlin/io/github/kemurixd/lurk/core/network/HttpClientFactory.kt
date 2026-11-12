@@ -9,6 +9,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
 import io.ktor.client.plugins.cookies.CookiesStorage
 import io.ktor.client.plugins.cookies.HttpCookies
+import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.statement.bodyAsText
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
@@ -41,6 +42,7 @@ fun createHttpClient(
             connectTimeoutMillis = CONNECT_TIMEOUT_MS
             requestTimeoutMillis = REQUEST_TIMEOUT_MS
         }
+        install(WebSockets)
         install(HttpCookies) {
             storage = cookies
         }
