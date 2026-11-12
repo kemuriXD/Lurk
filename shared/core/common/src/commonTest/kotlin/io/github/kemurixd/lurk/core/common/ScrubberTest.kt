@@ -82,4 +82,16 @@ class ScrubberTest {
             Scrubber.scrub("via socks5://user1:hunter2@proxy.example:1080"),
         )
     }
+
+    @Test
+    fun masksUserinfoUpToTheLastAtSign() {
+        assertEquals("via http://…@proxy.example:8080", Scrubber.scrub("via http://user1:p@ss@proxy.example:8080"))
+        assertEquals("http://…@proxy.example", Scrubber.scrub("http://u@x:p@@ss@proxy.example"))
+    }
+
+    @Test
+    fun urlWithoutUserinfoIsUntouched() {
+        assertEquals("see http://proxy.example:8080/a/b@c", Scrubber.scrub("see http://proxy.example:8080/a/b@c"))
+        assertEquals("http://proxy.example:8080 and a@b", Scrubber.scrub("http://proxy.example:8080 and a@b"))
+    }
 }

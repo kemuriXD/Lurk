@@ -5,7 +5,8 @@ object Scrubber {
     private const val MASK = "…"
     private const val KEEP_CHARS = 4
 
-    private val urlUserinfo = Regex("""\b([A-Za-z][A-Za-z0-9+.-]*://)[^\s/?#@]+@""")
+    // Greedy up to the last '@' before the path, so a raw '@' inside a password is masked too.
+    private val urlUserinfo = Regex("""\b([A-Za-z][A-Za-z0-9+.-]*://)[^\s/?#]+@""")
     private val urlQuery = Regex("""(https?://[^\s"'?]*)\?[^\s"']+""")
     private val oauthPrefix = Regex("""(oauth:)\S+""", RegexOption.IGNORE_CASE)
     private val authScheme = Regex("""\b(OAuth|Bearer) [A-Za-z0-9._~+/=-]{8,}""", RegexOption.IGNORE_CASE)
