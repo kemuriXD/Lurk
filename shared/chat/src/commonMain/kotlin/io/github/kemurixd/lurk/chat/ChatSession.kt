@@ -120,7 +120,7 @@ class ChatSession(
                 }
         } catch (e: CancellationException) {
             currentCoroutineContext().ensureActive()
-            log.i { "Chat connection cancelled by the transport: ${e.message}" }
+            log.i { "Chat connection cancelled by the transport (${e::class.simpleName})" }
         } catch (e: LurkException) {
             log.i { "Chat connection dropped: ${e.error}" }
         } catch (

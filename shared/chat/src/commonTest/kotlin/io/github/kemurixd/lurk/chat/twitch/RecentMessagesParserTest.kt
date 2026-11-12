@@ -1,9 +1,11 @@
 package io.github.kemurixd.lurk.chat.twitch
 
 import io.github.kemurixd.lurk.chat.ChatEvent
+import io.github.kemurixd.lurk.chat.capturedLogs
 import io.github.kemurixd.lurk.chat.fixture
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RecentMessagesParserTest {
@@ -35,6 +37,17 @@ class RecentMessagesParserTest {
     fun badBodyIsEmpty() {
         listOf("", "<html>", "[]", "{}", """{"messages": "nope"}""", "null").forEach {
             assertEquals(emptyList(), RecentMessagesParser.parse(it), "'$it'")
+        }
+    }
+
+    @Test
+    fun truncatedBodyLogsNoChatContent() {
+        val truncated =
+            """{"messages": ["@id=x;room-id=1;user-id=2 :user_9999!user_9999@user_9999 PRIVMSG #c :private words"""
+        val logs = capturedLogs { assertTrue(RecentMessagesParser.parse(truncated).isEmpty()) }
+        assertTrue(logs.isNotEmpty(), "the failure is still logged")
+        logs.forEach { line ->
+            assertFalse("user_9999" in line || "private words" in line, line)
         }
     }
 }

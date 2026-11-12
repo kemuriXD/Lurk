@@ -32,7 +32,8 @@ object RecentMessagesParser {
             try {
                 Json.parseToJsonElement(json)
             } catch (e: SerializationException) {
-                log.w { "Recent messages body is not JSON: ${e.message}" }
+                // The exception message quotes the body, which holds logins and chat text.
+                log.w { "Recent messages body is not JSON (${e::class.simpleName})" }
                 return null
             }
         val messages = (root as? JsonObject)?.get("messages") as? JsonArray
