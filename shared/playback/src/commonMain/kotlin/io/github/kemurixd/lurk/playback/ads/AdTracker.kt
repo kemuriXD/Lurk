@@ -68,7 +68,8 @@ class AdTracker(
     private var stitched = listOf<StitchedWindow>()
     private var ticker: Job? = null
 
-    fun onMediaPlaylist(playlist: MediaPlaylist) {
+    /** Feeds one refresh and returns what [AdDetector] found in it, so the caller need not inspect it twice. */
+    fun onMediaPlaylist(playlist: MediaPlaylist): PlaylistAdInfo {
         val at = timeSource.markNow()
         val info = detector.inspect(playlist)
         val serverTime = playlist.serverTime
@@ -78,6 +79,7 @@ class AdTracker(
             edgeClock = forward(edgeClock, edge, at)
             register(info)
         }
+        return info
     }
 
     /** The program date-time the player is showing. It is the position for 5 s after the report. */

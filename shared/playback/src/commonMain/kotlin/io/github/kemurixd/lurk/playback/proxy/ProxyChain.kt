@@ -23,7 +23,7 @@ private const val HTTP_PROXY_AUTH_REQUIRED = 407
 private val HTTP_SERVER_ERRORS = 500..599
 
 /** Offline, timeout, proxy error, block, 407 and 5xx mean the proxy is at fault. Anything else is the stream's. */
-private fun LurkError.blamesProxy(): Boolean =
+internal fun LurkError.blamesProxy(): Boolean =
     when (this) {
         LurkError.Offline, LurkError.Timeout, LurkError.ProxyFailed, LurkError.Blocked -> true
         is LurkError.Http -> code == HTTP_PROXY_AUTH_REQUIRED || code in HTTP_SERVER_ERRORS
