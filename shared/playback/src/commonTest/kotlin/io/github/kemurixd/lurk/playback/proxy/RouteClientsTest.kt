@@ -20,7 +20,7 @@ import kotlin.test.assertSame
 
 class RouteClientsTest {
     private val direct = createHttpClient(MockEngine { respondOk() })
-    private val seen = mutableListOf<EngineProxy>()
+    private val seen = mutableListOf<EngineProxy.Http>()
 
     private val engines = mutableListOf<RecordingEngine>()
 
@@ -35,7 +35,7 @@ class RouteClientsTest {
         }
     }
 
-    private fun engineFactory(handler: suspend () -> Unit): (EngineProxy) -> HttpClientEngine =
+    private fun engineFactory(handler: suspend () -> Unit): (EngineProxy.Http) -> HttpClientEngine =
         { proxy ->
             seen += proxy
             RecordingEngine(

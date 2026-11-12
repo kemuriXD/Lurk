@@ -8,10 +8,10 @@ import okhttp3.OkHttpClient
 import java.net.InetSocketAddress
 import java.net.Proxy
 
-actual fun proxiedEngine(proxy: EngineProxy): HttpClientEngine =
-    proxiedOkHttpClient(proxy).let { okHttp ->
-        shuttingDownEngine(OkHttp.create { preconfigured = okHttp }, okHttp)
-    }
+actual fun proxiedEngine(proxy: EngineProxy.Http): HttpClientEngine {
+    val okHttp = proxiedOkHttpClient(proxy)
+    return shuttingDownEngine(OkHttp.create { preconfigured = okHttp }, okHttp)
+}
 
 /** Ktor does not own a preconfigured client, so closing the engine also releases its threads and pool. */
 internal fun shuttingDownEngine(
@@ -27,28 +27,24 @@ internal fun shuttingDownEngine(
     }
 
 // Identical to ProxiedEngine.android.kt; keep the two files in step.
-internal fun proxiedOkHttpClient(proxy: EngineProxy): OkHttpClient {
+internal fun proxiedOkHttpClient(proxy: EngineProxy.Http): OkHttpClient {
     val builder = OkHttpClient.Builder()
-    when (proxy) {
-        is EngineProxy.Http -> {
-            builder.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxy.host, proxy.port)))
-            val user = proxy.username
-            if (user != null || proxy.password != null) {
-                val credential = Credentials.basic(user.orEmpty(), proxy.password.orEmpty(), Charsets.UTF_8)
-                builder.proxyAuthenticator(
-                    Authenticator { _, response ->
-                        if (response.request.header("Proxy-Authorization") != null) {
-                            null
-                        } else {
-                            response.request
-                                .newBuilder()
-                                .header("Proxy-Authorization", credential)
-                                .build()
-                        }
-                    },
-                )
-            }
-        }
+    builder.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxy.host, proxy.port)))
+    val user = proxy.username
+    if (user != null || proxy.password != null) {
+        val credential = Credentials.basic(user.orEmpty(), proxy.password.orEmpty(), Charsets.UTF_8)
+        builder.proxyAuthenticator(
+            Authenticator { _, response ->
+                if (response.request.header("Proxy-Authorization") != null) {
+                    null
+                } else {
+                    response.request
+                        .newBuilder()
+                        .header("Proxy-Authorization", credential)
+                        .build()
+                }
+            },
+        )
     }
     return builder.build()
 }

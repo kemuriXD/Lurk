@@ -33,7 +33,7 @@ private const val PROXY_REQUEST_TIMEOUT_MS = 5_000L
 @OptIn(ExperimentalAtomicApi::class)
 class DefaultRouteClients(
     private val direct: HttpClient,
-    private val engineFor: (EngineProxy) -> HttpClientEngine = ::proxiedEngine,
+    private val engineFor: (EngineProxy.Http) -> HttpClientEngine = ::proxiedEngine,
     private val requestTimeoutMillis: Long = PROXY_REQUEST_TIMEOUT_MS,
 ) : RouteClients {
     private val proxied = AtomicReference<Map<ProxyEndpoint, Entry>>(emptyMap())
@@ -49,7 +49,7 @@ class DefaultRouteClients(
 
     private fun cached(
         endpoint: ProxyEndpoint,
-        engineProxy: EngineProxy,
+        engineProxy: EngineProxy.Http,
     ): HttpClient {
         while (true) {
             val current = proxied.load()
@@ -78,7 +78,7 @@ class DefaultRouteClients(
     }
 }
 
-private fun ProxyEndpoint.toEngineProxy(): EngineProxy? =
+private fun ProxyEndpoint.toEngineProxy(): EngineProxy.Http? =
     when (this) {
         is ProxyEndpoint.UrlTemplate -> null
         is ProxyEndpoint.Http -> EngineProxy.Http(host, port, credentials?.username, credentials?.password)
