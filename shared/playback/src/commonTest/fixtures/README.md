@@ -6,7 +6,7 @@ HLS playlists for the playback tests. They were captured from live Twitch stream
 
 `twitch/`
 
-- `master.m3u8`: a master playlist with all six variants, 1080p60 down to 160p30. The capture had no `audio_only` variant, so there is none here.
+- `master.m3u8`: a master playlist with the six captured variants, 1080p60 down to 160p30, plus an `audio_only` variant. The last two lines (the `audio_only` `#EXT-X-STREAM-INF` and its URL) are hand-added, because the captured masters had no audio-only rendition.
 - `media-live.m3u8`: a media playlist with no ad markers.
 - `media-cue.m3u8`: a media playlist carrying a `twitch-maf-ad` cue.
 - `cue-break/`: 19 consecutive refreshes around one cue break. The first two and the last two have no cue. The file name is `NNN-<ms>.m3u8`, where `<ms>` is the original fetch time in milliseconds, so a replay test can keep the real spacing (about 6 s).

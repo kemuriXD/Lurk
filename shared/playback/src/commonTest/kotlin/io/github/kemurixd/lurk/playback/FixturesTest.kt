@@ -61,7 +61,8 @@ class FixturesTest {
     @Test
     fun masterKeepsEveryVariant() {
         val master = fixture("twitch/master.m3u8")
-        assertEquals(6, master.lines().count { it.startsWith("#EXT-X-STREAM-INF") })
+        assertEquals(7, master.lines().count { it.startsWith("#EXT-X-STREAM-INF") })
+        assertTrue(master.contains("STABLE-VARIANT-ID=\"audio_only\""))
         assertTrue(master.contains("STABLE-VARIANT-ID=\"1080p60\""))
         assertTrue(master.contains("STABLE-VARIANT-ID=\"160p30\""))
     }
