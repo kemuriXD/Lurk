@@ -121,4 +121,48 @@ class CloudflareGateTest {
             assertEquals(Outcome.Failure(LurkError.NotFound), rig.api.get(KickBase.API, "v2/x", null))
             assertEquals(0, solves)
         }
+
+    @Test
+    fun concurrentApiAndWebBlocksSolveOnce() =
+        runTest {
+            var solves = 0
+            val rig =
+                Rig(
+                    solver =
+                        { _, _ ->
+                            solves++
+                            delay(1_000)
+                            ChallengeResult.Solved(mapOf("cf_clearance" to "c1"), null)
+                        },
+                    engine = mockEngine { reply(it) },
+                )
+            val results =
+                listOf(
+                    async { rig.api.get(KickBase.WEB, "livestreams", null) },
+                    async { rig.api.get(KickBase.API, "v2/x", null) },
+                    async { rig.api.get(KickBase.WEB, "livestreams", null) },
+                ).awaitAll()
+
+            assertEquals(1, solves)
+            assertTrue(results.all { it is Outcome.Success }, results.toString())
+        }
+
+    @Test
+    fun throwingSolverIsBlocked() =
+        runTest {
+            var solves = 0
+            val rig =
+                Rig(
+                    solver =
+                        { _, _ ->
+                            solves++
+                            error("boom")
+                        },
+                    engine = mockEngine { cloudflareBlock(blockedPage) },
+                )
+            val results = (1..3).map { async { rig.api.get(KickBase.API, "v2/x", null) } }.awaitAll()
+
+            assertTrue(results.all { it == Outcome.Failure(LurkError.Blocked) }, results.toString())
+            assertEquals(1, solves)
+        }
 }

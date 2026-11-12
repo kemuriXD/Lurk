@@ -8,8 +8,11 @@ import io.github.kemurixd.lurk.core.network.ChallengeSolver
 import io.ktor.client.plugins.cookies.CookiesStorage
 import io.ktor.http.Cookie
 import io.ktor.http.Url
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+
+private const val APEX_LABELS = 2
 
 /**
  * Clears Cloudflare blocks on Kick requests. A blocked call asks the solver once, stores the cookies it returns
@@ -40,11 +43,23 @@ class CloudflareGate(
     ): Boolean =
         lock.withLock {
             if (attempts != attemptsBefore) return@withLock lastSolved
-            val result = solver?.solve(ChallengeKind.CLOUDFLARE, url)
+            val result = solve(url)
             if (result is ChallengeResult.Solved) store(url, result.cookies)
             attempts++
             lastSolved = result is ChallengeResult.Solved
             lastSolved
+        }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun solve(url: String): ChallengeResult? =
+        try {
+            solver?.solve(ChallengeKind.CLOUDFLARE, url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("SwallowedException") e: Exception,
+        ) {
+            ChallengeResult.Failed
         }
 
     private suspend fun store(
@@ -52,8 +67,14 @@ class CloudflareGate(
         values: Map<String, String>,
     ) {
         val target = Url(url)
+        // Clearance cookies belong to the site, so the apex domain covers both kick.com and web.kick.com.
+        val apex =
+            target.host
+                .split('.')
+                .takeLast(APEX_LABELS)
+                .joinToString(".")
         values.forEach { (name, value) ->
-            cookies.addCookie(target, Cookie(name, value, domain = target.host, path = "/"))
+            cookies.addCookie(target, Cookie(name, value, domain = apex, path = "/"))
         }
     }
 

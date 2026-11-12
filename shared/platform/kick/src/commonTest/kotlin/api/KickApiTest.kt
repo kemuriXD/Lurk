@@ -187,4 +187,11 @@ class KickApiTest {
             assertFalse(rig.api.toString().contains("secret-token"))
             assertFalse(failure.toString().contains("secret-token"))
         }
+
+    @Test
+    fun getWithEmptyBodyIsSchemaChanged() =
+        runTest {
+            val rig = Rig(engine = mockEngine { respond("", HttpStatusCode.OK) })
+            assertEquals(Outcome.Failure(LurkError.SchemaChanged), rig.api.get(KickBase.API, "v2/x", null))
+        }
 }
