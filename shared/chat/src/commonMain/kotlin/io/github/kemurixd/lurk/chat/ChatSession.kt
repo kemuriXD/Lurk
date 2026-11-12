@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -65,7 +66,8 @@ class ChatSession(
     suspend fun run() {
         withContext(dispatchers.default) {
             val inputs = Channel<Input>(Channel.UNLIMITED)
-            launch { emotes.collect { inputs.send(Input.Emotes(it)) } }
+            // A signal only: the room reads the latest snapshot, so a burst costs one re-tokenize pass.
+            launch { emotes.collect { inputs.send(Input.EmotesChanged) } }
             launch { preferences.collect { inputs.send(Input.Preferences(it)) } }
             launch { connectLoop(inputs) }
             val room = ChatRoom(ItemRules(emotes.value, preferences.value, selfLogin, tokenizer))
@@ -131,12 +133,20 @@ class ChatSession(
 
     private fun wantsHistory(): Boolean = history != null && preferences.value.recentMessages
 
-    /** The parsed history, or null when the fetch failed; a failure never blocks live chat. */
-    private suspend fun fetchHistory(): List<ChatEvent>? =
-        try {
-            history?.fetch()?.let(historyParser)
+    /**
+     * The parsed history, or null when the fetch failed, timed out after [HISTORY_TIMEOUT] or was cancelled by the
+     * source itself. Live chat waits for it, so none of these may end the connection loop.
+     */
+    private suspend fun fetchHistory(): List<ChatEvent>? {
+        val source = history ?: return null
+        return try {
+            val body = withTimeoutOrNull(HISTORY_TIMEOUT) { source.fetch() }
+            if (body == null) log.w { "Chat history timed out" }
+            body?.let(historyParser)
         } catch (e: CancellationException) {
-            throw e
+            currentCoroutineContext().ensureActive()
+            log.w { "Chat history cancelled by the source (${e::class.simpleName})" }
+            null
         } catch (e: LurkException) {
             log.w { "Chat history failed: ${e.error}" }
             null
@@ -146,6 +156,7 @@ class ChatSession(
             log.w(e) { "Chat history failed unexpectedly" }
             null
         }
+    }
 
     private sealed interface Input {
         class Batch(
@@ -169,9 +180,8 @@ class ChatSession(
         /** The server asked for a reconnect, which happens at once and is not a failure. */
         data object ReconnectRequested : Input
 
-        class Emotes(
-            val snapshot: EmoteSnapshot,
-        ) : Input
+        /** [emotes] changed; the room reads its current value. */
+        data object EmotesChanged : Input
 
         class Preferences(
             val value: ChatPreferences,
@@ -192,6 +202,9 @@ class ChatSession(
         private var newestSentAt: Instant? = null
         private var systemLines = 0
 
+        /** True once this outage has its reconnecting line; the next first frame ends the outage. */
+        private var outageAnnounced = false
+
         fun handle(input: Input) {
             when (input) {
                 is Input.Batch -> {
@@ -205,13 +218,21 @@ class ChatSession(
 
                 Input.Connected -> {
                     attempt = 0
+                    outageAnnounced = false
                     setConnection(ConnectionState.CONNECTED)
                 }
 
                 is Input.Dropped -> {
-                    connection = ConnectionState.RECONNECTING
-                    append(listOf(reconnectingLine()))
-                    publish()
+                    // One line per outage: failed retries inside it add nothing and publish nothing.
+                    val announce = !outageAnnounced
+                    if (announce) {
+                        outageAnnounced = true
+                        append(listOf(reconnectingLine()))
+                    }
+                    if (announce || connection != ConnectionState.RECONNECTING) {
+                        connection = ConnectionState.RECONNECTING
+                        publish()
+                    }
                     input.retryDelay.complete(backoff.delayFor(attempt))
                     attempt++
                 }
@@ -220,8 +241,8 @@ class ChatSession(
                     setConnection(ConnectionState.RECONNECTING)
                 }
 
-                is Input.Emotes -> {
-                    onEmotes(input.snapshot)
+                Input.EmotesChanged -> {
+                    onEmotes(emotes.value)
                 }
 
                 is Input.Preferences -> {
@@ -284,12 +305,15 @@ class ChatSession(
             buffer.addAll(items).forEach { seen -= it.message.id }
         }
 
-        /** Back-fill keeps only messages newer than the newest one shown, oldest first; [apply] drops seen ids. */
+        /**
+         * Back-fill keeps messages from the newest one shown onwards, oldest first. The same millisecond counts, since
+         * two messages can share one; [apply] drops the ids already seen.
+         */
         private fun missedSince(events: List<ChatEvent>): List<ChatEvent> {
             val since = newestSentAt
             return events
                 .filterIsInstance<ChatEvent.Message>()
-                .filter { since == null || it.message.sentAt > since }
+                .filter { since == null || it.message.sentAt >= since }
                 .sortedBy { it.message.sentAt }
         }
 
@@ -302,6 +326,8 @@ class ChatSession(
         }
 
         private fun onEmotes(snapshot: EmoteSnapshot) {
+            // Signals queued behind one that already applied the latest snapshot have nothing left to do.
+            if (snapshot === rules.emotes) return
             rules = ItemRules(snapshot, rules.prefs, selfLogin, tokenizer)
             var changed = false
             // Any other generation means the parts were built from a different emote set.
@@ -407,6 +433,7 @@ class ChatSession(
 
     private companion object {
         const val BUFFER_CAPACITY = 1000
+        val HISTORY_TIMEOUT = 10.seconds
         const val SYSTEM_TAG = "system"
         const val RECONNECTING = "reconnecting"
     }

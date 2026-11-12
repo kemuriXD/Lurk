@@ -13,12 +13,19 @@ import io.github.kemurixd.lurk.core.model.MessagePart
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.network.Backoff
 import io.github.kemurixd.lurk.emotes.EmoteRegistry
+import io.github.kemurixd.lurk.emotes.EmoteSnapshot
 import io.github.kemurixd.lurk.emotes.ProviderSet
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -142,7 +149,7 @@ private class FakeTransport(
 }
 
 private class FakeHistory(
-    vararg responses: () -> String,
+    vararg responses: suspend () -> String,
 ) : ChatHistorySource {
     private val queue = ArrayDeque(responses.toList())
     var calls = 0
@@ -153,6 +160,32 @@ private class FakeHistory(
     }
 }
 
+/**
+ * A [StateFlow] whose collectors see every value of a burst, the way a forwarder on another thread can see each
+ * update of a real one before the session gets to run.
+ */
+@OptIn(ExperimentalForInheritanceCoroutinesApi::class)
+private class BurstStateFlow(
+    initial: EmoteSnapshot,
+) : StateFlow<EmoteSnapshot> {
+    private val latest = MutableStateFlow(initial)
+    private val bursts = Channel<List<EmoteSnapshot>>(Channel.UNLIMITED)
+
+    override val value: EmoteSnapshot get() = latest.value
+    override val replayCache: List<EmoteSnapshot> get() = listOf(value)
+
+    override suspend fun collect(collector: FlowCollector<EmoteSnapshot>): Nothing {
+        collector.emit(value)
+        for (burst in bursts) burst.forEach { collector.emit(it) }
+        awaitCancellation()
+    }
+
+    fun burst(snapshots: List<EmoteSnapshot>) {
+        latest.value = snapshots.last()
+        bursts.trySend(snapshots)
+    }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 private class Rig(
     private val scope: TestScope,
@@ -160,6 +193,7 @@ private class Rig(
     history: ChatHistorySource? = null,
     preferences: ChatPreferences = ChatPreferences(),
     selfLogin: String? = null,
+    emotes: StateFlow<EmoteSnapshot>? = null,
 ) {
     val transport = FakeTransport { scope.testScheduler.currentTime }
     val registry = EmoteRegistry()
@@ -170,7 +204,7 @@ private class Rig(
             channel = ChatChannel(platform, ROOM_ID, CHANNEL_LOGIN),
             transport = transport,
             history = history,
-            emotes = registry.snapshot,
+            emotes = emotes ?: registry.snapshot,
             preferences = prefs,
             selfLogin = selfLogin,
             tokenizer = Tokenizer(),
@@ -359,7 +393,7 @@ class ChatSessionTest {
 
             assertEquals(opens, rig.transport.connections.map { it.openedAt }, "connect times follow the backoff")
             assertEquals(ConnectionState.RECONNECTING, rig.state.connection)
-            assertEquals((1..7).map { "system:reconnecting:$it" }, rig.ids, "one line per drop")
+            assertEquals(listOf("system:reconnecting:1"), rig.ids, "one line for the whole outage")
             rig.state.items.forEach {
                 assertEquals(MessageKind.SYSTEM, it.message.kind)
                 assertEquals("reconnecting", it.message.tags["system"])
@@ -374,6 +408,37 @@ class ChatSessionTest {
                     .single()
                     .message.sentAt,
             )
+            assertEquals(2, rig.emissions.size, "failed retries inside the outage change nothing")
+        }
+
+    @Test
+    fun oneLinePerOutage() =
+        runTest {
+            val rig = Rig(this).start()
+            rig.transport.last.send(privmsg(1))
+            runCurrent()
+
+            // A server RECONNECT adds no line, but a failure right after it starts an outage.
+            rig.transport.failure = { IllegalStateException("connection refused") }
+            rig.transport.last.send(RECONNECT)
+            runCurrent()
+            advanceTimeBy(60.seconds)
+            runCurrent()
+            assertTrue(rig.transport.connections.size > 3, "several failed retries")
+            assertEquals(listOf("m-1", "system:reconnecting:1"), rig.ids)
+
+            // Back up, then down again: a second outage, a second line.
+            rig.transport.failure = null
+            advanceTimeBy(60.seconds)
+            runCurrent()
+            rig.transport.last.send(privmsg(2))
+            runCurrent()
+            assertEquals(ConnectionState.CONNECTED, rig.state.connection)
+            rig.transport.last.drop()
+            runCurrent()
+
+            assertEquals(ConnectionState.RECONNECTING, rig.state.connection)
+            assertEquals(listOf("m-1", "system:reconnecting:1", "m-2", "system:reconnecting:2"), rig.ids)
         }
 
     @Test
@@ -598,5 +663,118 @@ class ChatSessionTest {
                     .highlight,
             )
             assertEquals(emissions + 1, rig.emissions.size)
+        }
+
+    @Test
+    fun historyCancellationAtJoinDoesNotKillChat() =
+        runTest {
+            val history = FakeHistory({ throw CancellationException("timeout") })
+            val rig = Rig(this, history = history).start()
+            assertEquals(1, rig.transport.connections.size)
+
+            rig.transport.last.send(privmsg(1))
+            rig.flush()
+            assertEquals(ConnectionState.CONNECTED, rig.state.connection)
+            assertEquals(listOf("m-1"), rig.ids)
+        }
+
+    @Test
+    fun historyCancellationOnBackfillDoesNotKillChat() =
+        runTest {
+            val history = FakeHistory({ recentMessages() }, { throw CancellationException("timeout") })
+            val rig = Rig(this, history = history).start()
+            rig.transport.last.send(privmsg(1))
+            rig.flush()
+
+            rig.transport.last.drop()
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertEquals(2, history.calls)
+            assertEquals(2, rig.transport.connections.size)
+            rig.transport.last.send(privmsg(2))
+            rig.flush()
+            assertEquals(ConnectionState.CONNECTED, rig.state.connection)
+            assertEquals(listOf("m-1", "system:reconnecting:1", "m-2"), rig.ids)
+        }
+
+    @Test
+    fun slowHistoryDelaysLiveChatAtMostTenSeconds() =
+        runTest {
+            val history =
+                FakeHistory({
+                    delay(60.seconds)
+                    recentMessages(privmsg(0))
+                })
+            val rig = Rig(this, history = history).start()
+            advanceTimeBy(9_999.milliseconds)
+            runCurrent()
+            assertTrue(rig.transport.connections.isEmpty())
+
+            advanceTimeBy(1.milliseconds)
+            runCurrent()
+            assertEquals(listOf(10_000L), rig.transport.connections.map { it.openedAt })
+            rig.transport.last.send(privmsg(1))
+            rig.flush()
+            assertEquals(listOf("m-1"), rig.ids)
+        }
+
+    @Test
+    fun backfillKeepsSameMillisecond() =
+        runTest {
+            val history =
+                FakeHistory(
+                    { recentMessages() },
+                    // m-7 was missed and carries the same millisecond as m-3, the newest message shown.
+                    { recentMessages(privmsg(3), privmsg(7, sentAtMs = TS_BASE_MS + 3000)) },
+                )
+            val rig = Rig(this, history = history).start()
+            rig.transport.last.send(privmsg(1), privmsg(2), privmsg(3))
+            rig.flush()
+
+            rig.transport.last.drop()
+            advanceTimeBy(30.seconds)
+            runCurrent()
+
+            assertEquals(listOf("m-1", "m-2", "m-3", "system:reconnecting:1", "m-7"), rig.ids)
+        }
+
+    @Test
+    fun emoteBurstRetokenizesOnce() =
+        runTest {
+            val registry = EmoteRegistry()
+            val emotes = BurstStateFlow(registry.snapshot.value)
+            val rig = Rig(this, emotes = emotes).start()
+            rig.transport.last.send(privmsg(1, "KEKW"))
+            rig.flush()
+            val before = rig.emissions.size
+
+            val snapshots =
+                (1..5).map { n ->
+                    registry.put(
+                        ProviderSet(EmoteProvider.SEVENTV, EmoteScope.CHANNEL, listOf(KEKW.copy(id = "id-$n"))),
+                    )
+                    registry.snapshot.value
+                }
+            emotes.burst(snapshots)
+            runCurrent()
+
+            assertTrue(rig.emissions.size - before <= 2, "emitted ${rig.emissions.size - before} times")
+            val item = rig.state.items.single()
+            assertEquals(snapshots.last().generation, item.emoteGeneration)
+            assertEquals("id-5", (item.parts.single() as MessagePart.EmotePart).emote.id)
+        }
+
+    @Test
+    fun dropByExceptionKeepsPendingItems() =
+        runTest {
+            val rig = Rig(this).start()
+            rig.transport.last.send(privmsg(1), privmsg(2))
+            runCurrent()
+            assertTrue(rig.ids.isEmpty(), "still pending in the batcher")
+
+            rig.transport.last.drop(IllegalStateException("socket reset"))
+            runCurrent()
+
+            assertEquals(listOf("m-1", "m-2", "system:reconnecting:1"), rig.ids)
         }
 }
