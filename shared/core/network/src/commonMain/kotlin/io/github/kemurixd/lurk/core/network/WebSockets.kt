@@ -16,12 +16,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
  * One open WebSocket. [incoming] carries text frames only; it completes on a normal close and
  * throws [LurkException] when the connection fails, including a drop without a close frame
- * (reported as Offline). [send] also throws [LurkException] once the server has closed.
+ * (reported as Offline). [send] throws [LurkException] (Offline) once the server has closed or
+ * [incoming] has completed or failed; a frame is never queued onto a closing session.
  *
  * [incoming] supports a single collector: a second collector would split the frames with the
  * first. Cancelling the collector does not close the connection. The caller owns [close] and
@@ -79,6 +81,10 @@ private suspend fun <T> asLurk(block: suspend () -> T): T =
 private class KtorWebSocketConnection(
     private val session: WebSocketSession,
 ) : WebSocketConnection {
+    // Set as soon as incoming ends, which happens before Ktor closes the outgoing side.
+    @Volatile
+    private var closed = false
+
     override val incoming: Flow<String> =
         session.incoming
             .receiveAsFlow()
@@ -87,9 +93,15 @@ private class KtorWebSocketConnection(
             .catch { e ->
                 if (e is CancellationException || e is LurkException) throw e
                 throw LurkException(mapThrowable(e) ?: LurkError.Offline, e)
+            }.onCompletion { cause ->
+                // A collector that merely stops early does not mean the socket closed.
+                if (cause !is CancellationException) closed = true
             }
 
-    override suspend fun send(text: String) = asLurk { session.send(Frame.Text(text)) }
+    override suspend fun send(text: String) {
+        if (closed || session.outgoing.isClosedForSend) throw LurkException(LurkError.Offline)
+        asLurk { session.send(Frame.Text(text)) }
+    }
 
     override suspend fun close() {
         try {

@@ -28,6 +28,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 private const val TIMEOUT_MS = 10_000L
+private const val TOTAL_TIMEOUT_MS = 60_000L
+private const val RACE_ITERATIONS = 200
 
 class KtorWebSocketConnectorTest {
     private var server: EmbeddedServer<*, *>? = null
@@ -152,5 +154,28 @@ class KtorWebSocketConnectorTest {
             withTimeout(TIMEOUT_MS) { connection.incoming.toList() }
             val failure = assertFailsWith<LurkException> { connection.send("late") }
             assertTrue(failure.error == LurkError.Offline || failure.error == LurkError.Timeout)
+        }
+
+    @Test
+    fun sendRightAfterIncomingCompletesNeverSucceeds() =
+        runBlocking {
+            val url =
+                startServer {
+                    webSocket("/ws") {
+                        close(CloseReason(CloseReason.Codes.NORMAL, "bye"))
+                    }
+                }
+            withTimeout(TOTAL_TIMEOUT_MS) {
+                repeat(RACE_ITERATIONS) { round ->
+                    val connection = KtorWebSocketConnector(client).connect(url, emptyMap())
+                    connection.incoming.toList()
+                    val failure =
+                        assertFailsWith<LurkException>("send succeeded in round $round") {
+                            connection.send("late")
+                        }
+                    assertTrue(failure.error == LurkError.Offline || failure.error == LurkError.Timeout)
+                    connection.close()
+                }
+            }
         }
 }
