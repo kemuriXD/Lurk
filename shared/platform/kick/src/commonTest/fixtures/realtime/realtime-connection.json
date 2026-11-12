@@ -1,0 +1,14 @@
+{
+  "data": {
+    "connections": [
+      {
+        "credentials": {
+          "url": "wss://realtime.example/connection/websocket"
+        },
+        "provider": "centrifugo"
+      }
+    ],
+    "mode": "websocket"
+  },
+  "message": "success"
+}

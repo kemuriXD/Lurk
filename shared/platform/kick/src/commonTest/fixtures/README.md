@@ -22,3 +22,9 @@ Responses from Kick's web API, anonymised. Nothing here can be fetched, and no a
 - `followed-page1.json`, `followed-page2.json`: the shape of the signed-in `GET /api/v2/channels/followed` pages. Page 2 is **hand-built** (no `nextCursor`, and its last item leaves optional fields out).
 - `user.json`: the shape of `GET /api/v1/user`, cut down to the fields that matter plus a few ignored ones. The email is a stand-in.
 - `follow-ok.json`: **hand-built.** A plausible 200 body for the follow call, which the probe never sends. Only its method, path and bearer header are checked.
+
+`realtime/`
+
+- `realtime-connection.json`, `realtime-chat-connection.json`: the shape of the signed-out `POST web.kick.com/api/v1/realtime/connection` and `.../realtime/channels/{channelId}/chat/connection` replies. The server picked `centrifugo`; the socket host is `realtime.example`.
+- `realtime-auth.json`: the shape of the signed-out `POST .../realtime/auth/connection` reply. The connection token is the stand-in `eyJ0.e30.sig`.
+- `centrifugo-frames.txt`: one recorded frame per line from that socket: the connect reply, the five subscribe replies and the first three pushes. The client id, IDs, usernames, message text, colours, image URLs and timestamps are stand-ins.
