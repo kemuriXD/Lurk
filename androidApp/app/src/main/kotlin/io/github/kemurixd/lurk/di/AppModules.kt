@@ -8,6 +8,7 @@ import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.storageModule
 import io.github.kemurixd.lurk.emotes.emotesModule
+import io.github.kemurixd.lurk.playback.playbackModule
 import org.koin.core.module.Module
 
 /** Every Koin module the app starts with. Feature and platform modules join this list as they are built. */
@@ -20,4 +21,5 @@ fun appModules(context: Context): List<Module> =
         configModule,
         emotesModule,
         chatModule,
+        playbackModule,
     )

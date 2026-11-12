@@ -12,6 +12,7 @@ import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.CacheStore
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.storageModule
+import io.github.kemurixd.lurk.playback.playbackModule
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
 import org.koin.core.annotation.KoinExperimentalAPI
@@ -19,6 +20,7 @@ import org.koin.core.module.Module
 import org.koin.test.verify.verify
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.TimeSource
 
@@ -58,6 +60,7 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(7, modules.size)
+        assertEquals(8, modules.size)
+        assertTrue(playbackModule in modules)
     }
 }
