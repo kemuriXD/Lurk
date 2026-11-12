@@ -38,10 +38,16 @@ data class MediaPlaylist(
 
     companion object {
         private const val MILLIS = 1000.0
+        private const val MAX_EPOCH_SECONDS = 1e11
 
         /** Null when the text lacks `#EXTM3U` or has no usable `#EXTINF`. Bad lines are skipped. */
         fun parse(text: String): MediaPlaylist? {
-            val lines = text.lineSequence().map { it.trim() }.toList()
+            val lines =
+                text
+                    .removePrefix("\uFEFF")
+                    .lineSequence()
+                    .map { it.trim() }
+                    .toList()
             val reader = Reader()
             if (lines.any { it.startsWith("#EXTM3U") }) lines.forEach(reader::accept)
             return reader.result()
@@ -49,7 +55,12 @@ data class MediaPlaylist(
 
         private fun parseInstant(s: String): Instant? = runCatching { Instant.parse(s) }.getOrNull()
 
-        private fun seconds(s: String): Duration? = s.trim().toDoubleOrNull()?.seconds
+        private fun seconds(s: String): Duration? =
+            s
+                .trim()
+                .toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it >= 0 }
+                ?.seconds
     }
 
     private class Reader {
@@ -93,6 +104,7 @@ data class MediaPlaylist(
                 ?.attributes
                 ?.get("X-SERVER-TIME")
                 ?.toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it >= 0 && it < MAX_EPOCH_SECONDS }
                 ?.let { Instant.fromEpochMilliseconds((it * MILLIS).toLong()) }
 
         private fun extinf(rest: String): Pair<Duration, String>? {

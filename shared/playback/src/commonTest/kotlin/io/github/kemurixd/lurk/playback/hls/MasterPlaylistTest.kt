@@ -68,4 +68,17 @@ class MasterPlaylistTest {
         assertEquals(emptyList(), MasterPlaylist.variants("<html>nope</html>", "https://h.example/"))
         assertEquals(emptyList(), MasterPlaylist.variants("", "https://h.example/"))
     }
+
+    @Test
+    fun authorityOnlyBaseWithQueryDoesNotThrow() {
+        val text = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nlow.m3u8\n"
+        val v = MasterPlaylist.variants(text, "https://h.example?x=a/b")
+        assertEquals("https://h.example/low.m3u8", v.single().url)
+    }
+
+    @Test
+    fun otherSchemesAreAbsoluteAndBomIsIgnored() {
+        val text = "\uFEFF#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nhttp:foo/x.m3u8\n"
+        assertEquals("http:foo/x.m3u8", MasterPlaylist.variants(text, "https://h.example/a/m.m3u8").single().url)
+    }
 }

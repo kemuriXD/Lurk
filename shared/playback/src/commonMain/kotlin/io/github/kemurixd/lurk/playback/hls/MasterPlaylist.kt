@@ -13,7 +13,12 @@ object MasterPlaylist {
         text: String,
         baseUrl: String,
     ): List<Variant> {
-        val lines = text.lineSequence().map { it.trim() }.toList()
+        val lines =
+            text
+                .removePrefix("\uFEFF")
+                .lineSequence()
+                .map { it.trim() }
+                .toList()
         val groupNames = HashMap<String, String>()
         for (line in lines) {
             if (!line.startsWith(MEDIA)) continue
@@ -78,33 +83,36 @@ object MasterPlaylist {
             bandwidth = bandwidth,
             width = width,
             height = height,
-            frameRate = a["FRAME-RATE"]?.toFloatOrNull(),
+            frameRate = a["FRAME-RATE"]?.toFloatOrNull()?.takeIf { it.isFinite() },
             audioOnly = audioOnly,
         )
     }
+
+    private val schemePrefix = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
     private fun resolveUrl(
         base: String,
         ref: String,
     ): String {
-        val schemeEnd = base.indexOf("://")
-        val pathStart = base.indexOf('/', schemeEnd + 3).let { if (it < 0) base.length else it }
+        val cleanBase = base.substringBefore('#').substringBefore('?')
+        val schemeEnd = cleanBase.indexOf("://")
+        val pathStart = cleanBase.indexOf('/', schemeEnd + 3).let { if (it < 0) cleanBase.length else it }
         return when {
-            ref.contains("://") || schemeEnd < 0 -> {
+            schemePrefix.containsMatchIn(ref) || schemeEnd < 0 -> {
                 ref
             }
 
             ref.startsWith("//") -> {
-                base.substring(0, schemeEnd + 1) + ref
+                cleanBase.substring(0, schemeEnd + 1) + ref
             }
 
             ref.startsWith("/") -> {
-                base.substring(0, pathStart) + ref
+                cleanBase.substring(0, pathStart) + ref
             }
 
             else -> {
-                base.substring(0, pathStart) + "/" +
-                    relativePath(base.substringBefore('#').substringBefore('?').substring(pathStart), ref)
+                cleanBase.substring(0, pathStart) + "/" +
+                    relativePath(cleanBase.substring(pathStart), ref)
             }
         }
     }

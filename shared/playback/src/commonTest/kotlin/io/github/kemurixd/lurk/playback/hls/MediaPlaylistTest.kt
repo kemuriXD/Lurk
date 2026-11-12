@@ -74,4 +74,36 @@ class MediaPlaylistTest {
         assertEquals(1, p.segments.size)
         assertNull(p.segments[0].programDateTime)
     }
+
+    @Test
+    fun nonFiniteNumbersNeverThrow() {
+        val text =
+            "\uFEFF#EXTM3U\n#EXT-X-TARGETDURATION:NaN\n" +
+                "#EXT-X-DATERANGE:ID=\"a\",CLASS=\"timestamp\",DURATION=NaN,PLANNED-DURATION=Infinity," +
+                "X-SERVER-TIME=Infinity\n" +
+                "#EXTINF:NaN,x\nbad.ts\n#EXTINF:-1,x\nneg.ts\n#EXTINF:2.0,live\nok.ts\n"
+        val p = assertNotNull(MediaPlaylist.parse(text))
+        assertEquals(1, p.segments.size)
+        assertNull(p.targetDuration)
+        assertNull(p.serverTime)
+        assertNull(p.dateRanges.single().duration)
+        assertNull(p.dateRanges.single().plannedDuration)
+    }
+
+    @Test
+    fun decimalServerTimeIsExact() {
+        val text =
+            "#EXTM3U\n#EXT-X-DATERANGE:ID=\"a\",CLASS=\"timestamp\",X-SERVER-TIME=\"1794068458.92\"\n" +
+                "#EXTINF:2.0,live\na.ts\n"
+        assertEquals(
+            kotlin.time.Instant.fromEpochMilliseconds(1794068458920),
+            assertNotNull(MediaPlaylist.parse(text)).serverTime,
+        )
+    }
+
+    @Test
+    fun evenCountMedianTakesUpperMiddle() {
+        val text = "#EXTM3U\n#EXTINF:2.0,a\na.ts\n#EXTINF:4.0,b\nb.ts\n"
+        assertEquals(4.seconds, assertNotNull(MediaPlaylist.parse(text)).typicalSegment)
+    }
 }
