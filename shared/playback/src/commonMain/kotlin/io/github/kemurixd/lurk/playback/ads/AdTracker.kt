@@ -7,12 +7,15 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.concurrent.Volatile
 import kotlin.coroutines.ContinuationInterceptor
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.time.ComparableTimeMark
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -24,13 +27,20 @@ import kotlin.time.TimeSource
 /**
  * Follows Twitch ad breaks against the stream's own clock and publishes them as [state].
  *
- * The device's wall clock is never read. Stream time comes from the playlists (`X-SERVER-TIME`, or before that
- * the end of the last segment) plus the time elapsed on [timeSource] since then.
+ * The device's wall clock is never read. The stream clock is the later of two anchors, each plus the time elapsed
+ * on [timeSource] since it was taken: `X-SERVER-TIME` (the playlist's creation time, repeated unchanged in every
+ * refresh) and the live edge (the end of the last segment). Both are lower bounds on real stream time, so the
+ * later one is the closer. Each anchor only moves forward, so the clock never runs backwards. A preroll that is
+ * already behind the live edge when the playlist is fetched reads as over; a player that starts at the ads
+ * reports its position through [reportPlayhead].
  *
- * [onMediaPlaylist], [reportPlayhead] and [close] may be called from any thread. Each one posts its input to a
- * serial view of [scope]'s dispatcher, and the ticker runs there too, so all tracker state is read and written
- * by one task at a time. A posted input reaches [state] once that task has run. [scope] needs a dispatcher that
- * really dispatches (not `Dispatchers.Unconfined`); a scope without one ticks on `Dispatchers.Default`.
+ * [onMediaPlaylist], [reportPlayhead] and [close] may be called from any thread. [onMediaPlaylist] runs
+ * [AdDetector.inspect] on the caller's thread, then each call posts its input to a serial view of [scope]'s
+ * dispatcher, where the ticker also runs. All tracker state is therefore read and written by one task at a time,
+ * and a posted input reaches [state] once that task has run. [scope] needs a dispatcher that really dispatches
+ * (not an unconfined one); a scope without a dispatcher uses `Dispatchers.Default`.
+ *
+ * The tracker's coroutines run under its own child Job of [scope]. Call [close] when done with it.
  */
 class AdTracker(
     private val detector: AdDetector,
@@ -43,18 +53,20 @@ class AdTracker(
     /** De-duplicated; `remaining` is rounded down to whole seconds, so a countdown changes once a second. */
     val state: StateFlow<AdState> = mutableState.asStateFlow()
 
-    private val serial =
-        ((scope.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher) ?: Dispatchers.Default)
-            .limitedParallelism(1)
+    private val serial = serialDispatcher(scope)
+    private val job = Job(scope.coroutineContext[Job])
+
+    @Volatile
+    private var closed = false
 
     // Everything below is only touched by tasks on `serial`.
-    private var clock: StreamClock? = null
-    private var playhead: Playhead? = null
+    private var serverClock: Anchor? = null
+    private var edgeClock: Anchor? = null
+    private var playhead: Anchor? = null
     private val seenCues = HashSet<String>()
     private val cues = ArrayList<Window>()
     private var stitched = listOf<StitchedWindow>()
     private var ticker: Job? = null
-    private var closed = false
 
     fun onMediaPlaylist(playlist: MediaPlaylist) {
         val at = timeSource.markNow()
@@ -62,7 +74,8 @@ class AdTracker(
         val serverTime = playlist.serverTime
         val edge = liveEdge(playlist)
         post {
-            moveClock(serverTime, edge, at)
+            serverClock = forward(serverClock, serverTime, at)
+            edgeClock = forward(edgeClock, edge, at)
             register(info)
         }
     }
@@ -72,53 +85,23 @@ class AdTracker(
         val at = timeSource.markNow()
         post {
             // Reports from different threads may be posted out of order; the newest one wins.
-            if (playhead.let { it == null || at > it.at }) playhead = Playhead(programDateTime, at)
+            if (playhead.let { it == null || at > it.mark }) playhead = Anchor(programDateTime, at)
         }
     }
 
-    /** Stops the ticker, forgets every window and publishes [AdState.None]. Later input is ignored. */
+    /** Publishes [AdState.None] and cancels the tracker's coroutines at once. Later input is ignored. */
     fun close() {
-        scope.launch(serial) {
-            closed = true
-            ticker?.cancel()
-            ticker = null
-            cues.clear()
-            stitched = emptyList()
-            mutableState.value = AdState.None
-        }
+        closed = true
+        mutableState.value = AdState.None
+        job.cancel()
     }
 
     private fun post(block: () -> Unit) {
-        scope.launch(serial) {
+        if (closed) return
+        scope.launch(job + serial) {
             if (!closed) {
                 block()
                 schedule(recompute())
-            }
-        }
-    }
-
-    /**
-     * `X-SERVER-TIME` is the time the playlist was created, so it repeats unchanged in every refresh. It moves the
-     * clock only when it is ahead of it: the first time, or for a newer playlist. The live edge is only used until
-     * a server time arrives.
-     */
-    private fun moveClock(
-        serverTime: Instant?,
-        edge: Instant?,
-        at: ComparableTimeMark,
-    ) {
-        val current = clock
-        when {
-            serverTime != null -> {
-                // The first server time replaces a clock taken from the live edge.
-                if (current?.fromServer != true || serverTime > current.at(at)) {
-                    clock = StreamClock(serverTime, at, fromServer = true)
-                }
-            }
-
-            // Once a server time is known, the live edge is ignored.
-            edge != null && current?.fromServer != true -> {
-                if (current == null || edge > current.at(at)) clock = StreamClock(edge, at, fromServer = false)
             }
         }
     }
@@ -133,15 +116,22 @@ class AdTracker(
     /** Publishes the state for now and returns how long until it can next change, or null when no window is open. */
     private fun recompute(): Duration? {
         val now = timeSource.markNow()
-        val streamNow = clock?.at(now)
+        val streamNow = listOfNotNull(serverClock?.at(now), edgeClock?.at(now)).maxOrNull()
         if (streamNow != null) {
             val cutoff = streamNow - KEEP_ENDED
             cues.removeAll { it.end < cutoff }
             stitched = stitched.filterNot { it.end < cutoff }
         }
         val position = position(now, streamNow)
-        mutableState.value = position?.let(::stateAt) ?: AdState.None
-        return position?.let { nextChange(it, now) }
+        publish(position?.let(::stateAt) ?: AdState.None)
+        return position?.let { nextChange(it, streamNow, now) }
+    }
+
+    /** A task that started before [close] may finish after it; re-checking afterwards keeps the last word None. */
+    private fun publish(value: AdState) {
+        if (closed) return
+        mutableState.value = value
+        if (closed) mutableState.value = AdState.None
     }
 
     private fun position(
@@ -149,7 +139,7 @@ class AdTracker(
         streamNow: Instant?,
     ): Instant? {
         val p = playhead
-        return if (p != null && now - p.at < PLAYHEAD_FRESH) p.programDateTime + (now - p.at) else streamNow
+        return if (p != null && now - p.mark < PLAYHEAD_FRESH) p.at(now) else streamNow
     }
 
     private fun stateAt(position: Instant): AdState {
@@ -161,21 +151,29 @@ class AdTracker(
 
     private fun nextChange(
         position: Instant,
+        streamNow: Instant?,
         now: ComparableTimeMark,
     ): Duration? {
-        val open = (stitched.map { Window(it.start, it.end) } + cues).filter { position < it.end }
-        if (open.isEmpty()) return null
+        val windows = stitched.map { Window(it.start, it.end) } + cues
         val waits =
-            open.map { if (position < it.start) it.start - position else untilNextSecond(it.end - position) }
-        val stale = playhead?.let { PLAYHEAD_FRESH - (now - it.at) }?.takeIf { it.isPositive() }
-        return (waits + listOfNotNull(stale)).min().coerceAtMost(TICK)
+            windows
+                .filter { position < it.end }
+                .map { if (position < it.start) it.start - position else untilNextSecond(it.end - position) }
+        // When a fresh playhead goes stale the position falls back to the stream clock, which may be inside a
+        // window even when the playhead is not.
+        val stale =
+            playhead
+                ?.let { PLAYHEAD_FRESH - (now - it.mark) }
+                ?.takeIf { it.isPositive() && streamNow != null && windows.any { w -> streamNow < w.end } }
+        val all = waits + listOfNotNull(stale)
+        return if (all.isEmpty()) null else all.min().coerceAtMost(TICK)
     }
 
     private fun schedule(wait: Duration?) {
         ticker?.cancel()
         ticker =
             wait?.let { first ->
-                scope.launch(serial) {
+                scope.launch(job + serial) {
                     var next: Duration? = first
                     while (next != null) {
                         delay(next)
@@ -185,18 +183,13 @@ class AdTracker(
             }
     }
 
-    private class StreamClock(
+    /** An instant seen at [mark] on the time source; it moves on with elapsed time. */
+    private class Anchor(
         val instant: Instant,
         val mark: ComparableTimeMark,
-        val fromServer: Boolean,
     ) {
         fun at(time: ComparableTimeMark): Instant = instant + (time - mark)
     }
-
-    private class Playhead(
-        val programDateTime: Instant,
-        val at: ComparableTimeMark,
-    )
 
     private data class Window(
         val start: Instant,
@@ -207,6 +200,27 @@ class AdTracker(
         val PLAYHEAD_FRESH = 5.seconds
         val KEEP_ENDED = 5.minutes
         val TICK = 1.seconds
+
+        fun serialDispatcher(scope: CoroutineScope): CoroutineDispatcher {
+            val dispatcher =
+                scope.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default
+            require(dispatcher is MainCoroutineDispatcher || dispatcher.isDispatchNeeded(EmptyCoroutineContext)) {
+                "AdTracker needs a scope whose dispatcher dispatches; an unconfined one cannot run its tasks in turn"
+            }
+            return dispatcher.limitedParallelism(1)
+        }
+
+        /** Moves [anchor] to [value] only if [value] is ahead of where the anchor has got to. */
+        fun forward(
+            anchor: Anchor?,
+            value: Instant?,
+            at: ComparableTimeMark,
+        ): Anchor? =
+            when {
+                value == null -> anchor
+                anchor == null || value > anchor.at(at) -> Anchor(value, at)
+                else -> anchor
+            }
 
         /** The end of the last segment, counting on from the last `PROGRAM-DATE-TIME`. */
         fun liveEdge(playlist: MediaPlaylist): Instant? {

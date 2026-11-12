@@ -9,6 +9,7 @@ import io.github.kemurixd.lurk.playback.hls.MediaPlaylist
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
@@ -21,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.math.roundToLong
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -48,7 +50,12 @@ class AdTrackerTest {
 
     private fun load(name: String): MediaPlaylist = parse(fixture("twitch/$name"))
 
-    private fun CoroutineScope.activeJobs(): Int = coroutineContext.job.children.count { it.isActive }
+    /** Active jobs directly in [this] scope. The tracker keeps one there, its own Job, until it is closed. */
+    private fun CoroutineScope.activeChildren(): Int = coroutineContext.job.children.count { it.isActive }
+
+    /** Active coroutines under the tracker's own Job: queued input and the ticker. */
+    private fun CoroutineScope.activeTasks(): Int =
+        coroutineContext.job.children.sumOf { owner -> owner.children.count { it.isActive } }
 
     /** Feeds the refreshes with the spacing of their original fetch times (`NNN-<ms>.m3u8`). */
     private suspend fun replay(
@@ -73,6 +80,27 @@ class AdTrackerTest {
         return log
     }
 
+    /**
+     * The preroll playlist as an earlier refresh would have shown it: cut after its third ad segment, so the live
+     * edge (22:33:25.120 + 2.002 s = 22:33:27.122) is inside the ad. The full fixture's live edge is past the ad.
+     */
+    private fun prerollMidAd(): String {
+        val out = ArrayList<String>()
+        var segments = 0
+        for (line in fixture("twitch/media-stitched-preroll.m3u8").lines()) {
+            out += line
+            if (line.isNotBlank() && !line.startsWith("#") && ++segments == 3) break
+        }
+        val text = out.joinToString("\n")
+        assertEquals(Instant.parse("2026-11-07T22:33:25.120Z"), parse(text).segments.last().programDateTime)
+        return text
+    }
+
+    private fun liveEdge(playlist: MediaPlaylist): Instant {
+        val last = playlist.segments.last()
+        return assertNotNull(last.programDateTime) + last.duration
+    }
+
     @Test
     fun cueBreakReplay() =
         runTest {
@@ -80,14 +108,15 @@ class AdTrackerTest {
             backgroundScope.launch { replay(tracker, fixtureDir("twitch/cue-break")) }
             tracker.state.test {
                 assertEquals(AdState.None, awaitItem())
-                assertEquals(AdState.Avoided(viaProxy = false, remaining = 60.seconds), awaitItem())
-                assertEquals(CUE_BREAK_START, currentTime)
-                for (s in 59 downTo 0) {
+                // The cue first shows up in refresh 003, 2.009 s after its START-DATE on the stream clock.
+                assertEquals(AdState.Avoided(viaProxy = false, remaining = 57.seconds), awaitItem())
+                assertEquals(CUE_BREAK_SEEN, currentTime)
+                for (s in 56 downTo 0) {
                     assertEquals(AdState.Avoided(viaProxy = false, remaining = s.seconds), awaitItem())
-                    assertEquals(CUE_BREAK_START + (60 - s) * 1000 - 999, currentTime)
+                    assertEquals(CUE_BREAK_END - 999 - s * 1000L, currentTime)
                 }
                 assertEquals(AdState.None, awaitItem())
-                assertEquals(CUE_BREAK_START + 60_000, currentTime)
+                assertEquals(CUE_BREAK_END, currentTime)
                 advanceTimeBy(10.minutes)
                 expectNoEvents()
             }
@@ -99,25 +128,25 @@ class AdTrackerTest {
             val tracker = tracker()
             val cue = fixture("twitch/media-cue.m3u8")
             backgroundScope.launch {
-                repeat(150) {
+                repeat(50) {
                     tracker.onMediaPlaylist(parse(cue))
                     delay(2.seconds)
                 }
             }
             tracker.state.test {
                 assertEquals(AdState.None, awaitItem())
-                assertEquals(AdState.Avoided(viaProxy = false, remaining = 60.seconds), awaitItem())
-                assertEquals(MEDIA_CUE_START, currentTime)
-                for (s in 59 downTo 0) assertEquals(AdState.Avoided(false, s.seconds), awaitItem())
+                assertEquals(AdState.Avoided(viaProxy = false, remaining = 58.seconds), awaitItem())
+                assertEquals(0, currentTime)
+                for (s in 57 downTo 0) assertEquals(AdState.Avoided(false, s.seconds), awaitItem())
                 assertEquals(AdState.None, awaitItem())
-                assertEquals(MEDIA_CUE_START + 60_000, currentTime)
+                assertEquals(MEDIA_CUE_END, currentTime)
 
                 // The same cue ID with a START-DATE moved ahead of the stream clock: no second break.
-                advanceTimeBy(255_000 - currentTime)
+                advanceTimeBy(60_000 - currentTime)
                 val moved =
                     cue.replace(
                         "START-DATE=\"2026-11-07T16:24:06.531Z\"",
-                        "START-DATE=\"2026-11-07T16:25:20.000Z\"",
+                        "START-DATE=\"2026-11-07T16:25:15.000Z\"",
                     )
                 assertNotEquals(cue, moved)
                 tracker.onMediaPlaylist(parse(moved))
@@ -132,16 +161,39 @@ class AdTrackerTest {
             val tracker = tracker()
             tracker.state.test {
                 assertEquals(AdState.None, awaitItem())
-                tracker.onMediaPlaylist(load("media-stitched-preroll.m3u8"))
+                tracker.onMediaPlaylist(parse(prerollMidAd()))
                 assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), awaitItem())
                 assertEquals(0, currentTime)
                 for (s in 8 downTo 0) {
                     assertEquals(AdState.Playing(s.seconds, RollType.PREROLL, 1), awaitItem())
-                    assertEquals(795L + (8 - s) * 1000, currentTime)
+                    assertEquals(PREROLL_END - 999 - s * 1000L, currentTime)
                 }
                 assertEquals(AdState.None, awaitItem())
                 assertEquals(PREROLL_END, currentTime)
             }
+        }
+
+    @Test
+    fun prerollBehindLiveEdgeNeedsPlayhead() =
+        runTest {
+            // At fetch, the full fixture's live edge (22:33:48.333) is 12 s past the ad, so on the
+            // stream clock the ad is over.
+            val playlist = load("media-stitched-preroll.m3u8")
+            val adStart =
+                AdDetector { markers }
+                    .inspect(playlist)
+                    .stitched
+                    .single()
+                    .start
+            val tracker = tracker()
+            tracker.onMediaPlaylist(playlist)
+            runCurrent()
+            assertEquals(AdState.None, tracker.state.value)
+
+            // A player that starts at the ads reports where it is.
+            tracker.reportPlayhead(adStart)
+            runCurrent()
+            assertEquals(AdState.Playing(15.seconds, RollType.PREROLL, 1), tracker.state.value)
         }
 
     @Test
@@ -150,9 +202,7 @@ class AdTrackerTest {
             val cue =
                 "#EXT-X-DATERANGE:ID=\"maf-ad-1\",CLASS=\"twitch-maf-ad\"," +
                     "START-DATE=\"2026-11-07T22:33:21.117Z\",PLANNED-DURATION=60.000"
-            val text =
-                fixture("twitch/media-stitched-preroll.m3u8")
-                    .replaceFirst("#EXT-X-DISCONTINUITY", "$cue\n#EXT-X-DISCONTINUITY")
+            val text = prerollMidAd().replaceFirst("#EXT-X-DISCONTINUITY", "$cue\n#EXT-X-DISCONTINUITY")
             val tracker = tracker()
             tracker.onMediaPlaylist(parse(text))
             runCurrent()
@@ -184,55 +234,81 @@ class AdTrackerTest {
             backgroundScope.launch { replay(shifted, shiftedFiles) }
             advanceTimeBy(5.minutes)
 
-            // None, Avoided 60 s down to 0 s, None.
-            assertEquals(63, plainLog.size)
+            // None, Avoided 57 s down to 0 s, None.
+            assertEquals(60, plainLog.size)
             assertEquals(plainLog, shiftedLog)
         }
 
     @Test
     fun playheadDelaysTheBreak() =
         runTest {
-            val playlist = load("media-stitched-midroll-pod.m3u8")
-            val serverTime = assertNotNull(playlist.serverTime)
+            // The cue-break replay with its cue turned into a 60 s stitched ad, so it keeps the real fetch timing.
+            val files =
+                fixtureDir("twitch/cue-break").map { (name, text) ->
+                    name to text.replace("CLASS=\"twitch-maf-ad\"", "CLASS=\"twitch-stitched-ad\"")
+                }
+            assertTrue(files.any { "twitch-stitched-ad" in it.second })
+            val firstEdge = liveEdge(parse(files.first().second))
             val live = tracker()
             val behind = tracker()
             val liveLog = record(live)
             val behindLog = record(behind)
-            live.onMediaPlaylist(playlist)
-            behind.onMediaPlaylist(playlist)
+            backgroundScope.launch { replay(live, files) }
+            backgroundScope.launch { replay(behind, files) }
             // The player reports its program date-time every second, 8 s behind the stream clock.
             backgroundScope.launch {
-                repeat(500) {
-                    behind.reportPlayhead(serverTime + currentTime.milliseconds - 8.seconds)
+                repeat(120) {
+                    behind.reportPlayhead(firstEdge + currentTime.milliseconds - 8.seconds)
                     delay(1.seconds)
                 }
             }
-            advanceTimeBy(500.seconds)
+            advanceTimeBy(5.minutes)
 
-            val pod = AdState.Playing(30.seconds, RollType.MIDROLL, 2)
-            assertEquals(MIDROLL_START, liveLog.first { it.second == pod }.first)
-            assertEquals(MIDROLL_START + 8_000, behindLog.first { it.second == pod }.first)
-            assertEquals(MIDROLL_END, liveLog.last().first)
-            assertEquals(MIDROLL_END + 8_000, behindLog.last().first)
-            assertEquals(AdState.None, behindLog.last().second)
-            assertEquals(liveLog.map { it.second }, behindLog.map { it.second })
+            assertEquals(CUE_BREAK_SEEN to AdState.Playing(57.seconds, RollType.UNKNOWN, 1), liveLog[1])
+            assertEquals(CUE_BREAK_END to AdState.None, liveLog.last())
+            // Behind by 8 s, the player reaches START-DATE 8 s after the stream clock does, and sees all 60 s.
+            assertEquals(DELAYED_START to AdState.Playing(60.seconds, RollType.UNKNOWN, 1), behindLog[1])
+            assertEquals(DELAYED_START + 60_000 to AdState.None, behindLog.last())
+            assertEquals(CUE_BREAK_END + 8_000, behindLog.last().first)
         }
 
     @Test
     fun stalePlayheadIsIgnored() =
         runTest {
-            val playlist = load("media-stitched-preroll.m3u8")
-            val serverTime = assertNotNull(playlist.serverTime)
+            val playlist = parse(prerollMidAd())
+            val adStart =
+                AdDetector { markers }
+                    .inspect(playlist)
+                    .stitched
+                    .single()
+                    .start
             val tracker = tracker()
             tracker.state.test {
                 assertEquals(AdState.None, awaitItem())
                 tracker.onMediaPlaylist(playlist)
                 assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), awaitItem())
-                // A player still 20 s back, before the ad.
-                tracker.reportPlayhead(serverTime - 20.seconds)
+                // A player still 15 s before the ad.
+                tracker.reportPlayhead(adStart - 15.seconds)
                 assertEquals(AdState.None, awaitItem())
                 assertEquals(0, currentTime)
                 // With no newer report, after 5 s the stream clock is the position again.
+                assertEquals(AdState.Playing(4.seconds, RollType.PREROLL, 1), awaitItem())
+                assertEquals(5_000, currentTime)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun playheadPastTheAdHandsBackToStreamClock() =
+        runTest {
+            val tracker = tracker()
+            tracker.state.test {
+                assertEquals(AdState.None, awaitItem())
+                tracker.onMediaPlaylist(parse(prerollMidAd()))
+                assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), awaitItem())
+                // Past the end of every window, so nothing is open at the position, but the ad is at the stream clock.
+                tracker.reportPlayhead(Instant.parse("2026-11-07T22:33:40Z"))
+                assertEquals(AdState.None, awaitItem())
                 assertEquals(AdState.Playing(4.seconds, RollType.PREROLL, 1), awaitItem())
                 assertEquals(5_000, currentTime)
                 cancelAndIgnoreRemainingEvents()
@@ -245,46 +321,53 @@ class AdTrackerTest {
             var proxied = true
             val tracker = tracker(viaProxy = { proxied })
             tracker.onMediaPlaylist(load("media-cue.m3u8"))
-            advanceTimeBy(MEDIA_CUE_START)
             runCurrent()
-            assertEquals(AdState.Avoided(viaProxy = true, remaining = 60.seconds), tracker.state.value)
+            assertEquals(AdState.Avoided(viaProxy = true, remaining = 58.seconds), tracker.state.value)
 
             proxied = false
             advanceTimeBy(1.seconds)
             runCurrent()
-            assertEquals(AdState.Avoided(viaProxy = false, remaining = 59.seconds), tracker.state.value)
+            assertEquals(AdState.Avoided(viaProxy = false, remaining = 57.seconds), tracker.state.value)
         }
 
     @Test
-    fun liveEdgeIsTheClockBeforeServerTime() =
+    fun liveEdgeLeadsStaleServerTime() =
         runTest {
-            // Without X-SERVER-TIME, the clock is the end of the last segment: 2 s past the cue's START-DATE.
-            val tracker = tracker()
-            tracker.onMediaPlaylist(parse(withoutServerTime(fixture("twitch/media-cue.m3u8"))))
+            // media-cue's X-SERVER-TIME is 3 min behind its live edge (16:24:08.531): the live edge wins,
+            // with or without a server time. That is 2 s past the cue's START-DATE.
+            val text = fixture("twitch/media-cue.m3u8")
+            val withServerTime = tracker()
+            val without = tracker()
+            withServerTime.onMediaPlaylist(parse(text))
+            without.onMediaPlaylist(parse(withoutServerTime(text)))
             runCurrent()
-            assertEquals(AdState.Avoided(viaProxy = false, remaining = 58.seconds), tracker.state.value)
+            assertEquals(AdState.Avoided(viaProxy = false, remaining = 58.seconds), withServerTime.state.value)
+            assertEquals(AdState.Avoided(viaProxy = false, remaining = 58.seconds), without.state.value)
         }
 
     @Test
-    fun serverTimeTakesOverFromLiveEdge() =
+    fun olderServerTimeNeverMovesClockBack() =
         runTest {
-            val text = fixture("twitch/media-stitched-preroll.m3u8")
+            val text = fixture("twitch/media-cue.m3u8")
+            // A server time 30 s into the cue, ahead of the live edge, so it leads the clock.
+            val ahead = text.replace("X-SERVER-TIME=\"1794068458.92\"", "X-SERVER-TIME=\"1794068676.531\"")
+            assertEquals(Instant.parse("2026-11-07T16:24:36.531Z"), parse(ahead).serverTime)
             val tracker = tracker()
-            // The live edge is 12 s past the end of the preroll.
-            tracker.onMediaPlaylist(parse(withoutServerTime(text)))
+            tracker.onMediaPlaylist(parse(ahead))
             runCurrent()
-            assertEquals(AdState.None, tracker.state.value)
+            assertEquals(AdState.Avoided(viaProxy = false, remaining = 30.seconds), tracker.state.value)
 
+            // A later refresh carries the older server time; the clock keeps going from where it was.
             advanceTimeBy(1.seconds)
             tracker.onMediaPlaylist(parse(text))
             runCurrent()
-            assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), tracker.state.value)
+            assertEquals(AdState.Avoided(viaProxy = false, remaining = 29.seconds), tracker.state.value)
         }
 
     @Test
     fun stitchedWindowIsExtended() =
         runTest {
-            val text = fixture("twitch/media-stitched-preroll.m3u8")
+            val text = prerollMidAd()
             val longer = text.replace("DURATION=15.217", "DURATION=25.217")
             assertNotEquals(text, longer)
             val tracker = tracker()
@@ -304,15 +387,13 @@ class AdTrackerTest {
     @Test
     fun oldWindowsAreForgotten() =
         runTest {
-            val playlist = load("media-stitched-preroll.m3u8")
+            val playlist = parse(prerollMidAd())
             val adStart =
-                assertNotNull(
-                    AdDetector { markers }
-                        .inspect(playlist)
-                        .stitched
-                        .single()
-                        .start,
-                )
+                AdDetector { markers }
+                    .inspect(playlist)
+                    .stitched
+                    .single()
+                    .start
             val tracker = tracker()
             tracker.onMediaPlaylist(playlist)
             advanceTimeBy(4.minutes)
@@ -338,18 +419,18 @@ class AdTrackerTest {
             val tracker = tracker(scope)
             tracker.state.test {
                 assertEquals(AdState.None, awaitItem())
-                tracker.onMediaPlaylist(load("media-stitched-preroll.m3u8"))
+                tracker.onMediaPlaylist(parse(prerollMidAd()))
                 assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), awaitItem())
-                assertEquals(1, scope.activeJobs())
+                assertEquals(1, scope.activeTasks())
 
                 advanceTimeBy(PREROLL_END)
                 runCurrent()
                 assertEquals(AdState.None, expectMostRecentItem())
-                assertEquals(0, scope.activeJobs())
+                assertEquals(0, scope.activeTasks())
 
                 advanceTimeBy(10.minutes)
                 expectNoEvents()
-                assertEquals(0, scope.activeJobs())
+                assertEquals(0, scope.activeTasks())
             }
         }
 
@@ -358,19 +439,47 @@ class AdTrackerTest {
         runTest {
             val scope = trackerScope()
             val tracker = tracker(scope)
-            tracker.onMediaPlaylist(load("media-stitched-preroll.m3u8"))
+            tracker.onMediaPlaylist(parse(prerollMidAd()))
             runCurrent()
             assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), tracker.state.value)
 
             tracker.close()
-            runCurrent()
             assertEquals(AdState.None, tracker.state.value)
-            assertEquals(0, scope.activeJobs())
+            runCurrent()
+            assertEquals(0, scope.activeChildren())
 
-            tracker.onMediaPlaylist(load("media-stitched-preroll.m3u8"))
+            tracker.onMediaPlaylist(parse(prerollMidAd()))
             runCurrent()
             assertEquals(AdState.None, tracker.state.value)
-            assertEquals(0, scope.activeJobs())
+            assertEquals(0, scope.activeChildren())
+        }
+
+    @Test
+    fun closeThenCancelLeavesNone() =
+        runTest {
+            val scope = trackerScope()
+            val tracker = tracker(scope)
+            tracker.onMediaPlaylist(parse(prerollMidAd()))
+            runCurrent()
+            assertEquals(AdState.Playing(9.seconds, RollType.PREROLL, 1), tracker.state.value)
+
+            // Input still queued when the session closes the tracker and cancels its scope at once.
+            tracker.onMediaPlaylist(parse(prerollMidAd()))
+            tracker.close()
+            scope.cancel()
+            assertEquals(AdState.None, tracker.state.value)
+            runCurrent()
+            assertEquals(AdState.None, tracker.state.value)
+            assertEquals(0, scope.activeChildren())
+        }
+
+    @Test
+    fun unconfinedScopeIsRejected() =
+        runTest {
+            val unconfined = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+            assertFailsWith<IllegalArgumentException> {
+                AdTracker(AdDetector { markers }, unconfined, testScheduler.timeSource) { false }
+            }
         }
 
     /** Moves every START-DATE, PROGRAM-DATE-TIME and X-SERVER-TIME by [by]. */
@@ -394,18 +503,23 @@ class AdTrackerTest {
     }
 
     private companion object {
-        // The clock is anchored at the first playlist's X-SERVER-TIME, at virtual time 0.
-        // cue-break: cue START-DATE 17:11:04.531 minus X-SERVER-TIME 17:08:50.350.
-        const val CUE_BREAK_START = 134_181L
+        // Virtual time starts at the first playlist. The stream clock is the later of X-SERVER-TIME and the
+        // live edge (end of the last segment), each plus the time since it was seen. In every fixture here
+        // the live edge is the later one.
 
-        // media-cue: cue START-DATE 16:24:06.531 minus X-SERVER-TIME 16:20:58.920.
-        const val MEDIA_CUE_START = 187_611L
+        // cue-break: refresh 003, the first with the cue, is fetched 1794071466931 - 1794071454922 ms in.
+        const val CUE_BREAK_SEEN = 12_009L
 
-        // media-stitched-preroll: ad ends 22:33:36.334; X-SERVER-TIME 22:33:26.540.
-        const val PREROLL_END = 9_794L
+        // cue-break: START-DATE 17:11:04.531 + 60 s, minus refresh 001's live edge 17:10:54.531.
+        const val CUE_BREAK_END = 70_000L
 
-        // media-stitched-midroll-pod: the pod runs 22:40:04.333 to 22:40:34.767; same X-SERVER-TIME.
-        const val MIDROLL_START = 397_793L
-        const val MIDROLL_END = 428_227L
+        // The same break seen 8 s behind: START-DATE + 8 s minus the live edge 17:10:54.531.
+        const val DELAYED_START = 18_000L
+
+        // media-cue: START-DATE 16:24:06.531 + 60 s, minus the live edge 16:24:08.531.
+        const val MEDIA_CUE_END = 58_000L
+
+        // prerollMidAd: the ad ends 22:33:36.334 (21.117 + 15.217 s); live edge 22:33:27.122.
+        const val PREROLL_END = 9_212L
     }
 }
