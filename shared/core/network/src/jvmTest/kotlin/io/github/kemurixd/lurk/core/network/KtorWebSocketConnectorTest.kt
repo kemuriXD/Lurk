@@ -14,7 +14,6 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -28,6 +27,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 private const val TIMEOUT_MS = 10_000L
+private const val TOTAL_TIMEOUT_MS = 60_000L
+private const val RACE_ITERATIONS = 200
 
 class KtorWebSocketConnectorTest {
     private var server: EmbeddedServer<*, *>? = null
@@ -118,22 +119,25 @@ class KtorWebSocketConnectorTest {
     @Test
     fun abruptDropSurfacesAsLurkException() =
         runBlocking {
-            val sent = CompletableDeferred<Unit>()
             val url =
                 startServer {
                     webSocket("/ws") {
                         send(Frame.Text("last"))
                         flush()
-                        sent.complete(Unit)
                         awaitCancellation()
                     }
                 }
             val connection = KtorWebSocketConnector(client).connect(url, emptyMap())
             val received = mutableListOf<String>()
-            sent.invokeOnCompletion { server?.stop(0, 0) }
             val failure =
                 assertFailsWith<LurkException> {
-                    withTimeout(TIMEOUT_MS) { connection.incoming.collect { received += it } }
+                    withTimeout(TIMEOUT_MS) {
+                        connection.incoming.collect {
+                            received += it
+                            // Drop the server only once the frame has arrived, so delivery is not racing the stop.
+                            server?.stop(0, 0)
+                        }
+                    }
                 }
             assertEquals(listOf("last"), received)
             assertTrue(failure.error == LurkError.Offline || failure.error == LurkError.Timeout)
@@ -152,5 +156,28 @@ class KtorWebSocketConnectorTest {
             withTimeout(TIMEOUT_MS) { connection.incoming.toList() }
             val failure = assertFailsWith<LurkException> { connection.send("late") }
             assertTrue(failure.error == LurkError.Offline || failure.error == LurkError.Timeout)
+        }
+
+    @Test
+    fun sendRightAfterIncomingCompletesNeverSucceeds() =
+        runBlocking {
+            val url =
+                startServer {
+                    webSocket("/ws") {
+                        close(CloseReason(CloseReason.Codes.NORMAL, "bye"))
+                    }
+                }
+            withTimeout(TOTAL_TIMEOUT_MS) {
+                repeat(RACE_ITERATIONS) { round ->
+                    val connection = KtorWebSocketConnector(client).connect(url, emptyMap())
+                    connection.incoming.toList()
+                    val failure =
+                        assertFailsWith<LurkException>("send succeeded in round $round") {
+                            connection.send("late")
+                        }
+                    assertTrue(failure.error == LurkError.Offline || failure.error == LurkError.Timeout)
+                    connection.close()
+                }
+            }
         }
 }
