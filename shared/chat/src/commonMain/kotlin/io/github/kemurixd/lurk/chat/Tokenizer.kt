@@ -30,7 +30,7 @@ class Tokenizer {
         val text = message.text
         val words = WordReader(message, emotes, cheerPrefixes, PartsBuilder(applyFfzEffects))
         var cursor = 0
-        for (span in message.nativeEmotes) {
+        for (span in message.nativeEmotes.sortedBy { it.start }) {
             // Parsers validate spans; one that is out of range or overlaps the last is read as plain text instead.
             if (span.start < cursor || span.start >= span.end || span.end > text.length) continue
             words.segment(cursor, span.start)
@@ -86,8 +86,11 @@ private class PartsBuilder(
         source: String,
     ) {
         val target = attachTarget()
+        // HIDDEN only hides the modifier itself in the picker; it is never passed on to the target.
+        val effects =
+            if (applyFfzEffects && emote.isModifier) emote.modifierEffects - FfzEffect.HIDDEN else emptySet()
         when {
-            target >= 0 && applyFfzEffects && emote.isModifier -> modify(target, emote)
+            target >= 0 && effects.isNotEmpty() -> modify(target, effects)
             target >= 0 && emote.zeroWidth -> overlay(target, emote, source)
             else -> add(EmotePart(emote, source = source))
         }
@@ -111,13 +114,13 @@ private class PartsBuilder(
         pending.clear()
     }
 
-    /** Folds a modifier's effects into the target; the modifier and the spaces before it leave the message. */
+    /** Folds a modifier's [added] effects into the target; the modifier and the spaces before it leave the message. */
     private fun modify(
         index: Int,
-        modifier: Emote,
+        added: Set<FfzEffect>,
     ) {
         val target = parts[index] as EmotePart
-        val effects = target.effects + modifier.modifierEffects
+        val effects = target.effects + added
         parts[index] = target.copy(effects = effects)
         pending.clear()
         if (FfzEffect.NO_SPACE in effects) trimSpacesBefore(index)
@@ -201,7 +204,7 @@ private class WordReader(
         if (schemeEnd < 0 && '.' !in word) return false
         val end = linkEnd(word, if (schemeEnd > 0) word.indexOfFirst { it.isWhitespace() } else -1)
         val source = word.substring(0, end)
-        val isLink = if (schemeEnd > 0) end > schemeEnd else BARE_LINK.matches(source)
+        val isLink = if (schemeEnd > 0) end > schemeEnd else isBareHost(source)
         if (isLink) {
             parts.add(MessagePart.Link(if (schemeEnd > 0) source else "https://$source", source))
             textAndEmoji(word, end)
@@ -234,6 +237,11 @@ private class WordReader(
 private val BARE_LINK = Regex("""(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}(?:/\S*)?""")
 
 private const val TRAILING_PUNCTUATION = ".,!?:;"
+
+/** `host.tld[/path]` whose last label is a real top-level domain, so `file.txt` and `wait.what` stay text. */
+private fun isBareHost(candidate: String): Boolean =
+    BARE_LINK.matches(candidate) &&
+        candidate.substringBefore('/').substringAfterLast('.').lowercase() in TLDS
 
 private fun isLoginChar(c: Char): Boolean = c == '_' || c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9'
 

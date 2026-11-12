@@ -166,6 +166,42 @@ class TokenizerTest {
     }
 
     @Test
+    fun nativeSpansOutOfOrderStillRender() {
+        val parts =
+            tokenizeChecked(
+                "Kappa Kappa",
+                nativeEmotes = listOf(NativeEmoteSpan(6, 11, NATIVE_KAPPA), NativeEmoteSpan(0, 5, NATIVE_KAPPA)),
+            )
+        assertEquals(
+            listOf(EmotePart(NATIVE_KAPPA, source = "Kappa"), Text(" "), EmotePart(NATIVE_KAPPA, source = "Kappa")),
+            parts,
+        )
+    }
+
+    @Test
+    fun nativeSpanAfterEmojiUsesUtf16Offsets() {
+        assertEquals(
+            listOf(MessagePart.Emoji("👍"), Text(" "), EmotePart(NATIVE_KAPPA, source = "Kappa")),
+            tokenizeChecked("👍 Kappa", nativeEmotes = listOf(NativeEmoteSpan(3, 8, NATIVE_KAPPA))),
+        )
+    }
+
+    @Test
+    fun emojiBetweenNativeSpansIsItsOwnPart() {
+        assertEquals(
+            listOf(
+                EmotePart(NATIVE_KAPPA, source = "Kappa"),
+                MessagePart.Emoji("👍"),
+                EmotePart(NATIVE_KAPPA, source = "Kappa"),
+            ),
+            tokenizeChecked(
+                "Kappa👍Kappa",
+                nativeEmotes = listOf(NativeEmoteSpan(0, 5, NATIVE_KAPPA), NativeEmoteSpan(7, 12, NATIVE_KAPPA)),
+            ),
+        )
+    }
+
+    @Test
     fun invalidNativeSpansFallBackToText() {
         val outOfRange = tokenizeChecked("hi", nativeEmotes = listOf(NativeEmoteSpan(1, 9, NATIVE_KAPPA)))
         assertEquals(listOf(Text("hi")), outOfRange)
@@ -286,6 +322,24 @@ class TokenizerTest {
         assertEquals(
             listOf(Text("hi "), EmotePart(FFZ_X, source = "ffzX")),
             tokenizeChecked("hi ffzX"),
+        )
+    }
+
+    @Test
+    fun hiddenStaysOnTheModifierAndOffTheTarget() {
+        val hiddenFlip = emote("ffzHiddenFlip", EmoteProvider.FFZ, effects = setOf(FfzEffect.HIDDEN, FfzEffect.FLIP_X))
+        assertEquals(
+            listOf(EmotePart(A, effects = setOf(FfzEffect.FLIP_X), source = "A")),
+            tokenize("A ffzHiddenFlip", snapshot(A, hiddenFlip)),
+        )
+    }
+
+    @Test
+    fun hiddenOnlyModifierRendersAsEmote() {
+        val onlyHidden = emote("ffzOnlyHidden", EmoteProvider.FFZ, effects = setOf(FfzEffect.HIDDEN))
+        assertEquals(
+            listOf(EmotePart(A, source = "A"), Text(" "), EmotePart(onlyHidden, source = "ffzOnlyHidden")),
+            tokenize("A ffzOnlyHidden", snapshot(A, onlyHidden)),
         )
     }
 
@@ -432,6 +486,20 @@ class TokenizerTest {
         assertEquals(listOf(Text("e.g.")), tokenizeChecked("e.g."))
         assertEquals(listOf(Text("test@example.com")), tokenizeChecked("test@example.com"))
         assertEquals(listOf(Text("https:// ...")), tokenizeChecked("https:// ..."))
+    }
+
+    @Test
+    fun bareWordsWithUnknownTldStayText() {
+        for (word in listOf("file.txt", "ok.ok", "5Head.png", "wait.what", "Mr.Smith", "lol.xd")) {
+            assertEquals(listOf(Text(word)), tokenizeChecked(word), word)
+        }
+    }
+
+    @Test
+    fun bareHostsWithKnownTldBecomeLinks() {
+        for (word in listOf("KEKW.gg", "lurk.dev/x", "twitch.tv", "example.com")) {
+            assertEquals(listOf(MessagePart.Link("https://$word", word)), tokenizeChecked(word), word)
+        }
     }
 
     @Test
