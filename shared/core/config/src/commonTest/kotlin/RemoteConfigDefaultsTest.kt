@@ -12,6 +12,7 @@ class RemoteConfigDefaultsTest {
         assertEquals("https://usher.ttvnw.net", config.twitch.usherBase)
         assertEquals("wss://irc-ws.chat.twitch.tv:443", config.twitch.ircUrl)
         assertEquals(listOf("pusher", "centrifugo"), config.kick.realtimeAcceptedProviders)
+        assertEquals("https://search.kick.com/api/v1/", config.kick.searchApiBase)
     }
 
     private companion object {

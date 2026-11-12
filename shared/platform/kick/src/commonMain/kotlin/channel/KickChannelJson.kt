@@ -69,18 +69,25 @@ internal data class KickLivestreamJson(
 internal fun decodeKickChannel(element: JsonElement): KickChannelJson =
     kickChannelJson.decodeFromJsonElement(KickChannelJson.serializer(), element)
 
-private fun KickCategoryJson.toCategory(): Category? {
-    val resolvedId = categoryId ?: id
-    return if (name == null || resolvedId == null) {
+/**
+ * A category from either list. `id` is the subcategory (what the live list filters on); `category_id` is its parent
+ * group and is not used.
+ */
+internal fun KickCategoryJson.toCategory(): Category? =
+    if (name == null || id == null) {
         null
     } else {
-        Category(Platform.KICK, resolvedId.toString(), name, banner?.src, viewers)
+        Category(Platform.KICK, id.toString(), name, banner?.src ?: banner?.url, viewers)
     }
-}
 
-/** Kick sends `2026-01-01 00:00:00` in UTC. */
-private fun startedAt(text: String?): Instant? =
-    runCatching { text?.let { Instant.parse(it.trim().replace(' ', 'T') + "Z") } }.getOrNull()
+/** Kick sends `2026-01-01 00:00:00` in UTC; the web API sends ISO times with a `Z` or an offset. */
+internal fun startedAt(text: String?): Instant? =
+    runCatching {
+        text?.let {
+            val iso = it.trim().replace(' ', 'T')
+            Instant.parse(if (iso.endsWith("Z") || '+' in iso) iso else iso + "Z")
+        }
+    }.getOrNull()
 
 /** The live broadcast, or null when the channel is offline. */
 internal fun KickChannelJson.toStream(): Stream? {

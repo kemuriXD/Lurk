@@ -1,0 +1,27 @@
+{
+  "data": {
+    "livestreams": [
+      {
+        "id": "00000000-0000-0000-0000-000000000004",
+        "title": "Stream title 4",
+        "viewer_count": 50,
+        "start_time": "2026-01-01T12:00:00Z",
+        "channel": {
+          "id": 1000004,
+          "slug": "streamer4",
+          "profile_pic": "https://cdn.example/a/4.png",
+          "username": "Streamer Four"
+        },
+        "category": {
+          "id": 15,
+          "name": "Category 1",
+          "slug": "category-1"
+        }
+      }
+    ],
+    "pagination": {
+      "next_cursor": null
+    }
+  },
+  "message": "Success"
+}

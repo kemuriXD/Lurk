@@ -38,6 +38,7 @@ data class KickConfig(
     val realtimeChatConnectionPath: String = "realtime/channels/{channelId}/chat/connection",
     val realtimeChannelAuthPath: String = "realtime/auth/channel",
     val realtimeAcceptedProviders: List<String> = listOf("pusher", "centrifugo"),
+    val searchApiBase: String = "https://search.kick.com/api/v1/",
 )
 
 @Serializable

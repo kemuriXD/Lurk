@@ -1,0 +1,82 @@
+{
+  "data": {
+    "categories": [
+      {
+        "id": 15,
+        "is_mature": false,
+        "name": "Category 1",
+        "slug": "category-1",
+        "tags": ["Tag"],
+        "thumbnail": {
+          "src": "https://cdn.example/b/1.webp",
+          "srcset": ""
+        },
+        "viewer_count": 5000
+      },
+      {
+        "id": 28,
+        "name": "Category 2",
+        "slug": "category-2",
+        "thumbnail": null,
+        "viewer_count": 0
+      }
+    ],
+    "channels": [
+      {
+        "follower_count": 900,
+        "following": false,
+        "id": 1000001,
+        "is_live": false,
+        "is_verified": true,
+        "profile_picture": "https://cdn.example/a/1.png",
+        "slug": "streamer1",
+        "username": "Streamer One"
+      },
+      {
+        "follower_count": 2000,
+        "following": false,
+        "id": 1000002,
+        "is_live": true,
+        "is_verified": false,
+        "profile_picture": "https://cdn.example/a/2.png",
+        "slug": "streamer2",
+        "username": "Streamer Two"
+      },
+      {
+        "follower_count": 30,
+        "following": false,
+        "id": 1000003,
+        "is_live": true,
+        "profile_picture": null,
+        "slug": "streamer3",
+        "username": "Streamer Three"
+      }
+    ],
+    "livestreams": [
+      {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "title": "Stream title 2",
+        "viewer_count": 2000,
+        "show_view_count": true,
+        "thumbnail": {
+          "src": "https://cdn.example/t/2.webp",
+          "srcset": ""
+        },
+        "start_time": "2026-01-01T11:00:00Z",
+        "channel": {
+          "id": 1000002,
+          "slug": "streamer2",
+          "profile_pic": "https://cdn.example/a/2.png",
+          "username": "Streamer Two"
+        },
+        "category": {
+          "id": 15,
+          "name": "Category 1",
+          "slug": "category-1"
+        },
+        "is_mature": false,
+        "tags": []
+      }
+    ]
+  }
+}

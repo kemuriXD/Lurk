@@ -1,0 +1,54 @@
+{
+  "current_page": 1,
+  "data": [
+    {
+      "id": 15,
+      "category_id": 2,
+      "name": "Category 1",
+      "slug": "category-1",
+      "tags": ["Tag"],
+      "description": null,
+      "deleted_at": null,
+      "is_mature": false,
+      "viewers": 5000,
+      "is_fallback": false,
+      "banner": {
+        "responsive": "",
+        "url": "https://cdn.example/b/1.webp"
+      },
+      "category": {
+        "id": 2,
+        "name": "Parent",
+        "slug": "parent",
+        "icon": ""
+      }
+    },
+    {
+      "id": 28,
+      "category_id": 1,
+      "name": "Category 2",
+      "slug": "category-2",
+      "tags": [],
+      "viewers": 300,
+      "banner": {
+        "src": "https://cdn.example/b/2.webp"
+      }
+    },
+    {
+      "id": 77,
+      "category_id": 1,
+      "name": "Category 3",
+      "slug": "category-3",
+      "viewers": 0,
+      "banner": null
+    }
+  ],
+  "first_page_url": "https://kick.example/api/v1/subcategories?page=1",
+  "from": 1,
+  "last_page": 2,
+  "next_page_url": "https://kick.example/api/v1/subcategories?page=2",
+  "per_page": "32",
+  "prev_page_url": null,
+  "to": 3,
+  "total": 4
+}

@@ -38,6 +38,7 @@ internal val rigConfig =
                 KickConfig(
                     apiBase = "https://kick.example/api/",
                     webApiBase = "https://web.kick.example/api/v1/",
+                    searchApiBase = "https://search.kick.example/api/v1/",
                     realtimeConnectionPath = "a",
                     realtimeAuthPath = "b",
                     publicChannelTemplates = emptyList(),

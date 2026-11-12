@@ -20,8 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
-/** Which of Kick's two web API roots a request goes to. */
-enum class KickBase { API, WEB }
+/** Which of Kick's web API roots a request goes to. */
+enum class KickBase { API, WEB, SEARCH }
 
 /**
  * Sends requests to Kick's web API with browser headers, and an optional bearer token for signed-in calls.
@@ -85,7 +85,12 @@ class KickApi(
         query: Map<String, String>,
     ): String {
         val kick = config.value.kick
-        val root = if (base == KickBase.API) kick.apiBase else kick.webApiBase
+        val root =
+            when (base) {
+                KickBase.API -> kick.apiBase
+                KickBase.WEB -> kick.webApiBase
+                KickBase.SEARCH -> kick.searchApiBase
+            }
         return URLBuilder(root.trimEnd('/') + "/" + path.trimStart('/'))
             .apply { query.forEach { (key, value) -> parameters.append(key, value) } }
             .buildString()

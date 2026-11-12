@@ -18,9 +18,9 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Kick master playlists, taken from the channel reply's `playback_url`. A channel that is not live, or has no
- * playback URL, is [LurkError.NotFound]. Kick streams are left alone: nothing here reads ad data. Each grant is
- * bounded by [grantTimeout].
+ * Kick master playlists, taken from the channel reply's `playback_url`. A channel that is not live (no livestream,
+ * or one marked as finished), or has no playback URL, is [LurkError.NotFound]. Kick streams are left alone: nothing
+ * here reads ad data. Each grant is bounded by [grantTimeout].
  */
 class KickPlaybackSource(
     private val api: KickApi,
@@ -53,7 +53,7 @@ class KickPlaybackSource(
                 outcomeOf {
                     val json = decodeKickChannel(reply.value)
                     val url = json.playbackUrl
-                    if (json.livestream == null || url.isNullOrBlank()) {
+                    if (json.livestream == null || json.livestream.isLive == false || url.isNullOrBlank()) {
                         null
                     } else {
                         PlaybackGrant(masterUrl = url, tokenFlags = null, lowLatencyCapable = true)

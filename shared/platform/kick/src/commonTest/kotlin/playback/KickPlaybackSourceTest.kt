@@ -103,6 +103,14 @@ class KickPlaybackSourceTest {
         }
 
     @Test
+    fun finishedLivestreamIsNotFound() =
+        runTest {
+            val body = fixture("api/channel-live.json").replace("\"is_live\": true", "\"is_live\": false")
+            val s = source { json(body) }
+            assertEquals(Outcome.Failure(LurkError.NotFound), s.grant(channel))
+        }
+
+    @Test
     fun blankPlaybackUrlIsNotFound() =
         runTest {
             val body = fixture("api/channel-live.json").replace(liveUrl, " ")

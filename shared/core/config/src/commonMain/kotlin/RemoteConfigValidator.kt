@@ -19,6 +19,7 @@ object RemoteConfigValidator {
             requireHttps("twitch.recentMessagesUrl", c.twitch.recentMessagesUrl)
             requireHttps("kick.apiBase", c.kick.apiBase)
             requireHttps("kick.webApiBase", c.kick.webApiBase)
+            requireHttps("kick.searchApiBase", c.kick.searchApiBase)
             c.kick.publicChannelTemplates.forEach { template ->
                 if (channelPlaceholders.none { it in template }) {
                     add("kick.publicChannelTemplates entry '$template' has no {chatroomId} or {channelId}")

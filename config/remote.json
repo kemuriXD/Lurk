@@ -18,6 +18,7 @@
   "kick": {
     "apiBase": "https://kick.com/api/",
     "webApiBase": "https://web.kick.com/api/v1/",
+    "searchApiBase": "https://search.kick.com/api/v1/",
     "realtimeConnectionPath": "realtime/connection",
     "realtimeAuthPath": "realtime/auth/connection",
     "realtimeChatConnectionPath": "realtime/channels/{channelId}/chat/connection",
