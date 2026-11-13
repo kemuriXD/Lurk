@@ -54,7 +54,7 @@ class OfflineRevealGuardTest {
         rule.runOnIdle { user = scope.launch { grid.scroll(MutatePriority.UserInput) { awaitCancellation() } } }
         rule.waitForIdle()
         assertTrue(grid.isScrollInProgress)
-        rule.runOnIdle { scope.launch { revealOfflineRows(grid, "offline0") } }
+        rule.runOnIdle { scope.launch { revealOfflineRows(grid, "offline0", 5) } }
         rule.waitForIdle()
         assertTrue("the user's scroll was cancelled", user!!.isActive)
         assertEquals(before, grid.firstVisibleItemScrollOffset to grid.firstVisibleItemIndex)
@@ -71,7 +71,7 @@ class OfflineRevealGuardTest {
             grid.layoutInfo.visibleItemsInfo
                 .first { it.key == OFFLINE_HEADER_KEY }
                 .offset.y
-        rule.runOnIdle { scope.launch { revealOfflineRows(grid, "offline0") } }
+        rule.runOnIdle { scope.launch { revealOfflineRows(grid, "offline0", 5) } }
         rule.waitForIdle()
         val header = grid.layoutInfo.visibleItemsInfo.first { it.key == OFFLINE_HEADER_KEY }
         val row = grid.layoutInfo.visibleItemsInfo.first { it.key == "offline0" }

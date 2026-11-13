@@ -123,7 +123,12 @@ fun FollowingScreen(
     // One fold state for every offline row: they grow in and shrink out together, and stay in the list until the
     // shrinking is over. Only the rows on screen are composed, so only those animate.
     val offlineFold =
-        rememberOfflineFold(grid, state.offlineCollapsed, firstRowKey = state.offline.firstOrNull()?.key)
+        rememberOfflineFold(
+            grid,
+            state.offlineCollapsed,
+            firstRowKey = state.offline.firstOrNull()?.key,
+            rowCount = state.offline.size,
+        )
     Column(modifier.fillMaxSize()) {
         PlatformFilterChips(
             selected = state.filter,

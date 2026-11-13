@@ -22,20 +22,29 @@ private const val REVEAL_PASSES = 3
 private const val MAX_SETTLE_FRAMES = 90
 
 /**
- * How far to scroll, in pixels, after the Offline section unfolds so that its header and the first row are both fully
- * in view, never more than brings the header to the top edge. The header starts [headerTop] from the top of the list
- * and is [headerHeight] tall; [rowHeight] is the first row's height; [viewportEnd] is where the list's visible area
- * ends.
+ * How far to scroll, in pixels (positive: further down the list), after the Offline section unfolds so that the list's
+ * bottom edge sits exactly on a row boundary: the header and the first row are fully in view, and no row is cut or
+ * peeks in at the edge. The header starts [headerTop] from the top of the list and is [headerHeight] tall; [rowHeight]
+ * is the height of each of the [rowCount] rows; [viewportEnd] is the list's real bottom edge, bottom padding
+ * included, because rows are drawn in the padding too and a row that starts there would show as a sliver.
+ *
+ * - If every row fits above the edge, nothing peeks and the result is 0.
+ * - Otherwise the edge is brought onto the bottom of the last row that fits whole, or the first row if even that does
+ *   not fit. A partly visible next row is therefore scrolled back out of view rather than forward into it.
+ * - Scrolling forward never takes the header past the top edge.
  */
 internal fun offlineRevealScroll(
     headerTop: Int,
     headerHeight: Int,
     rowHeight: Int,
+    rowCount: Int,
     viewportEnd: Int,
 ): Int {
-    val missing = headerTop + headerHeight + rowHeight - viewportEnd
-    // Never scroll so far that the header itself leaves the top edge.
-    return missing.coerceIn(0, headerTop.coerceAtLeast(0))
+    val rowsTop = headerTop + headerHeight
+    if (rowHeight <= 0 || viewportEnd >= rowsTop + rowCount * rowHeight) return 0
+    val fitting = Math.floorDiv(viewportEnd - rowsTop, rowHeight).coerceIn(1, rowCount.coerceAtLeast(1))
+    val delta = rowsTop + fitting * rowHeight - viewportEnd
+    return delta.coerceIn(-rowHeight, headerTop.coerceAtLeast(0))
 }
 
 /** How long the rows take to grow in or shrink out. The fold's own timer uses it too, so it never waits on a row. */
@@ -72,6 +81,7 @@ internal fun rememberOfflineFold(
     grid: LazyGridState,
     collapsed: Boolean,
     firstRowKey: Any?,
+    rowCount: Int,
 ): OfflineFold {
     val fold = remember { OfflineFold(expanded = !collapsed) }
     var wasCollapsed by remember { mutableStateOf(collapsed) }
@@ -87,29 +97,32 @@ internal fun rememberOfflineFold(
         if (folded) {
             fold.rowsInList = false
         } else if (firstRowKey != null) {
-            revealOfflineRows(grid, firstRowKey)
+            revealOfflineRows(grid, firstRowKey, rowCount)
         }
     }
     return fold
 }
 
 /**
- * Scrolls [grid] just far enough to show the Offline header and the first row, [firstRowKey], in full. When that row
+ * Scrolls [grid] so that its bottom edge sits on a row boundary with the Offline header and the first row,
+ * [firstRowKey], in full (see [offlineRevealScroll]). When that row
  * isn't composed yet, it first scrolls a single pixel so the row exists, measures it, and then scrolls the rest, so it
  * never goes by a guess. It does nothing while the user is scrolling, and a scroll the user starts later takes over.
  */
 internal suspend fun revealOfflineRows(
     grid: LazyGridState,
     firstRowKey: Any,
+    rowCount: Int,
 ) {
     awaitAtRest(grid, firstRowKey)
-    repeat(REVEAL_PASSES) { if (!revealStep(grid, firstRowKey)) return }
+    repeat(REVEAL_PASSES) { if (!revealStep(grid, firstRowKey, rowCount)) return }
 }
 
 /** One pass of [revealOfflineRows]. True when the list should be measured again, because it moved a sliver only. */
 private suspend fun revealStep(
     grid: LazyGridState,
     firstRowKey: Any,
+    rowCount: Int,
 ): Boolean {
     val info = grid.layoutInfo
     val header = info.visibleItemsInfo.firstOrNull { it.key == OFFLINE_HEADER_KEY }
@@ -129,9 +142,10 @@ private suspend fun revealStep(
                     headerTop = header.offset.y,
                     headerHeight = header.size.height,
                     rowHeight = row.size.height,
-                    viewportEnd = info.viewportEndOffset - info.afterContentPadding,
+                    rowCount = rowCount,
+                    viewportEnd = info.viewportEndOffset,
                 )
-            if (delta > 0) grid.animateScrollBy(delta.toFloat())
+            if (delta != 0) grid.animateScrollBy(delta.toFloat())
             false
         }
     }

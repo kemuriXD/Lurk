@@ -195,9 +195,15 @@ class OfflineFoldMotionTest {
         val shown = row.boundsInRoot.height
         assertTrue("the row shows $shown of ${row.size.height} px", shown >= row.size.height - 1)
         assertTrue("the header stays in view, top ${headerTop()}", headerTop() >= list.top - 1)
-        // Just enough: the row ends where the list's bottom padding begins, not further up.
-        val end = list.bottom - 16f
+        // The row ends on the list's real bottom edge, so the next row can't show in the padding band.
+        val end = list.bottom
         assertEquals("row bottom ${row.boundsInRoot.bottom} against $end", end, row.boundsInRoot.bottom, 2f)
+        // No sliver of the second row in the padding band under the first.
+        val second = rule.onAllNodesWithText("Sleeper2").fetchSemanticsNodes().firstOrNull()
+        assertTrue(
+            "the second row peeks in: ${second?.boundsInRoot}",
+            second == null || second.boundsInRoot.height < 1f,
+        )
     }
 
     private fun loaded(
@@ -262,6 +268,6 @@ class OfflineFoldMotionTest {
         val row = rule.onNodeWithText("Sleeper1").fetchSemanticsNode()
         val shown = row.boundsInRoot.height
         assertTrue("the row shows $shown of ${row.size.height} px", shown >= row.size.height - 1)
-        assertEquals(list.bottom - 16f, row.boundsInRoot.bottom, 2f)
+        assertEquals(list.bottom, row.boundsInRoot.bottom, 2f)
     }
 }

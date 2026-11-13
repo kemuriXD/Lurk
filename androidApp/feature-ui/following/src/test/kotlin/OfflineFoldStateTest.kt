@@ -31,7 +31,7 @@ class OfflineFoldStateTest {
 
     private fun show() =
         rule.setContent {
-            fold = rememberOfflineFold(rememberLazyGridState(), collapsed, firstRowKey = "row")
+            fold = rememberOfflineFold(rememberLazyGridState(), collapsed, firstRowKey = "row", rowCount = 3)
         }
 
     @Test
