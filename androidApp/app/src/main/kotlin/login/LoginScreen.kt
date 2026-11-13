@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -45,18 +46,20 @@ import io.github.kemurixd.lurk.auth.LoginSpec
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
+import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.messageRes
 import io.github.kemurixd.lurk.feature.accounts.LoginEffect
 import io.github.kemurixd.lurk.feature.accounts.LoginUiState
 import io.github.kemurixd.lurk.feature.accounts.LoginViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import org.koin.core.qualifier.named
 import kotlin.time.Duration.Companion.milliseconds
-import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 private val PollInterval = 500.milliseconds
 
@@ -66,7 +69,8 @@ private val PollInterval = 500.milliseconds
  * Every cookie is cleared before the login page loads. The session cookie is then looked for on every finished page
  * and every 500 ms while the screen is visible; once found, [LoginViewModel] signs in with it. Success clears the
  * cookies again and calls [onDone]. A failure shows the error, clears the cookies and reloads the page for another
- * try. Cancel, or back with no page to go back to, clears the cookies and calls [onCancel].
+ * try. Cancel, or back with no page to go back to, clears the cookies and calls [onCancel]. Leaving any other way
+ * clears them on [cleanupScope], which outlives the screen; the app also clears them at every start.
  */
 @Composable
 fun LoginScreen(
@@ -77,6 +81,7 @@ fun LoginScreen(
     viewModel: LoginViewModel = koinViewModel { parametersOf(platform) },
     cookieJar: CookieJar = koinInject(),
     loader: WebViewLoader = StockWebViewLoader,
+    cleanupScope: CoroutineScope = koinInject(named("appScope")),
 ) {
     val session =
         remember(viewModel, cookieJar, loader) {
@@ -84,6 +89,10 @@ fun LoginScreen(
         }
     val state by viewModel.state.collectAsStateWithLifecycle()
     RunLoginSession(session, viewModel.effects, onDone, onCancel)
+    // Leaving without Done (the activity finishing, the task swiped away) would leave the session cookie in the store.
+    DisposableEffect(session) {
+        onDispose { if (!session.finished) cleanupScope.launch { cookieJar.clearAll() } }
+    }
     BackHandler {
         val view = session.webView
         if (view != null && view.canGoBack()) view.goBack() else session.cancel()
@@ -139,7 +148,7 @@ private fun LoginBar(
             Text(stringResource(R.string.login_cancel))
         }
         Text(
-            text = stringResource(R.string.title_login, stringResource(platform.label)),
+            text = stringResource(R.string.title_login, stringResource(platform.labelRes)),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -224,10 +233,3 @@ private fun loginWebView(
                 }
             }
     }
-
-internal val Platform.label: Int
-    get() =
-        when (this) {
-            Platform.TWITCH -> DesignR.string.platform_twitch
-            Platform.KICK -> DesignR.string.platform_kick
-        }

@@ -31,8 +31,9 @@ private val log = Logger.withTag("SignIn")
  *
  * The first [LoginIntent.CookieFound] starts one `signIn`; more of them while it runs are ignored. Success emits
  * [LoginEffect.ClearCookies] then [LoginEffect.Done]. Failure moves to [LoginUiState.Failed] and emits
- * [LoginEffect.ClearCookies], and the login stays open: the next cookie found tries again. [LoginIntent.Cancel] drops
- * a running sign-in and emits the same pair as success. After [LoginEffect.Done] every intent is ignored.
+ * [LoginEffect.ClearCookies], and the login stays open: the next cookie found tries again. [LoginIntent.Cancel] emits
+ * the same pair as success and stops caring about a running sign-in: that call runs to the end, so the session is
+ * stored whole or not at all, and its result is dropped. After [LoginEffect.Done] every intent is ignored.
  *
  * The state has no upstream to share, so it is a plain [StateFlow] rather than `stateIn`. The cookie value is held
  * only for the call and never logged. Call [onIntent] from the main thread.
@@ -51,7 +52,7 @@ class LoginViewModel(
     /** One-shot effects. Never replayed: a collector that returns sees only what is sent after it. */
     val effects: Flow<LoginEffect> = effectChannel.receiveAsFlow()
 
-    // The running sign-in. A job that is no longer the one stored here was cancelled and drops its result.
+    // The running sign-in. A job that is no longer the one stored here was given up on and drops its result.
     private var signInJob: Job? = null
     private var finished = false
 
@@ -67,7 +68,7 @@ class LoginViewModel(
             }
 
             LoginIntent.Cancel -> {
-                signInJob?.cancel()
+                // Not cancelled: the sign-in finishes its session write, and job identity drops its result.
                 signInJob = null
                 finish()
             }

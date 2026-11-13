@@ -1,6 +1,7 @@
 package io.github.kemurixd.lurk.designsystem.component
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -24,14 +25,17 @@ private val BadgeCorner = 6.dp
 private val TwitchMarkSize = 14.dp
 private val KickMarkSize = 12.dp
 
-@Composable
-internal fun Platform.label(): String =
-    stringResource(
+/** The platform's name as a string resource ("Twitch", "Kick"). The one place this mapping lives. */
+@get:StringRes
+val Platform.labelRes: Int
+    get() =
         when (this) {
             Platform.TWITCH -> R.string.platform_twitch
             Platform.KICK -> R.string.platform_kick
-        },
-    )
+        }
+
+@Composable
+internal fun Platform.label(): String = stringResource(labelRes)
 
 /** The small square platform mark (Figma PlatformBadge, Size=S). */
 @Composable

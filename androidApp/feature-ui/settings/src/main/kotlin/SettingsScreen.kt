@@ -32,13 +32,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
+import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.feature.accounts.AccountsEffect
 import io.github.kemurixd.lurk.feature.accounts.AccountsIntent
 import io.github.kemurixd.lurk.feature.accounts.AccountsUiState
 import io.github.kemurixd.lurk.feature.accounts.AccountsViewModel
 import kotlinx.coroutines.flow.Flow
 import org.koin.compose.viewmodel.koinViewModel
-import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 private val BodyMaxWidth = 640.dp
 private val CardShape = RoundedCornerShape(20.dp)
@@ -135,7 +135,7 @@ private fun ConfirmSignOutDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val name = platform.displayName()
+    val name = stringResource(platform.labelRes)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.sign_out_title, name)) },
@@ -150,12 +150,3 @@ private fun ConfirmSignOutDialog(
         },
     )
 }
-
-@Composable
-internal fun Platform.displayName(): String =
-    stringResource(
-        when (this) {
-            Platform.TWITCH -> DesignR.string.platform_twitch
-            Platform.KICK -> DesignR.string.platform_kick
-        },
-    )

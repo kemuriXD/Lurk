@@ -52,6 +52,12 @@ internal class LoginSession(
     private var clearing = false
     private var cancelled = false
 
+    /**
+     * The failure whose clear and reload have finished. Until then the old cookie may still be in the store, so checks
+     * wait. The view model passes through SigningIn before each failure, so every failure is a new instance.
+     */
+    private var settledFailure: LoginUiState.Failed? = null
+
     /** Clears every cookie, then loads the login page, so a previous account's cookie is never picked up. */
     suspend fun start(view: WebView) {
         clear()
@@ -66,7 +72,10 @@ internal class LoginSession(
         check(logMiss = true)
     }
 
-    /** Looks for the session cookie. Skipped while a clear runs or a sign-in is already checking a cookie. */
+    /**
+     * Looks for the session cookie. Skipped while a clear runs, while a sign-in is checking a cookie, and after a
+     * failure until its clear and reload are done.
+     */
     fun check(logMiss: Boolean = false) {
         if (!canCheck()) return
         val value = cookieValue(jar.read(cookieUrl), spec.cookieName)
@@ -78,7 +87,12 @@ internal class LoginSession(
         }
     }
 
-    private fun canCheck(): Boolean = loaded && !clearing && !finished && state.value != LoginUiState.SigningIn
+    private fun canCheck(): Boolean {
+        val current = state.value
+        val waiting =
+            current == LoginUiState.SigningIn || (current is LoginUiState.Failed && current !== settledFailure)
+        return loaded && !clearing && !finished && !waiting
+    }
 
     fun cancel() {
         cancelled = true
@@ -92,11 +106,13 @@ internal class LoginSession(
     ) {
         when (effect) {
             LoginEffect.ClearCookies -> {
+                val failure = state.value as? LoginUiState.Failed
                 clear()
                 // A failed sign-in left the user signed out on the page: load the login again for another try.
                 val view = webView
-                if (view != null && !cancelled && state.value is LoginUiState.Failed) {
+                if (failure != null && view != null && !cancelled) {
                     loader.load(view, spec.loginUrl)
+                    settledFailure = failure
                 }
             }
 

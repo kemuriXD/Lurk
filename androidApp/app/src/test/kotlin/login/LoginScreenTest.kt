@@ -3,6 +3,9 @@ package io.github.kemurixd.lurk.login
 import android.app.Application
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -40,27 +43,6 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
-/** A [CookieJar] in memory. [gate], when set, holds every [clearAll] until it completes. */
-private class FakeCookieJar(
-    private val events: MutableList<String>,
-) : CookieJar {
-    var header: String? = null
-    var gate: CompletableDeferred<Unit>? = null
-    val reads = mutableListOf<String>()
-
-    override fun read(url: String): String? {
-        reads += url
-        return header
-    }
-
-    override suspend fun clearAll() {
-        events += "clear started"
-        gate?.await()
-        header = null
-        events += "clear done"
-    }
-}
-
 // A plain Application keeps LurkApplication's real Koin graph and startup work out of the test.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
@@ -76,6 +58,7 @@ class LoginScreenTest {
     private var done = 0
     private var cancelled = 0
     private val logged = mutableListOf<Pair<String, String>>()
+    private var visible by mutableStateOf(true)
 
     @After
     fun tearDown() {
@@ -99,14 +82,17 @@ class LoginScreenTest {
         val viewModel = LoginViewModel(platform, sessions, TestDispatchers(Dispatchers.Main))
         compose.setContent {
             LurkTheme(dynamicColor = false) {
-                LoginScreen(
-                    platform = platform,
-                    onDone = { done++ },
-                    onCancel = { cancelled++ },
-                    viewModel = viewModel,
-                    cookieJar = jar,
-                    loader = { _: WebView, url: String -> events += "load $url" },
-                )
+                if (visible) {
+                    LoginScreen(
+                        platform = platform,
+                        onDone = { done++ },
+                        onCancel = { cancelled++ },
+                        viewModel = viewModel,
+                        cookieJar = jar,
+                        loader = { _: WebView, url: String -> events += "load $url" },
+                        cleanupScope = scope,
+                    )
+                }
             }
         }
         compose.waitForIdle()
@@ -235,6 +221,32 @@ class LoginScreenTest {
         poll()
 
         assertEquals(readsAtDone, jar.reads.size)
+    }
+
+    @Test
+    fun leavingWithoutDoneClearsCookies() {
+        show()
+        jar.header = "auth-token=$COOKIE"
+        assertEquals(1, events.count { it == "clear done" })
+
+        compose.runOnIdle { visible = false }
+        compose.waitForIdle()
+
+        assertEquals(2, events.count { it == "clear done" })
+        assertEquals(null, jar.header)
+        assertEquals(0, done + cancelled)
+    }
+
+    @Test
+    fun leavingAfterDoneDoesNotClearAgain() {
+        show()
+        compose.onNodeWithTag(LoginTestTags.CANCEL).performClick()
+        compose.waitUntil(timeoutMillis = 5_000) { cancelled == 1 }
+
+        compose.runOnIdle { visible = false }
+        compose.waitForIdle()
+
+        assertEquals(2, events.count { it == "clear done" })
     }
 
     private companion object {

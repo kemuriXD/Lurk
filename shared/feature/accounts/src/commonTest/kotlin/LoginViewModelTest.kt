@@ -165,7 +165,7 @@ class LoginViewModelTest {
         }
 
     @Test
-    fun cancelWhileSigningInDropsTheSignIn() =
+    fun cancelWhileSigningInLetsItFinishAndDropsTheResult() =
         runTest {
             val vm = viewModel()
 
@@ -177,8 +177,28 @@ class LoginViewModelTest {
                 runCurrent()
                 expectNoEvents()
             }
-            assertEquals(0, fetchers.getValue(Platform.TWITCH).calls)
-            assertEquals(AccountState.SignedOut, sessions.state(Platform.TWITCH).value)
+            // Cancel no longer interrupts the session write: the sign-in runs to the end, whole, and its result is
+            // ignored.
+            assertEquals(1, fetchers.getValue(Platform.TWITCH).calls)
+            assertIs<AccountState.SignedIn>(sessions.state(Platform.TWITCH).value)
+        }
+
+    @Test
+    fun failureAfterCancelChangesNothing() =
+        runTest {
+            fetchers.getValue(Platform.TWITCH).result = Outcome.Failure(LurkError.Offline)
+            val vm = viewModel()
+
+            vm.effects.test {
+                vm.onIntent(LoginIntent.CookieFound(COOKIE))
+                vm.onIntent(LoginIntent.Cancel)
+                assertEquals(LoginEffect.ClearCookies, awaitItem())
+                assertEquals(LoginEffect.Done, awaitItem())
+                runCurrent()
+                expectNoEvents()
+            }
+            assertEquals(1, fetchers.getValue(Platform.TWITCH).calls)
+            assertFalse(vm.state.value is LoginUiState.Failed)
         }
 
     @Test

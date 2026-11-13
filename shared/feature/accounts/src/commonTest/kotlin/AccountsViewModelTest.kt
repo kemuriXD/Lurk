@@ -192,6 +192,22 @@ class AccountsViewModelTest {
         }
 
     @Test
+    fun expiredAccountCanSignOutAfterConfirm() =
+        runTest {
+            val vm = viewModel(Platform.KICK)
+            expire(Platform.KICK)
+
+            vm.effects.test {
+                vm.onIntent(AccountsIntent.SignOut(Platform.KICK))
+                assertEquals(AccountsEffect.AskConfirmSignOut(Platform.KICK), awaitItem())
+            }
+            vm.onIntent(AccountsIntent.ConfirmSignOut(Platform.KICK))
+            runCurrent()
+
+            assertEquals(AccountState.SignedOut, sessions.state(Platform.KICK).value)
+        }
+
+    @Test
     fun statusHidesTheNameFromToString() {
         assertFalse("Streamer One" in AccountStatus.SignedIn("Streamer One", null).toString())
         assertFalse("Streamer One" in AccountStatus.Expired("Streamer One").toString())

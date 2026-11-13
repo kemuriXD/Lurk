@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.LurkAvatar
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
+import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.feature.accounts.AccountRow
 import io.github.kemurixd.lurk.feature.accounts.AccountStatus
 import io.github.kemurixd.lurk.feature.accounts.AccountsIntent
@@ -35,7 +36,7 @@ private val AvatarSize = 40.dp
 
 /**
  * One platform in the Accounts card (Figma AccountRow): who is signed in, and one button. Signed out offers Sign in,
- * signed in offers Sign out, and an expired session offers Sign in again.
+ * signed in offers Sign out, and an expired session offers Sign in again beside Sign out.
  */
 @Composable
 internal fun AccountRowItem(
@@ -76,6 +77,13 @@ internal fun AccountRowItem(
             }
 
             is AccountStatus.Expired -> {
+                // The stored session is kept until the user replaces it or removes it here.
+                TextButton(
+                    onClick = { onIntent(AccountsIntent.SignOut(platform)) },
+                    modifier = Modifier.testTag(SettingsTestTags.signOut(platform)),
+                ) {
+                    Text(stringResource(R.string.sign_out))
+                }
                 FilledTonalButton(onClick = { onIntent(AccountsIntent.SignIn(platform)) }, modifier = action) {
                     Text(stringResource(R.string.sign_in_again))
                 }
@@ -99,7 +107,7 @@ private class RowContent(
 @Composable
 private fun rowContent(row: AccountRow): RowContent {
     val colors = MaterialTheme.colorScheme
-    val platformName = row.platform.displayName()
+    val platformName = stringResource(row.platform.labelRes)
     return when (val status = row.status) {
         AccountStatus.SignedOut -> {
             RowContent(platformName, stringResource(R.string.status_signed_out), colors.onSurfaceVariant)

@@ -64,6 +64,7 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -107,6 +108,7 @@ class LurkAppTest {
                 accountsModule,
                 module {
                     single<CookieJar> { EmptyCookieJar }
+                    single<CoroutineScope>(named("appScope")) { scope }
                     single { inMemorySettingsStore() }
                     single<DispatcherProvider> { TestDispatchers(Dispatchers.Unconfined) }
                     single { sessions }

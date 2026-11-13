@@ -110,6 +110,24 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun expiredRowCanSignOutWithTheSameConfirm() {
+        show(twitch = AccountStatus.Expired("Streamer One"), kick = AccountStatus.SignedOut)
+
+        rule
+            .onNode(hasTestTag(SettingsTestTags.action(Platform.TWITCH)) and hasText(string(R.string.sign_in_again)))
+            .assertIsDisplayed()
+        rule.onNodeWithTag(SettingsTestTags.signOut(Platform.TWITCH)).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag(SettingsTestTags.CONFIRM_SIGN_OUT).performClick()
+        rule.waitForIdle()
+
+        assertEquals(
+            listOf(AccountsIntent.SignOut(Platform.TWITCH), AccountsIntent.ConfirmSignOut(Platform.TWITCH)),
+            intents,
+        )
+    }
+
+    @Test
     fun signOutAsksConfirmFirst() {
         show(twitch = AccountStatus.SignedIn("Streamer One", null), kick = AccountStatus.SignedIn("Streamer One", null))
 

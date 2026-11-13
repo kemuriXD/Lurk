@@ -7,6 +7,7 @@ import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.ScrubbingLogWriter
 import io.github.kemurixd.lurk.core.config.RemoteConfigRepository
 import io.github.kemurixd.lurk.di.appModules
+import io.github.kemurixd.lurk.login.CookieJar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,14 +34,12 @@ class LurkApplication : Application() {
                 androidContext(this@LurkApplication)
                 modules(appModules(this@LurkApplication))
             }.koin
-        scope.launch {
-            // A failed or stuck restore still lets the app start, signed out, so the splash never sticks.
-            try {
-                withTimeoutOrNull(RESTORE_TIMEOUT) { koin.get<SessionRepository>().restore() }
-            } finally {
-                restored.value = true
-            }
-        }
+        // A failed or stuck restore still lets the app start, signed out, so the splash never sticks.
+        scope.startSessions(
+            cookies = koin.get<CookieJar>(),
+            restore = { withTimeoutOrNull(RESTORE_TIMEOUT) { koin.get<SessionRepository>().restore() } },
+            onRestored = { restored.value = true },
+        )
         scope.launch {
             val config = koin.get<RemoteConfigRepository>()
             config.load()

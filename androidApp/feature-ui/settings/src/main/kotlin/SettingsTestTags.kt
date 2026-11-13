@@ -9,4 +9,7 @@ object SettingsTestTags {
 
     /** The row's button: Sign in, Sign in again or Sign out. */
     fun action(platform: Platform): String = "settings_account_action_${platform.id}"
+
+    /** The extra Sign out on an expired row, beside Sign in again. */
+    fun signOut(platform: Platform): String = "settings_account_sign_out_${platform.id}"
 }
