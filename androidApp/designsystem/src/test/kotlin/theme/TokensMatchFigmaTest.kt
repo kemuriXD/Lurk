@@ -56,10 +56,6 @@ class TokensMatchFigmaTest {
             "scrim" to { it.scrim },
         )
 
-    /** Roles the theme deliberately forces to pure black on AMOLED, over the Figma value. */
-    private val amoledBlackOverrides =
-        setOf("surfaceContainerLow", "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest")
-
     private fun section(name: String) = tokens.getValue(name).jsonObject
 
     private fun hex(value: String): Color {
