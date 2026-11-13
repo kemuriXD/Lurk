@@ -13,13 +13,10 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 
-@Suppress("CompositionLocalAllowlist")
 private val LocalSpacing = staticCompositionLocalOf { LurkSpacing() }
 
-@Suppress("CompositionLocalAllowlist")
 private val LocalPlatformColors = staticCompositionLocalOf { PlatformColors() }
 
-@Suppress("CompositionLocalAllowlist")
 private val LocalHighlightColors = staticCompositionLocalOf { HighlightColors() }
 
 /** Accessors for the tokens that Material 3 has no slot for. */
@@ -52,7 +49,6 @@ internal fun resolveColorScheme(
     return if (dark && amoled) dynamic.toAmoled() else dynamic
 }
 
-@Suppress("ktlint:standard:function-naming")
 @Composable
 fun LurkTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,

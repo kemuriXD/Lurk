@@ -147,5 +147,97 @@
     "radius/lg": 16,
     "radius/xl": 28,
     "radius/full": 9999
+  },
+  "type": {
+    "Display/Large": {
+      "size": 57,
+      "lineHeight": 64,
+      "letterSpacing": -0.25,
+      "weight": 400
+    },
+    "Display/Medium": {
+      "size": 45,
+      "lineHeight": 52,
+      "letterSpacing": 0,
+      "weight": 400
+    },
+    "Display/Small": {
+      "size": 36,
+      "lineHeight": 44,
+      "letterSpacing": 0,
+      "weight": 400
+    },
+    "Headline/Large": {
+      "size": 32,
+      "lineHeight": 40,
+      "letterSpacing": 0,
+      "weight": 400
+    },
+    "Headline/Medium": {
+      "size": 28,
+      "lineHeight": 36,
+      "letterSpacing": 0,
+      "weight": 400
+    },
+    "Headline/Small": {
+      "size": 24,
+      "lineHeight": 32,
+      "letterSpacing": 0,
+      "weight": 400
+    },
+    "Title/Large": {
+      "size": 22,
+      "lineHeight": 28,
+      "letterSpacing": 0,
+      "weight": 400
+    },
+    "Title/Medium": {
+      "size": 16,
+      "lineHeight": 24,
+      "letterSpacing": 0.15,
+      "weight": 500
+    },
+    "Title/Small": {
+      "size": 14,
+      "lineHeight": 20,
+      "letterSpacing": 0.1,
+      "weight": 500
+    },
+    "Body/Large": {
+      "size": 16,
+      "lineHeight": 24,
+      "letterSpacing": 0.5,
+      "weight": 400
+    },
+    "Body/Medium": {
+      "size": 14,
+      "lineHeight": 20,
+      "letterSpacing": 0.25,
+      "weight": 400
+    },
+    "Body/Small": {
+      "size": 12,
+      "lineHeight": 16,
+      "letterSpacing": 0.4,
+      "weight": 400
+    },
+    "Label/Large": {
+      "size": 14,
+      "lineHeight": 20,
+      "letterSpacing": 0.1,
+      "weight": 500
+    },
+    "Label/Medium": {
+      "size": 12,
+      "lineHeight": 16,
+      "letterSpacing": 0.5,
+      "weight": 500
+    },
+    "Label/Small": {
+      "size": 11,
+      "lineHeight": 16,
+      "letterSpacing": 0.5,
+      "weight": 500
+    }
   }
 }

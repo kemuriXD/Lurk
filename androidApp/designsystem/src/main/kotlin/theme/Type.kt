@@ -6,8 +6,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Sizes, line heights, tracking and weights mirror the Figma text styles. Figma draws them in
-// Roboto Flex; the app uses the platform Roboto, which has the same metrics at these weights.
+// Sizes, line heights, tracking and weights mirror the Figma text styles (a test checks them).
+// Figma draws them in Roboto Flex; the app uses the platform Roboto. That the two look alike at
+// these sizes is unverified and gets checked in the phone Figma review.
 private val Family = FontFamily.Default
 
 private fun style(

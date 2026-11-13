@@ -93,13 +93,56 @@ class TokensMatchFigmaTest {
 
                     else -> {
                         val getter = getters[role] ?: error("no ColorScheme getter for $role")
-                        val pinnedBlack = mode == "AMOLED" && role in amoledBlackOverrides
-                        assertEquals("$mode/$role", if (pinnedBlack) Color.Black else expected, getter(scheme))
+                        assertEquals("$mode/$role", expected, getter(scheme))
                         checked++
                     }
                 }
             }
             assertEquals("$mode role count", getters.size, checked)
+        }
+    }
+
+    @Test
+    fun derivedRolesFollowTheirSources() {
+        for (mode in listOf("Light", "Dark", "AMOLED")) {
+            assertDerivedRoles(mode, lurkColorScheme(dark = mode != "Light", amoled = mode == "AMOLED"))
+        }
+    }
+
+    @Test
+    fun everyTypeStyleMatches() {
+        val styles =
+            mapOf(
+                "Display/Large" to LurkTypography.displayLarge,
+                "Display/Medium" to LurkTypography.displayMedium,
+                "Display/Small" to LurkTypography.displaySmall,
+                "Headline/Large" to LurkTypography.headlineLarge,
+                "Headline/Medium" to LurkTypography.headlineMedium,
+                "Headline/Small" to LurkTypography.headlineSmall,
+                "Title/Large" to LurkTypography.titleLarge,
+                "Title/Medium" to LurkTypography.titleMedium,
+                "Title/Small" to LurkTypography.titleSmall,
+                "Body/Large" to LurkTypography.bodyLarge,
+                "Body/Medium" to LurkTypography.bodyMedium,
+                "Body/Small" to LurkTypography.bodySmall,
+                "Label/Large" to LurkTypography.labelLarge,
+                "Label/Medium" to LurkTypography.labelMedium,
+                "Label/Small" to LurkTypography.labelSmall,
+            )
+        val expected = section("type")
+        assertEquals(expected.keys, styles.keys)
+        for ((name, style) in styles) {
+            val e = expected.getValue(name).jsonObject
+
+            fun num(key: String) =
+                e
+                    .getValue(key)
+                    .jsonPrimitive.content
+                    .toFloat()
+            assertEquals("$name size", num("size"), style.fontSize.value, 0f)
+            assertEquals("$name lineHeight", num("lineHeight"), style.lineHeight.value, 0f)
+            assertEquals("$name letterSpacing", num("letterSpacing"), style.letterSpacing.value, 0f)
+            assertEquals("$name weight", num("weight").toInt(), style.fontWeight?.weight)
         }
     }
 

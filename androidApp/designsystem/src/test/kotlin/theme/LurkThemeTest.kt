@@ -22,20 +22,19 @@ class LurkThemeTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
 
-    private fun ColorScheme.surfaces() =
-        listOf(
-            background,
-            surface,
-            surfaceContainerLowest,
-            surfaceContainerLow,
-            surfaceContainer,
-            surfaceContainerHigh,
-            surfaceContainerHighest,
-        )
+    private fun ColorScheme.blackSurfaces() = listOf(background, surface, surfaceDim, surfaceContainerLowest)
+
+    private fun ColorScheme.amoledContainers() =
+        listOf(surfaceContainerLow, surfaceContainer, surfaceContainerHigh, surfaceContainerHighest)
+
+    private val figmaAmoledContainers =
+        listOf(Color(0xFF061011), Color(0xFF0D1516), Color(0xFF171D1E), Color(0xFF1A2122))
 
     @Test
     fun amoledSurfacesArePureBlack() {
-        lurkColorScheme(dark = true, amoled = true).surfaces().forEach { assertEquals(Color.Black, it) }
+        val scheme = lurkColorScheme(dark = true, amoled = true)
+        scheme.blackSurfaces().forEach { assertEquals(Color.Black, it) }
+        assertEquals(figmaAmoledContainers, scheme.amoledContainers())
     }
 
     @Test
@@ -61,8 +60,10 @@ class LurkThemeTest {
     @Config(sdk = [31])
     fun amoledAppliesOverDynamic() {
         val scheme = resolveColorScheme(context, dark = true, amoled = true, dynamicColor = true)
-        scheme.surfaces().forEach { assertEquals(Color.Black, it) }
+        scheme.blackSurfaces().forEach { assertEquals(Color.Black, it) }
+        assertEquals(figmaAmoledContainers, scheme.amoledContainers())
         assertNotEquals(lurkColorScheme(dark = true, amoled = true).primary, scheme.primary)
+        assertDerivedRoles("dynamic AMOLED", scheme)
     }
 
     @Test
