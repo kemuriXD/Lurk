@@ -63,6 +63,8 @@ internal class LoginSession(
         clear()
         if (finished) return
         loader.load(view, spec.loginUrl)
+        // A failure from before this session (the screen was recreated, say) has just been cleared and reloaded too.
+        settledFailure = state.value as? LoginUiState.Failed
         loaded = true
     }
 

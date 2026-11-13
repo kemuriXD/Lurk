@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk
 import io.github.kemurixd.lurk.login.CookieJar
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -53,6 +54,30 @@ class StartupScopeTest {
         }
 
     @Test
+    fun leftoverLoginCookiesAreClearedOnlyAfterTheRestore() =
+        runBlocking {
+            val restoreFinishes = CompletableDeferred<Unit>()
+            val clearStarted = CompletableDeferred<Unit>()
+            val jar =
+                object : CookieJar {
+                    override fun read(url: String): String? = null
+
+                    override suspend fun clearAll() {
+                        clearStarted.complete(Unit)
+                    }
+                }
+            val scope = startupScope()
+
+            scope.startSessions(cookies = jar, restore = { restoreFinishes.await() }, onRestored = {})
+            delay(SETTLE_MS)
+            assertFalse(clearStarted.isCompleted)
+
+            restoreFinishes.complete(Unit)
+            withTimeout(TIMEOUT_MS) { clearStarted.await() }
+            scope.cancel()
+        }
+
+    @Test
     fun aFailingRestoreStillReportsRestored() =
         runBlocking {
             val restored = CompletableDeferred<Unit>()
@@ -76,5 +101,6 @@ class StartupScopeTest {
 
     private companion object {
         const val TIMEOUT_MS = 5_000L
+        const val SETTLE_MS = 200L
     }
 }

@@ -72,6 +72,19 @@ class LoginSessionTest {
             assertEquals(0, cookiesFound())
         }
 
+    @Test
+    fun aSessionStartedAfterAFailureChecksAgain() =
+        runBlocking {
+            // Rotation: the view model kept its failure, the screen and its session are new.
+            state.value = LoginUiState.Failed(LurkError.Offline)
+            startOnAWebView()
+
+            jar.header = "auth-token=$COOKIE"
+            session.check()
+
+            assertEquals(1, cookiesFound())
+        }
+
     private companion object {
         const val COOKIE = "test-cookie"
         const val LOGIN_URL = "https://www.twitch.tv/login"
