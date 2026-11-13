@@ -23,6 +23,7 @@ import io.github.kemurixd.lurk.feature.common.sortedByViewers
 import io.github.kemurixd.lurk.feature.common.withLastLive
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
@@ -68,7 +69,7 @@ import kotlin.time.Instant
  *
  * Call [onIntent] from the main thread.
  */
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalForInheritanceCoroutinesApi::class)
 class FollowingViewModel(
     private val platforms: List<StreamingPlatform>,
     private val accounts: AccountsState,
@@ -122,6 +123,11 @@ class FollowingViewModel(
      * and never from another account's data, even for the instant before anything has been recomputed. Only the
      * network loop stops with the last collector. The first value uses the default filter and sort until the stored
      * ones load.
+     *
+     * It is a hand-written StateFlow, because no operator gives one whose value is also current for an account that
+     * changed with nobody collecting. Its contract: value never blocks and is always current, collect never
+     * completes, and every collector sees distinct values in order. Inheriting StateFlow is opt-in in coroutines,
+     * hence the OptIn on the class.
      */
     val state: StateFlow<FollowingUiState> =
         object : StateFlow<FollowingUiState> {
