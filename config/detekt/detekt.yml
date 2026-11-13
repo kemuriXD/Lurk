@@ -13,6 +13,12 @@ Compose:
     active: true
   ComposableNaming:
     active: true
+  CompositionLocalAllowlist:
+    active: true
+    allowedCompositionLocals:
+      - LocalSpacing
+      - LocalPlatformColors
+      - LocalHighlightColors
   ModifierMissing:
     active: true
   ModifierNaming:
