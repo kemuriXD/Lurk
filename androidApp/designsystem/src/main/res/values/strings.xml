@@ -64,17 +64,24 @@
     <string name="error_chip_retry">Retry</string>
     <string name="error_chip_retry_cd">Retry loading %1$s</string>
 
-    <string name="error_offline">You’re offline. Check your connection and try again.</string>
-    <string name="error_timeout">That took too long. Try again.</string>
-    <string name="error_auth_expired">Your session expired. Sign in again.</string>
-    <string name="error_blocked">Kick blocked the request. Try again in a moment.</string>
+    <string name="error_action_retry">Retry</string>
+    <string name="error_action_sign_in">Sign in</string>
+    <string name="error_action_sign_in_again">Sign in again</string>
+    <string name="error_action_open_proxy_settings">Open proxy settings</string>
+    <string name="error_action_check_for_update">Check for update</string>
+    <string name="error_action_go_back">Go back</string>
+
+    <string name="error_offline">You’re offline. Check your connection.</string>
+    <string name="error_timeout">That took too long.</string>
+    <string name="error_auth_expired">Your session expired.</string>
+    <string name="error_blocked">The platform blocked the request for now.</string>
     <string name="error_integrity_required">The platform is running a check Lurk can’t pass yet.</string>
-    <string name="error_proxy_failed">The proxy didn’t respond. Check your proxy settings.</string>
-    <string name="error_schema_changed">The platform changed something. An update may be needed.</string>
+    <string name="error_proxy_failed">The proxy didn’t respond.</string>
+    <string name="error_schema_changed">The platform changed something Lurk relies on.</string>
     <string name="error_not_found">Nothing found here.</string>
-    <string name="error_not_signed_in">Sign in to see this.</string>
+    <string name="error_not_signed_in">You’re not signed in.</string>
     <string name="error_unsupported">This isn’t supported yet.</string>
     <string name="error_unexpected">Something went wrong.</string>
-    <string name="error_http">The server returned an error. Try again later.</string>
-    <string name="error_rate_limited">Too many requests. Wait a moment and try again.</string>
+    <string name="error_http">The server returned an error.</string>
+    <string name="error_rate_limited">Too many requests. Wait a moment.</string>
 </resources>
