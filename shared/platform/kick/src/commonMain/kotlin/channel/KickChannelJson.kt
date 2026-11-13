@@ -13,7 +13,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.time.Instant
 
-private val kickChannelJson = Json { ignoreUnknownKeys = true }
+internal val kickChannelJson = Json { ignoreUnknownKeys = true }
 
 /** Lenient reading of the `channels/{slug}` reply: every field is optional and unknown keys are ignored. */
 @Serializable

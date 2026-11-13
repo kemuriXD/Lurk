@@ -4,6 +4,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
+import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
@@ -230,6 +231,75 @@ class KickDiscoveryTest {
             assertEquals("2000001", channel.chatId)
             assertEquals("streamer1", channel.ref.login)
             assertEquals("/api/v2/channels/streamer1", seen.single().url.encodedPath)
+        }
+
+    @Test
+    fun offlineChannelReadsWhenItLastWentLive() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        when (it.url.encodedPath) {
+                            "/api/v2/channels/streamer1" -> json(fixture("api/channel-offline.json"))
+                            "/api/v2/channels/streamer1/videos" -> json(fixture("api/channel-videos.json"))
+                            else -> json("{}", HttpStatusCode.NotFound)
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            assertEquals(
+                LastStream(
+                    title = "Stream title 2",
+                    category = Category(Platform.KICK, "1", "Category 1", "https://cdn.example/a/1.png", 1000),
+                    startedAt = Instant.parse("2026-01-02T20:00:00Z"),
+                ),
+                (result as Outcome.Success).value.lastStream,
+            )
+            assertEquals(
+                listOf("/api/v2/channels/streamer1", "/api/v2/channels/streamer1/videos"),
+                seen.map { it.url.encodedPath },
+            )
+        }
+
+    @Test
+    fun offlineChannelStillLoadsWhenPastStreamsFail() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        if (it.url.encodedPath.endsWith("/videos")) {
+                            json("{}", HttpStatusCode.InternalServerError)
+                        } else {
+                            json(fixture("api/channel-offline.json"))
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            val last = (result as Outcome.Success).value.lastStream
+            assertEquals("Category 1", last?.category?.name)
+            assertNull(last?.startedAt)
+        }
+
+    @Test
+    fun offlineChannelWithNoPastStreamsHasNoLastLive() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        val videos = it.url.encodedPath.endsWith("/videos")
+                        json(if (videos) "[]" else fixture("api/channel-offline.json"))
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            assertNull((result as Outcome.Success).value.lastStream?.startedAt)
         }
 
     @Test

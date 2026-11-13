@@ -16,8 +16,10 @@ import io.github.kemurixd.lurk.platform.kick.api.KickBase
 import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
 import io.github.kemurixd.lurk.platform.kick.channel.KickCategoryJson
 import io.github.kemurixd.lurk.platform.kick.channel.decodeKickChannel
+import io.github.kemurixd.lurk.platform.kick.channel.latestPastStream
 import io.github.kemurixd.lurk.platform.kick.channel.toCategory
 import io.github.kemurixd.lurk.platform.kick.channel.toChannel
+import io.github.kemurixd.lurk.platform.kick.channel.withLastStream
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
@@ -84,13 +86,27 @@ private fun decodeCategories(root: JsonElement): Page<Category> {
     return Page(categories, next)
 }
 
-/** A channel's profile, with its stream when it is live. A slug Kick does not know is `NotFound`. */
+/**
+ * A channel's profile, with its stream when it is live. A slug Kick does not know is `NotFound`.
+ *
+ * The profile doesn't say when an offline channel was last live, so an offline channel costs a second request for
+ * its past broadcasts. If that one fails, the channel still loads, without the time.
+ */
 internal suspend fun KickApi.channel(
     sessions: SessionRepository,
     ref: ChannelRef,
 ): Outcome<Channel> =
     sessions.authed(Platform.KICK, anonymousFallback = true) { token ->
-        get(KickBase.API, "v2/channels/${ref.login.asPathSegment()}", token).decode {
-            decodeKickChannel(it).toChannel() ?: throw LurkException(LurkError.SchemaChanged)
+        val path = "v2/channels/${ref.login.asPathSegment()}"
+        val result =
+            get(KickBase.API, path, token).decode {
+                decodeKickChannel(it).toChannel() ?: throw LurkException(LurkError.SchemaChanged)
+            }
+        val channel = (result as? Outcome.Success)?.value
+        if (channel == null || channel.live != null) {
+            result
+        } else {
+            val past = (get(KickBase.API, "$path/videos", token).decode(::latestPastStream) as? Outcome.Success)?.value
+            Outcome.Success(past?.let(channel::withLastStream) ?: channel)
         }
     }
