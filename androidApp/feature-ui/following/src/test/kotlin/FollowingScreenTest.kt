@@ -123,6 +123,17 @@ class FollowingScreenTest {
     }
 
     @Test
+    fun offlineRowsThatScrollAwayLetGoOfTheirLookup() {
+        val many = (1..100).map { channel("sleeper$it") }
+        show(loaded(live = emptyList(), offline = many))
+        rule.onNodeWithTag(FollowingTestTags.LIST).performScrollToNode(hasText("Sleeper100"))
+        rule.waitForIdle()
+        val hidden = intents.filterIsInstance<FollowingIntent.OfflineRowHidden>().map { it.channel.login }
+        assertTrue("the first row lets go once scrolled away, hidden: $hidden", "sleeper1" in hidden)
+        assertTrue("the row on screen keeps its lookup", "sleeper100" !in hidden)
+    }
+
+    @Test
     fun sectionHeadersShowCounts() {
         show(
             loaded(
