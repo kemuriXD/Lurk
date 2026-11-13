@@ -71,8 +71,9 @@ private val PollInterval = 500.milliseconds
  * Every cookie is cleared before the login page loads. The session cookie is then looked for on every finished page
  * and every 500 ms while the screen is visible; once found, [LoginViewModel] signs in with it. Success clears the
  * cookies again and calls [onDone]. A failure shows the error in a banner, clears the cookies and reloads the page
- * for another try; the banner's Retry does that clear and reload again and hides the banner. Cancel, or back with no page to go back to, clears the cookies and calls [onCancel]. Leaving any other way
- * clears them on [cleanupScope], which outlives the screen; the app also clears them at every start.
+ * for another try; the banner's Retry does that clear and reload again and hides the banner. Cancel, or back with no
+ * page to go back to, clears the cookies and calls [onCancel]. Leaving any other way clears them on [cleanupScope],
+ * which outlives the screen; the app also clears them at every start.
  */
 @Composable
 fun LoginScreen(
