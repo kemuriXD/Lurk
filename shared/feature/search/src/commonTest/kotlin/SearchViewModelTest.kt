@@ -8,6 +8,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Channel
+import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.SearchResults
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
@@ -35,6 +36,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
@@ -412,4 +414,45 @@ class SearchViewModelTest {
     private companion object {
         const val DEBOUNCE_MS = 300L
     }
+
+    @Test
+    fun anOfflineKickResultOnScreenGetsItsLastLiveTime() =
+        runTest {
+            val then = Instant.parse("2026-01-01T00:00:00Z")
+            kick.search = { found(channel(Platform.KICK, "amy"), channel(Platform.KICK, "bob")) }
+            kick.lastLive = { Outcome.Success(then) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "a")
+
+            vm.onIntent(SearchIntent.OfflineRowShown(ChannelRef(Platform.KICK, "amy")))
+            runCurrent()
+
+            val byLogin = state.value.channels.associateBy { it.ref.login }
+            assertEquals(then, byLogin.getValue("amy").lastStream?.startedAt)
+            assertEquals(null, byLogin.getValue("bob").lastStream?.startedAt)
+            assertEquals(listOf(ChannelRef(Platform.KICK, "amy")), kick.lastLiveRequests)
+        }
+
+    @Test
+    fun aFailedLastLiveLookupKeepsTheResultOffline() =
+        runTest {
+            kick.search = { found(channel(Platform.KICK, "amy")) }
+            kick.lastLive = { Outcome.Failure(LurkError.Timeout) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "a")
+
+            vm.onIntent(SearchIntent.OfflineRowShown(ChannelRef(Platform.KICK, "amy")))
+            runCurrent()
+
+            assertEquals(
+                null,
+                state.value.channels
+                    .single()
+                    .lastStream
+                    ?.startedAt,
+            )
+            assertEquals(1, kick.lastLiveRequests.size)
+        }
 }

@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Channel
+import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.SearchResults
+import io.github.kemurixd.lurk.feature.common.LastLiveLoader
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.loadBoth
+import io.github.kemurixd.lurk.feature.common.withLastLive
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -29,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Instant
 
 /**
  * Cross-platform search: one `search` call per platform, run at once, merged into one list.
@@ -43,11 +48,15 @@ import kotlin.time.Duration.Companion.milliseconds
  * cached state resets; the results stay, and a collector that comes back searches again only if the last search did
  * not finish.
  *
+ * Offline results whose platform leaves out when they were last live get the time from [lastLive], only once the
+ * screen reports them with [SearchIntent.OfflineRowShown].
+ *
  * Call [onIntent] from the main thread.
  */
 class SearchViewModel(
     private val platforms: List<StreamingPlatform>,
     private val dispatchers: DispatcherProvider,
+    private val lastLive: LastLiveLoader = LastLiveLoader(platforms, dispatchers),
     private val debounce: Duration = 300.milliseconds,
 ) : ViewModel() {
     /** Everything the screen shows, in one value so it never sees the query and its results out of step. */
@@ -63,10 +72,10 @@ class SearchViewModel(
         }
 
     val state: StateFlow<SearchUiState> =
-        merge(core.map(::uiState), pipeline).stateIn(
+        merge(combine(core, lastLive.times, ::uiState), pipeline).stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS, replayExpirationMillis = 0),
-            initialValue = uiState(core.value),
+            initialValue = uiState(core.value, emptyMap()),
         )
 
     /** Handles a user action. */
@@ -76,6 +85,7 @@ class SearchViewModel(
             SearchIntent.Clear -> changeQuery("")
             is SearchIntent.SelectFilter -> core.update { it.copy(filter = intent.filter) }
             is SearchIntent.Retry -> retry(intent.platform)
+            is SearchIntent.OfflineRowShown -> lastLive.request(intent.channel, viewModelScope)
         }
     }
 
@@ -157,10 +167,14 @@ class SearchViewModel(
         val searched: String = "",
     )
 
-    private fun uiState(core: Core): SearchUiState {
+    private fun uiState(
+        core: Core,
+        times: Map<ChannelRef, Instant>,
+    ): SearchUiState {
         val shown = platforms.map { it.id }.sortedBy { it.ordinal }.filter(core.filter::includes)
         val slices = shown.mapNotNull { id -> core.status[id]?.let { id to it } }.toMap()
-        val channels: List<Channel> = shown.flatMap { core.found[it]?.channels.orEmpty() }.sortedBy { it.live == null }
+        val channels: List<Channel> =
+            shown.flatMap { core.found[it]?.channels.orEmpty() }.sortedBy { it.live == null }.withLastLive(times)
         val categories: List<Category> = shown.flatMap { core.found[it]?.categories.orEmpty() }
         val phase =
             when {

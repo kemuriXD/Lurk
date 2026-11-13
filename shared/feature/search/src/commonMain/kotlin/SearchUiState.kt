@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.feature.search
 
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Channel
+import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
@@ -51,6 +52,14 @@ sealed interface SearchIntent {
     /** Searches one platform again, from its error chip. */
     data class Retry(
         val platform: Platform,
+    ) : SearchIntent
+
+    /**
+     * An offline result came on screen. If its platform's search leaves out when it was last live, that is looked up
+     * in the background and the row gains the time when it lands.
+     */
+    data class OfflineRowShown(
+        val channel: ChannelRef,
     ) : SearchIntent
 
     /** Empties the field and the results. */
