@@ -27,7 +27,8 @@ internal const val FOLLOWS_OPERATION = "Follows"
 internal const val FOLLOWS_QUERY =
     "query Follows(\$first: Int!, \$after: Cursor) { currentUser { " +
         "follows(first: \$first, after: \$after) { " +
-        "edges { cursor node { id login displayName profileImageURL(width: 70) stream { $STREAM_FIELDS } } } " +
+        "edges { cursor node { id login displayName profileImageURL(width: 70) stream { $STREAM_FIELDS } " +
+        "lastBroadcast { startedAt } } } " +
         "pageInfo { hasNextPage } } } }"
 
 internal const val FOLLOWS_PAGE_SIZE = 100

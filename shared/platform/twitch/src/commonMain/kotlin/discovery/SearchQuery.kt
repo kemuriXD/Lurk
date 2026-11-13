@@ -15,7 +15,7 @@ internal const val SEARCH_QUERY =
         "searchFor(userQuery: \$query, platform: \"web\") { " +
         "channels { edges { item { ... on User { " +
         "id login displayName description profileImageURL(width: 70) followers { totalCount } " +
-        "stream { $STREAM_FIELDS } } } } } " +
+        "stream { $STREAM_FIELDS } lastBroadcast { startedAt } } } } } " +
         "games { edges { item { ... on Game { id name boxArtURL viewersCount } } } } } }"
 
 /** Channels and categories matching [query]. Live channels come before offline ones. */

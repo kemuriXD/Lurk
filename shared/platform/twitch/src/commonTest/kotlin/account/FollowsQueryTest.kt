@@ -19,6 +19,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 private fun HttpRequestData.variables(): JsonObject =
     Json
@@ -50,6 +52,23 @@ class FollowsQueryTest {
             assertEquals("https://cdn.example/a/2.png", offline.avatarUrl)
             assertNull(offline.live)
             assertEquals("OAuth rig-token", r.seen[0].headers["Authorization"])
+        }
+
+    @Test
+    fun offlineFollowCarriesWhenItLastWentLive() =
+        runTest {
+            val r = discoveryRig(signedIn = true) { reply(fixture("gql/follows.json")) }
+            val followed = r.gql.followed(r.sessions).value()
+
+            val query = r.operation()["query"]!!.jsonPrimitive.content
+            assertTrue("lastBroadcast { startedAt }" in query, query)
+            assertEquals(
+                Instant.parse("2026-01-01T08:00:00.123456Z"),
+                followed.offline
+                    .single()
+                    .lastStream
+                    ?.startedAt,
+            )
         }
 
     @Test

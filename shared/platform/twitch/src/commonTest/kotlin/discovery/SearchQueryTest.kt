@@ -16,6 +16,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class SearchQueryTest {
     private fun Outcome<SearchResults>.results(): SearchResults {
@@ -61,6 +62,23 @@ class SearchQueryTest {
             assertNotNull(channels[0].live)
             assertNotNull(channels[1].live)
             assertNull(channels[2].live)
+        }
+
+    @Test
+    fun offlineResultCarriesWhenItLastWentLive() =
+        runTest {
+            val r = discoveryRig { reply(fixture("gql/search.json")) }
+            val channels =
+                r.gql
+                    .search(r.sessions, "chess")
+                    .results()
+                    .channels
+
+            val query = r.operation()["query"]!!.jsonPrimitive.content
+            assertTrue("lastBroadcast { startedAt }" in query, query)
+            val offline = channels.single { it.ref.login == "streamer1" }
+            assertEquals(Instant.parse("2026-01-01T09:00:00.123456Z"), offline.lastStream?.startedAt)
+            assertNull(channels.single { it.ref.login == "streamer3" }.lastStream)
         }
 
     @Test
