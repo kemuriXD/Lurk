@@ -3,6 +3,8 @@ package io.github.kemurixd.lurk.platform.api
 import io.github.kemurixd.lurk.core.model.CategorySort
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class CapabilitiesTest {
     private val caps =
@@ -36,5 +38,11 @@ class CapabilitiesTest {
     fun defaultFallsBackToTheFirstOption() {
         val noDefaults = caps.copy(categorySortDefaults = emptyList())
         assertEquals(CategorySort.FEATURED, noDefaults.defaultCategorySort(signedIn = false))
+    }
+
+    @Test
+    fun lastLiveLookupIsOffUnlessAPlatformAsks() {
+        assertFalse(caps.lastLiveLookup)
+        assertTrue(caps.copy(lastLiveLookup = true).lastLiveLookup)
     }
 }

@@ -8,6 +8,9 @@ import io.github.kemurixd.lurk.core.model.CategorySort
  * [categorySorts] are the category page's sort options in the platform's own order. The ones in
  * [categorySortsNeedingSignIn] work only when signed in. [categorySortDefaults] is the order of preference for the
  * starting sort: the first one the user can use wins.
+ *
+ * [lastLiveLookup] means the platform's followed and search replies don't say when an offline channel was last live,
+ * so screens ask `StreamingPlatform.lastLive` per row instead.
  */
 data class Capabilities(
     val follows: Boolean,
@@ -18,6 +21,7 @@ data class Capabilities(
     val categorySorts: List<CategorySort>,
     val categorySortsNeedingSignIn: Set<CategorySort>,
     val categorySortDefaults: List<CategorySort>,
+    val lastLiveLookup: Boolean = false,
 ) {
     /** The sort options to offer, in order. */
     fun categorySortOptions(signedIn: Boolean): List<CategorySort> =
