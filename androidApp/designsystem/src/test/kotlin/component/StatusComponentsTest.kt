@@ -63,10 +63,10 @@ class StatusComponentsTest {
     }
 
     @Test
-    fun inlineErrorChipShowsTheReasonAndNoRetryWhenRetryCannotHelp() {
+    fun inlineErrorChipShowsTheReasonAndNoRetryWhenToldNotTo() {
         rule.setContent {
             LurkTheme(dynamicColor = false) {
-                InlineErrorChip(Platform.TWITCH, LurkError.IntegrityRequired, onRetry = {})
+                InlineErrorChip(Platform.TWITCH, LurkError.IntegrityRequired, onRetry = {}, showRetry = false)
             }
         }
         val reason = text(R.string.error_integrity_required)

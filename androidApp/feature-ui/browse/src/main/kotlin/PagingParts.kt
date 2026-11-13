@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.common.LurkError
+import io.github.kemurixd.lurk.core.common.isRetryable
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -74,6 +75,7 @@ internal fun LazyGridScope.pagingFooter(
                 error = error,
                 onRetry = { onRetry(platform) },
                 title = DesignR.string.error_chip_more_message,
+                showRetry = error.isRetryable,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }

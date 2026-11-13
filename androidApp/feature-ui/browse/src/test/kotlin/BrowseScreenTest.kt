@@ -100,6 +100,35 @@ class BrowseScreenTest {
     }
 
     @Test
+    fun firstPageChipKeepsRetryForAnErrorRetryingCannotFix() {
+        show(
+            topLive =
+                topLiveState(
+                    slices =
+                        mapOf(
+                            Platform.TWITCH to PlatformSlice.Loaded(Unit),
+                            Platform.KICK to PlatformSlice.Failed(LurkError.IntegrityRequired),
+                        ),
+                ),
+        )
+        rule.onNodeWithContentDescription("Retry loading Kick").performClick()
+        assertEquals(listOf<TopLiveIntent>(TopLiveIntent.Retry(Platform.KICK)), topLiveIntents)
+    }
+
+    @Test
+    fun loadMoreChipHidesRetryWhenRetryingCannotHelp() {
+        show(topLive = topLiveState(loadMoreErrors = mapOf(Platform.TWITCH to LurkError.IntegrityRequired)))
+        rule.onNodeWithText("Couldn’t load more from Twitch").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Twitch").assertDoesNotExist()
+    }
+
+    @Test
+    fun loadMoreChipKeepsRetryWhenRetryingCanHelp() {
+        show(topLive = topLiveState(loadMoreErrors = mapOf(Platform.TWITCH to LurkError.Timeout)))
+        rule.onNodeWithContentDescription("Retry loading Twitch").assertIsDisplayed()
+    }
+
+    @Test
     fun endOfListTriggersLoadMore() {
         show(topLive = topLiveState(streams = listOf(stream()), canLoadMore = true))
         rule.waitForIdle()
@@ -157,12 +186,14 @@ class BrowseScreenTest {
         slices: Map<Platform, PlatformSlice<Unit>> =
             mapOf(Platform.TWITCH to PlatformSlice.Loaded(Unit), Platform.KICK to PlatformSlice.Loaded(Unit)),
         canLoadMore: Boolean = false,
+        loadMoreErrors: Map<Platform, LurkError> = emptyMap(),
     ) = TopLiveUiState(
         filter = PlatformFilter.ALL,
         streams = streams,
         slices = slices,
         canLoadMore = canLoadMore,
         loadingMore = false,
+        loadMoreErrors = loadMoreErrors,
     )
 
     private fun categoriesState(

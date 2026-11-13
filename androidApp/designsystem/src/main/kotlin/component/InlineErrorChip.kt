@@ -24,7 +24,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.common.LurkError
-import io.github.kemurixd.lurk.core.common.isRetryable
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.messageRes
@@ -35,7 +34,8 @@ private val ChipShape = RoundedCornerShape(24.dp)
 
 /**
  * Pill shown when one platform failed but the others loaded (Figma InlineErrorChip). It names the failure in [title]
- * and gives the reason under it. Retry shows only when [showRetry] says asking again can help.
+ * and gives the reason under it. Retry shows unless the caller sets [showRetry] false, which it does only where
+ * asking again can't help, such as a load-more that has ended paging.
  */
 @Composable
 fun InlineErrorChip(
@@ -44,7 +44,7 @@ fun InlineErrorChip(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     @StringRes title: Int = R.string.error_chip_message,
-    showRetry: Boolean = error.isRetryable,
+    showRetry: Boolean = true,
 ) {
     val name = platform.label()
     val reason = stringResource(error.messageRes())
