@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    <path
+        android:name="circle"
+        android:fillColor="@color/splash_circle"
+        android:pathData="M40,120a80,80 0 1,0 160,0a80,80 0 1,0 -160,0z" />
+    <group
+        android:name="face"
+        android:translateX="36">
+        <group
+            android:translateX="-86"
+            android:translateY="-338">
+            <path
+                android:fillColor="@color/splash_face"
+                android:pathData="M167.6 412.4C182.181 412.4 194 424.219 194 438.8C194 453.381 182.181 465.2 167.6 465.2V412.4Z" />
+            <group
+                android:name="eye"
+                android:pivotX="180.8"
+                android:pivotY="434">
+                <path
+                    android:fillColor="@color/splash_eye"
+                    android:pathData="M173.0,434a7.8,7.8 0 1,0 15.6,0a7.8,7.8 0 1,0 -15.6,0z" />
+            </group>
+            <group
+                android:name="pupil"
+                android:translateX="2.4"
+                android:translateY="1.8">
+                <path
+                    android:name="pupil_fill"
+                    android:fillColor="@color/splash_pupil"
+                    android:pathData="M176.9,434a3.9,3.9 0 1,0 7.8,0a3.9,3.9 0 1,0 -7.8,0z" />
+            </group>
+        </group>
+    </group>
+    <group
+        android:translateX="-86"
+        android:translateY="-338">
+        <path
+            android:fillColor="@color/splash_wall"
+            android:pathData="M162.8 422C162.8 414.047 169.247 407.6 177.2 407.6H182C189.953 407.6 196.4 414.047 196.4 422V467.6C196.4 471.577 199.623 474.8 203.6 474.8H234.8C242.753 474.8 249.2 481.247 249.2 489.2V494C249.2 501.953 242.753 508.4 234.8 508.4H177.2C169.247 508.4 162.8 501.953 162.8 494V422Z" />
+    </group>
+</vector>
