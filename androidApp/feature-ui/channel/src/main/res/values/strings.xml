@@ -18,5 +18,4 @@
     <string name="last_stream_footer">We’ll show the stream here when %1$s goes live again.</string>
 
     <string name="load_error_title">Couldn’t load this channel</string>
-    <string name="try_again">Try again</string>
 </resources>

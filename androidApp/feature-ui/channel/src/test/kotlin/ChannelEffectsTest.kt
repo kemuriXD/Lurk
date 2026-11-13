@@ -2,13 +2,19 @@ package io.github.kemurixd.lurk.featureui.channel
 
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.channel.ChannelEffect
+import io.github.kemurixd.lurk.feature.channel.ChannelIntent
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import org.junit.Assert.assertEquals
@@ -20,6 +26,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -29,6 +36,52 @@ class ChannelEffectsTest {
     private val effects = Channel<ChannelEffect>(Channel.BUFFERED)
     private val players = mutableListOf<Stream>()
     private val errors = mutableListOf<LurkError>()
+    private var couldNotOpen = 0
+    private val intents = mutableListOf<ChannelIntent>()
+    private val signIns = mutableListOf<Platform>()
+
+    /** The entry's own wiring: effects to snackbars, in the app's one error host. */
+    private fun showWithSnackbar() {
+        rule.setContent {
+            LurkTheme(dynamicColor = false) {
+                ErrorHost(ErrorHandlers(signIn = { signIns += it })) {
+                    ChannelEffectsWithSnackbar(
+                        platform = Platform.KICK,
+                        effects = effects.receiveAsFlow(),
+                        onOpenPlayer = { players += it },
+                        onIntent = { intents += it },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    private fun text(id: Int): String = rule.activity.getString(id)
+
+    @Test
+    fun failedFollowShowsASnackbarWhoseRetryFollowsAgain() {
+        showWithSnackbar()
+        effects.trySend(ChannelEffect.ShowError(LurkError.Timeout))
+        rule.onNodeWithText(text(DesignR.string.error_timeout)).assertIsDisplayed()
+
+        rule.onNodeWithText("Retry").performClick()
+        rule.waitForIdle()
+
+        assertEquals(listOf<ChannelIntent>(ChannelIntent.ToggleFollow), intents)
+    }
+
+    @Test
+    fun expiredSessionOnFollowSignsInAgainToThisPlatform() {
+        showWithSnackbar()
+        effects.trySend(ChannelEffect.ShowError(LurkError.AuthExpired))
+
+        rule.onNodeWithText("Sign in again").performClick()
+        rule.waitForIdle()
+
+        assertEquals(listOf(Platform.KICK), signIns)
+        assertEquals(emptyList<ChannelIntent>(), intents)
+    }
 
     private fun handle() {
         rule.setContent {
@@ -37,6 +90,7 @@ class ChannelEffectsTest {
                     effects = effects.receiveAsFlow(),
                     onOpenPlayer = { players += it },
                     onError = { errors += it },
+                    onCouldNotOpen = { couldNotOpen++ },
                 )
             }
         }

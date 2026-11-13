@@ -13,33 +13,33 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
-import io.github.kemurixd.lurk.designsystem.component.EmptyState
+import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.formatViewers
-import io.github.kemurixd.lurk.designsystem.messageRes
+import io.github.kemurixd.lurk.designsystem.component.rememberErrorSnackbar
 import io.github.kemurixd.lurk.designsystem.time.rememberNow
+import io.github.kemurixd.lurk.feature.channel.ChannelEffect
 import io.github.kemurixd.lurk.feature.channel.ChannelIntent
 import io.github.kemurixd.lurk.feature.channel.ChannelUiState
 import io.github.kemurixd.lurk.feature.channel.ChannelViewModel
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -50,7 +50,7 @@ private val BodyMaxWidth = 640.dp
 
 /**
  * Gets the [ChannelViewModel] for one channel, acts on its effects and hands its state to [ChannelScreen]. [onSignIn]
- * is for the signed-out Follow button.
+ * is for the signed-out Follow button. A failed follow or unfollow shows in the app's snackbar.
  */
 @Composable
 fun ChannelEntry(
@@ -63,19 +63,7 @@ fun ChannelEntry(
     viewModel: ChannelViewModel = koinViewModel { parametersOf(platform, login) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    HandleChannelEffects(
-        effects = viewModel.effects,
-        onOpenPlayer = onOpenPlayer,
-        onError = { error ->
-            scope.launch {
-                snackbar.currentSnackbarData?.dismiss()
-                snackbar.showSnackbar(context.getString(error.messageRes()))
-            }
-        },
-    )
+    ChannelEffectsWithSnackbar(platform, viewModel.effects, onOpenPlayer, viewModel::onIntent)
     ChannelScreen(
         ref = ChannelRef(platform, login),
         state = state,
@@ -83,7 +71,32 @@ fun ChannelEntry(
         onSignIn = { onSignIn(platform) },
         onBack = onBack,
         modifier = modifier,
-        snackbarHostState = snackbar,
+    )
+}
+
+/**
+ * Acts on the channel's effects, sending failures to the app's snackbar: a failed follow or unfollow with the mapped
+ * action (Retry toggles again, Sign in opens [platform]'s login), and a link or share nothing could open with none.
+ */
+@Composable
+internal fun ChannelEffectsWithSnackbar(
+    platform: Platform,
+    effects: Flow<ChannelEffect>,
+    onOpenPlayer: (Stream) -> Unit,
+    onIntent: (ChannelIntent) -> Unit,
+) {
+    val snackbar = rememberErrorSnackbar()
+    val scope = rememberCoroutineScope()
+    val send by rememberUpdatedState(onIntent)
+    HandleChannelEffects(
+        effects = effects,
+        onOpenPlayer = onOpenPlayer,
+        onError = { error ->
+            scope.launch {
+                snackbar.showError(error, platform = platform, onRetry = { send(ChannelIntent.ToggleFollow) })
+            }
+        },
+        onCouldNotOpen = { scope.launch { snackbar.showError(LurkError.Unexpected, action = null) } },
     )
 }
 
@@ -100,7 +113,6 @@ fun ChannelScreen(
     onSignIn: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     now: Instant = rememberNow(),
 ) {
     val channel = (state.load as? PlatformSlice.Loaded)?.value
@@ -117,10 +129,11 @@ fun ChannelScreen(
                     }
 
                     is PlatformSlice.Failed -> {
-                        EmptyState(
+                        ErrorState(
                             title = stringResource(R.string.load_error_title),
-                            body = stringResource(load.error.messageRes()),
-                            action = stringResource(R.string.try_again) to { onIntent(ChannelIntent.Retry) },
+                            error = load.error,
+                            onRetry = { onIntent(ChannelIntent.Retry) },
+                            platform = ref.platform,
                         )
                     }
 
@@ -130,7 +143,6 @@ fun ChannelScreen(
                 }
             }
         }
-        SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 }
 

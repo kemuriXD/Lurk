@@ -14,6 +14,9 @@ import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
+import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.channel.ChannelIntent
 import io.github.kemurixd.lurk.feature.channel.ChannelUiState
@@ -39,17 +42,21 @@ class ChannelScreenTest {
     private val now = Instant.parse("2026-11-12T12:00:00Z")
     private val category = Category(Platform.TWITCH, "42", "Retro Racers", null)
 
+    private var errorBacks = 0
+
     private fun show(state: ChannelUiState) {
         rule.setContent {
             LurkTheme(dynamicColor = false) {
-                ChannelScreen(
-                    ref = ChannelRef(Platform.TWITCH, "streamer1"),
-                    state = state,
-                    onIntent = { intents += it },
-                    onSignIn = { signIns++ },
-                    onBack = { backs++ },
-                    now = now,
-                )
+                ErrorHost(ErrorHandlers(goBack = { errorBacks++ })) {
+                    ChannelScreen(
+                        ref = ChannelRef(Platform.TWITCH, "streamer1"),
+                        state = state,
+                        onIntent = { intents += it },
+                        onSignIn = { signIns++ },
+                        onBack = { backs++ },
+                        now = now,
+                    )
+                }
             }
         }
     }
@@ -210,7 +217,17 @@ class ChannelScreenTest {
     @Test
     fun failedLoadOffersRetry() {
         show(ChannelUiState(PlatformSlice.Failed(LurkError.Offline), FollowState.Hidden))
-        rule.onNodeWithText("Try again").performClick()
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("Couldn’t load this channel").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
         assertEquals(listOf<ChannelIntent>(ChannelIntent.Retry), intents)
+    }
+
+    @Test
+    fun missingChannelOffersGoingBack() {
+        show(ChannelUiState(PlatformSlice.Failed(LurkError.NotFound), FollowState.Hidden))
+        rule.onNodeWithText("Go back").performClick()
+        assertEquals(1, errorBacks)
+        assertEquals(emptyList<ChannelIntent>(), intents)
     }
 }
