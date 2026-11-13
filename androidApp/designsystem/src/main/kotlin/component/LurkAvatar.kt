@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.github.kemurixd.lurk.designsystem.theme.LiveRed
 
 private val RingWidth = 2.dp
 private val RingGap = 4.dp
@@ -38,7 +39,7 @@ fun LurkAvatar(
             Modifier
                 .testTag(
                     AvatarTags.LIVE_RING,
-                ).border(RingWidth, MaterialTheme.colorScheme.error, CircleShape)
+                ).border(RingWidth, LiveRed, CircleShape)
         } else {
             Modifier
         }

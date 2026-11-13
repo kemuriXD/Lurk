@@ -146,5 +146,11 @@ object PlayerColors {
     val onScrim: Color = Color(0xFFFFFFFF)
 }
 
+/**
+ * The red that marks something live: the live dot, its halo and the avatar's live ring. Fixed, not taken from the
+ * scheme, so it reads the same in Light, Dark, AMOLED and dynamic colour.
+ */
+val LiveRed: Color = Color(0xFFE15241)
+
 /** Figma's shadow colour. Material 3 has no ColorScheme slot for it. */
 val LurkShadow: Color = Color(0xFF000000)

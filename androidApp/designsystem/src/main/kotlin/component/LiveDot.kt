@@ -11,7 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
@@ -25,6 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.designsystem.R
+import io.github.kemurixd.lurk.designsystem.theme.LiveRed
 
 private val DotSize = 8.dp
 private const val PULSE_MILLIS = 1_400
@@ -43,7 +43,7 @@ fun LiveDot(
     size: Dp = DotSize,
     describe: Boolean = true,
 ) {
-    val color = MaterialTheme.colorScheme.error
+    val color = LiveRed
     val phase = if (rememberLivePulses()) rememberPulsePhase() else StillPhase
     val label = if (describe) stringResource(R.string.live) else null
     Box(if (label != null) modifier.semantics { contentDescription = label } else modifier) {
