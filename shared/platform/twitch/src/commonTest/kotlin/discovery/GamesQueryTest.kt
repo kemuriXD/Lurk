@@ -86,7 +86,7 @@ class GamesQueryTest {
             r.gql.categories(r.sessions, "cursor-9")
 
             val variables = r.operation()["variables"]!!.jsonObject
-            assertEquals(30, variables["first"]!!.jsonPrimitive.int)
+            assertEquals(100, variables["first"]!!.jsonPrimitive.int)
             assertEquals("cursor-9", variables["after"]!!.jsonPrimitive.content)
             assertTrue("games(first: \$first, after: \$after)" in r.operation()["query"]!!.jsonPrimitive.content)
         }

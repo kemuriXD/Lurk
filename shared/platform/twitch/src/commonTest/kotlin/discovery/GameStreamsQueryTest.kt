@@ -85,7 +85,7 @@ class GameStreamsQueryTest {
 
             val variables = r.operation()["variables"]!!.jsonObject
             assertEquals("100001", variables["id"]!!.jsonPrimitive.content)
-            assertEquals(30, variables["first"]!!.jsonPrimitive.int)
+            assertEquals(100, variables["first"]!!.jsonPrimitive.int)
             assertEquals("cursor-9", variables["after"]!!.jsonPrimitive.content)
         }
 

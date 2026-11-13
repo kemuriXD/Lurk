@@ -10,7 +10,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
-internal const val PAGE_SIZE = 30
+internal const val PAGE_SIZE = 100
 
 /** The fields of a live stream that every discovery query asks for. */
 internal const val STREAM_FIELDS =
