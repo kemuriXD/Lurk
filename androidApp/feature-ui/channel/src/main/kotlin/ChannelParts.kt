@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -78,7 +79,7 @@ internal fun ChannelHeader(
 ) {
     val name = channel?.displayName ?: ref.login
     val live = channel?.live
-    Box(Modifier.fillMaxWidth().height(HeaderHeight)) {
+    Box(Modifier.fillMaxWidth().heightIn(min = HeaderHeight)) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -134,7 +135,7 @@ internal fun ChannelHeader(
                     text = statusLine(channel, now),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.testTag(ChannelTestTags.STATUS),
                 )
