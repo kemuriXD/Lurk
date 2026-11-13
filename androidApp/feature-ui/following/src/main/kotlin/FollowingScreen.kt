@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.following
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -14,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,8 +29,12 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.kemurixd.lurk.core.common.LurkError
@@ -36,11 +43,11 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.ChannelRow
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
+import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCard
+import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
-import io.github.kemurixd.lurk.designsystem.component.StreamCard
-import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.time.rememberNowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
@@ -52,8 +59,11 @@ import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Instant
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
-private const val PLACEHOLDER_COUNT = 5
-private val CardPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+private const val PLACEHOLDER_COUNT = 3
+private const val FOLDED_DEGREES = -90f
+
+/** Phones get one big live card a row; tablets two or three. */
+private val LiveCardMinWidth = 360.dp
 
 /**
  * Gets the [FollowingViewModel] and hands the state to [FollowingScreen]. It sends no reload of its own: the view model
@@ -123,7 +133,7 @@ fun FollowingScreen(
             },
         ) {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 300.dp),
+                columns = GridCells.Adaptive(minSize = LiveCardMinWidth),
                 modifier = Modifier.fillMaxSize().testTag(FollowingTestTags.LIST),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
@@ -165,7 +175,7 @@ private fun LazyGridScope.content(
     if (!hasItems && loading) {
         fullWidth("live_header") { SectionHeader(stringResource(R.string.section_live)) }
         items(PLACEHOLDER_COUNT, key = { "placeholder:$it" }) {
-            StreamCardPlaceholder(Modifier.padding(CardPadding))
+            ExpandedStreamCardPlaceholder()
         }
         return
     }
@@ -176,31 +186,38 @@ private fun LazyGridScope.content(
             }
         }
         items(state.live, key = { it.key }) { stream ->
-            StreamCard(
+            ExpandedStreamCard(
                 stream = stream,
                 onOpenPlayer = { onOpenPlayer(stream) },
                 onOpenChannel = { onOpenChannel(stream.channel) },
-                modifier = Modifier.padding(CardPadding),
             )
         }
     } else if (loaded && !loading) {
         fullWidth("nobody_live") { NobodyLive(onOpenBrowse) }
     }
     if (state.offline.isNotEmpty()) {
-        fullWidth("offline_header") {
-            SectionHeader(stringResource(R.string.section_offline), count = state.offline.size)
-        }
-        items(state.offline, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
-            // Composed rows only: the lazy grid composes what is on screen, so off-screen rows never cost a lookup, and
-            // a row that scrolls away before its turn lets go of it.
-            if (channel.lastStream?.startedAt == null) {
-                DisposableEffect(channel.ref) {
-                    onIntent(FollowingIntent.OfflineRowShown(channel.ref))
-                    onDispose { onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
-                }
+        fullWidth("offline_header") { OfflineHeader(state.offline.size, state.offlineCollapsed, onIntent) }
+        // Folded, no offline row is composed at all, so none of them asks for a last-live lookup.
+        if (!state.offlineCollapsed) offlineRows(state, now, onIntent, onOpenChannel)
+    }
+}
+
+private fun LazyGridScope.offlineRows(
+    state: FollowingUiState,
+    now: State<Instant>,
+    onIntent: (FollowingIntent) -> Unit,
+    onOpenChannel: (ChannelRef) -> Unit,
+) {
+    items(state.offline, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
+        // Composed rows only: the lazy grid composes what is on screen, so off-screen rows never cost a lookup, and
+        // a row that scrolls away before its turn lets go of it.
+        if (channel.lastStream?.startedAt == null) {
+            DisposableEffect(channel.ref) {
+                onIntent(FollowingIntent.OfflineRowShown(channel.ref))
+                onDispose { onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
             }
-            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = { now.value })
         }
+        ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = { now.value })
     }
 }
 
@@ -209,6 +226,31 @@ private fun LazyGridScope.fullWidth(
     content: @Composable () -> Unit,
 ) {
     item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
+}
+
+/** The Offline header. Tapping it, or its arrow, folds or unfolds the offline rows; the count stays either way. */
+@Composable
+private fun OfflineHeader(
+    count: Int,
+    collapsed: Boolean,
+    onIntent: (FollowingIntent) -> Unit,
+) {
+    val state = stringResource(if (collapsed) R.string.state_collapsed else R.string.state_expanded)
+    SectionHeader(
+        text = stringResource(R.string.section_offline),
+        count = count,
+        onClick = { onIntent(FollowingIntent.ToggleOffline) },
+        modifier = Modifier.semantics { stateDescription = state },
+    ) {
+        val turn by animateFloatAsState(if (collapsed) FOLDED_DEGREES else 0f, label = "offline arrow")
+        Icon(
+            painter = painterResource(DesignR.drawable.ic_expand_more),
+            contentDescription = stringResource(if (collapsed) R.string.cd_show_offline else R.string.cd_hide_offline),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Read in the layer, so the turn redraws the arrow and recomposes nothing.
+            modifier = Modifier.padding(end = 8.dp).size(24.dp).graphicsLayer { rotationZ = turn },
+        )
+    }
 }
 
 @Composable

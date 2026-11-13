@@ -2,6 +2,10 @@
 <resources>
     <string name="section_live">Live</string>
     <string name="section_offline">Offline</string>
+    <string name="cd_hide_offline">Hide offline channels</string>
+    <string name="cd_show_offline">Show offline channels</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
 
     <string name="sort_viewers">Viewers</string>
     <string name="sort_recent">Recently started</string>

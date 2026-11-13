@@ -12,6 +12,7 @@ import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.browse.CategoriesIntent
 import io.github.kemurixd.lurk.feature.browse.CategoriesUiState
@@ -73,6 +74,13 @@ class BrowseScreenTest {
         show(topLive = topLiveState(streams = listOf(stream)))
         rule.onNodeWithTag("stream_card").performClick()
         assertEquals(listOf(stream), players)
+    }
+
+    @Test
+    fun topLiveKeepsTheListCard() {
+        show(topLive = topLiveState(streams = listOf(stream())))
+        rule.onNodeWithTag("stream_card").assertIsDisplayed()
+        rule.onNodeWithTag(ExpandedStreamCardTags.CARD).assertDoesNotExist()
     }
 
     @Test

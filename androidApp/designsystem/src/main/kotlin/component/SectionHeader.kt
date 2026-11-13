@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.designsystem.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,20 +25,31 @@ object SectionHeaderTags {
     const val COUNT = "section_header_count"
 }
 
-/** A list section title with an optional count beside it and an optional action on the right (Figma SectionHeader). */
+/**
+ * A list section title with an optional count beside it and an optional action on the right (Figma SectionHeader).
+ * With [onClick] the whole row is one control: the heading, the count and [trailing] form a single stop.
+ */
 @Composable
 fun SectionHeader(
     text: String,
     modifier: Modifier = Modifier,
     count: Int? = null,
+    onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val whole = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick).semantics { heading() }
+    val title = if (onClick == null) Modifier.semantics(mergeDescendants = true) { heading() } else Modifier
     Row(
-        modifier = modifier.fillMaxWidth().heightIn(min = 48.dp).padding(HeaderPadding),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .then(whole)
+                .padding(HeaderPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { heading() },
+            modifier = Modifier.weight(1f).then(title),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

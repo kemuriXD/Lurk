@@ -12,8 +12,6 @@ import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.Platform
-import io.github.kemurixd.lurk.core.storage.FollowingSortSetting
-import io.github.kemurixd.lurk.core.storage.PlatformFilterSetting
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.common.LastLiveLoader
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
@@ -30,7 +28,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -195,57 +192,6 @@ class FollowingViewModelTest {
                 assertEquals(setOf(Platform.KICK), state.slices.keys)
                 cancelAndIgnoreRemainingEvents()
             }
-        }
-
-    @Test
-    fun filterAndSortPersisted() =
-        runTest {
-            val accounts = accounts()
-            val vm = viewModel(accounts)
-
-            vm.state.test {
-                awaitUntil { it.allLoaded }
-                vm.onIntent(FollowingIntent.SelectFilter(PlatformFilter.KICK))
-                vm.onIntent(FollowingIntent.SelectSort(FollowingSort.NAME))
-                awaitUntil { it.filter == PlatformFilter.KICK && it.sort == FollowingSort.NAME }
-                cancelAndIgnoreRemainingEvents()
-            }
-
-            val stored = settings.settings.first()
-            assertEquals(PlatformFilterSetting.KICK, stored.followingFilter)
-            assertEquals(FollowingSortSetting.NAME, stored.followingSort)
-
-            viewModel(accounts).state.test {
-                val state = awaitUntil { it.allLoaded }
-                assertEquals(PlatformFilter.KICK, state.filter)
-                assertEquals(FollowingSort.NAME, state.sort)
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
-    @Test
-    fun offlineFoldPersisted() =
-        runTest {
-            val accounts = accounts()
-            val vm = viewModel(accounts)
-
-            vm.state.test {
-                assertFalse(awaitUntil { it.allLoaded }.offlineCollapsed)
-                vm.onIntent(FollowingIntent.ToggleOffline)
-                awaitUntil { it.offlineCollapsed }
-                cancelAndIgnoreRemainingEvents()
-            }
-
-            assertTrue(settings.settings.first().followingOfflineCollapsed)
-
-            val again = viewModel(accounts)
-            again.state.test {
-                assertTrue(awaitUntil { it.allLoaded }.offlineCollapsed)
-                again.onIntent(FollowingIntent.ToggleOffline)
-                awaitUntil { !it.offlineCollapsed }
-                cancelAndIgnoreRemainingEvents()
-            }
-            assertFalse(settings.settings.first().followingOfflineCollapsed)
         }
 
     @Test

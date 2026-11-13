@@ -5,9 +5,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.filter
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -27,6 +31,7 @@ import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardTags
 import io.github.kemurixd.lurk.designsystem.component.SectionHeaderTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.designsystem.time.LocalClock
@@ -148,9 +153,10 @@ class FollowingScreenTest {
             ),
         )
         val counts = rule.onAllNodesWithTag(SectionHeaderTags.COUNT, useUnmergedTree = true)
-        counts.assertCountEquals(2)
-        counts[0].assertTextEquals("2")
-        counts[1].assertTextEquals("1")
+        counts.filter(hasText("2")).assertCountEquals(1)
+        // The big live cards push the Offline header below the test screen.
+        rule.onNodeWithTag(FollowingTestTags.LIST).performScrollToNode(isHeading() and hasText("Offline"))
+        counts.filter(hasText("1")).assertCountEquals(1)
     }
 
     @Test
@@ -171,7 +177,7 @@ class FollowingScreenTest {
     fun liveCardOpensPlayer() {
         val stream = stream("streamer1")
         show(loaded(live = listOf(stream), offline = emptyList()))
-        rule.onNodeWithTag("stream_card").performClick()
+        rule.onNodeWithTag(ExpandedStreamCardTags.CARD).performClick()
         assertEquals(listOf(stream), players)
     }
 
@@ -204,7 +210,7 @@ class FollowingScreenTest {
             ),
         )
         rule.onNodeWithText("Couldn’t load Kick").assertIsDisplayed()
-        rule.onNodeWithTag("stream_card").assertIsDisplayed()
+        rule.onNodeWithTag(ExpandedStreamCardTags.CARD).assertIsDisplayed()
         rule.onNodeWithContentDescription("Retry loading Kick").performClick()
         assertEquals(listOf<FollowingIntent>(FollowingIntent.Retry(Platform.KICK)), intents)
     }
@@ -220,8 +226,8 @@ class FollowingScreenTest {
                     ),
             ),
         )
-        rule.onAllNodesWithTag("stream_card_placeholder")[0].assertIsDisplayed()
-        rule.onAllNodesWithTag("stream_card").assertCountEquals(0)
+        rule.onAllNodesWithTag(ExpandedStreamCardTags.PLACEHOLDER)[0].assertIsDisplayed()
+        rule.onAllNodesWithTag(ExpandedStreamCardTags.CARD).assertCountEquals(0)
     }
 
     @Test
@@ -260,8 +266,8 @@ class FollowingScreenTest {
     fun aQuietReloadOverItemsShowsNoSpinnerAndNoPlaceholders() {
         show(loaded(live = listOf(stream("streamer1")), offline = emptyList()).copy(refreshing = true))
         rule.onNodeWithTag(FollowingTestTags.REFRESH_INDICATOR).assertDoesNotExist()
-        rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
-        rule.onAllNodesWithTag("stream_card").assertCountEquals(1)
+        rule.onAllNodesWithTag(ExpandedStreamCardTags.PLACEHOLDER).assertCountEquals(0)
+        rule.onAllNodesWithTag(ExpandedStreamCardTags.CARD).assertCountEquals(1)
     }
 
     @Test
@@ -353,11 +359,69 @@ class FollowingScreenTest {
     }
 
     @Test
+    fun liveChannelsUseTheExpandedCard() {
+        show(loaded(live = listOf(stream("streamer1")), offline = emptyList()))
+        rule.onNodeWithTag(ExpandedStreamCardTags.CARD).assertIsDisplayed()
+        rule.onAllNodesWithTag("stream_card").assertCountEquals(0)
+    }
+
+    @Test
+    fun theLiveCardsAvatarOpensTheChannel() {
+        show(loaded(live = listOf(stream("streamer1")), offline = emptyList()))
+        rule.onNodeWithContentDescription("Open Streamer1").performClick()
+        assertEquals(listOf(ChannelRef(Platform.TWITCH, "streamer1")), channels)
+        assertEquals(emptyList<Stream>(), players)
+    }
+
+    @Test
+    fun aFoldedOfflineSectionShowsNoRowsAndAsksNoLookups() {
+        val state = loaded(live = emptyList(), offline = listOf(channel("sleeper1"), channel("sleeper2")))
+        show(state.copy(offlineCollapsed = true))
+        rule.waitForIdle()
+        rule.onNodeWithText("Sleeper1").assertDoesNotExist()
+        assertEquals(emptyList<FollowingIntent>(), intents.filterIsInstance<FollowingIntent.OfflineRowShown>())
+    }
+
+    @Test
+    fun aFoldedOfflineHeaderStillCountsTheChannels() {
+        val state = loaded(live = emptyList(), offline = listOf(channel("sleeper1"), channel("sleeper2")))
+        show(state.copy(offlineCollapsed = true))
+        rule.onNodeWithTag(SectionHeaderTags.COUNT, useUnmergedTree = true).assertTextEquals("2")
+    }
+
+    @Test
+    fun tappingTheOfflineHeaderFoldsTheSection() {
+        show(loaded(live = emptyList(), offline = listOf(channel("sleeper1"))))
+        rule.onNode(isHeading() and hasText("Offline")).performClick()
+        assertEquals(listOf<FollowingIntent>(FollowingIntent.ToggleOffline), intents.filterNot { it.isLookup() })
+    }
+
+    @Test
+    fun theOfflineArrowSaysWhatItWillDo() {
+        show(loaded(live = emptyList(), offline = listOf(channel("sleeper1"))))
+        rule.onNodeWithContentDescription("Hide offline channels", useUnmergedTree = true).assertExists()
+        rule.onNode(isHeading() and hasText("Offline")).assert(hasStateDescription("Expanded"))
+    }
+
+    @Test
+    fun aFoldedOfflineHeaderTellsTalkBackItIsCollapsed() {
+        show(loaded(live = emptyList(), offline = listOf(channel("sleeper1"))).copy(offlineCollapsed = true))
+        rule.onNodeWithContentDescription("Show offline channels", useUnmergedTree = true).assertExists()
+        rule.onNode(isHeading() and hasText("Offline")).assert(hasStateDescription("Collapsed"))
+    }
+
+    private fun FollowingIntent.isLookup() =
+        this is FollowingIntent.OfflineRowShown || this is FollowingIntent.OfflineRowHidden
+
+    private fun hasStateDescription(value: String) =
+        SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, value)
+
+    @Test
     fun duplicateLoginAcrossPlatformsRendersBoth() {
         val twitch = stream("streamer1", Platform.TWITCH)
         val kick = stream("streamer1", Platform.KICK)
         show(loaded(live = listOf(twitch, kick), offline = emptyList()))
-        rule.onAllNodesWithTag("stream_card").assertCountEquals(2)
+        rule.onAllNodesWithTag(ExpandedStreamCardTags.CARD).assertCountEquals(2)
     }
 
     private fun loaded(
