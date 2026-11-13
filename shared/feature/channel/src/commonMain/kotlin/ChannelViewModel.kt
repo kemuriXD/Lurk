@@ -41,7 +41,8 @@ import io.github.kemurixd.lurk.core.model.Channel as ChannelProfile
  *
  * The Follow button follows the account. Signed out is [FollowState.Hidden], at once, even while the page is open.
  * Signed in, the follow list says [FollowState.Following] or [FollowState.NotFollowing] (matched by platform and
- * login), or [FollowState.Unknown] when it can't be read. On Twitch the API can't change follows, so
+ * login), [FollowState.Checking] while it loads (taps are ignored), or [FollowState.Unknown] when it can't be
+ * read. On Twitch the API can't change follows, so
  * [ChannelIntent.ToggleFollow] opens the channel on twitch.tv. On Kick it sends the change, shown as
  * [FollowState.Busy] meanwhile, and a failure puts the old state back and emits [ChannelEffect.ShowError]. A toggle
  * while one is running is ignored. A result for an account that has since signed out is dropped.
@@ -60,7 +61,8 @@ class ChannelViewModel(
 ) : ViewModel() {
     /**
      * Everything that decides the screen, in one value. [owner] is the account [membership] and [busy] belong to;
-     * [membership] is null while unknown; [busy] is the target of the running follow change.
+     * [membership] is null while unknown; [checked] says whether the follow list has answered, even with a failure;
+     * [busy] is the target of the running follow change.
      */
     private val data = MutableStateFlow(Data())
 
@@ -116,7 +118,7 @@ class ChannelViewModel(
             toggleJob?.cancel()
             toggleJob = null
             followedJob?.cancel()
-            data.update { it.copy(owner = owner, membership = null, busy = null) }
+            data.update { it.copy(owner = owner, membership = null, checked = false, busy = null) }
         }
         if (owner != null) loadFollowed(owner)
     }
@@ -145,7 +147,7 @@ class ChannelViewModel(
                 // With nobody collecting an account change doesn't cancel this job, so check the account here too.
                 if (followedJob === me && currentOwner() == owner) {
                     val membership = (result as? PlatformSlice.Loaded)?.value?.contains(ref)
-                    data.update { it.copy(owner = owner, membership = membership) }
+                    data.update { it.copy(owner = owner, membership = membership, checked = true) }
                 }
             }
         followedJob = job
@@ -156,11 +158,14 @@ class ChannelViewModel(
         val owner = currentOwner()
         val channel = (data.value.slice as? PlatformSlice.Loaded)?.value
         when {
-            owner == null || toggleJob?.isActive == true -> Unit
+            owner == null || toggleJob?.isActive == true || !isChecked(owner) -> Unit
             !platform.capabilities.followMutation -> effectChannel.trySend(ChannelEffect.OpenExternal(channelUrl(ref)))
             channel != null -> startFollowChange(owner, channel)
         }
     }
+
+    /** True once the follow list has answered for [owner], so a tap knows what it would change. */
+    private fun isChecked(owner: String): Boolean = data.value.owner == owner && data.value.checked
 
     private fun startFollowChange(
         owner: String,
@@ -171,7 +176,7 @@ class ChannelViewModel(
         // A follow list that lands now would be older than this change.
         followedJob?.cancel()
         data.update {
-            it.copy(owner = owner, membership = it.membership.takeIf { _ -> it.owner == owner }, busy = target)
+            it.copy(owner = owner, busy = target)
         }
         val job =
             viewModelScope.launch(start = CoroutineStart.LAZY) {
@@ -201,6 +206,8 @@ class ChannelViewModel(
             data.update { it.copy(membership = target, busy = null) }
         } else {
             data.update { it.copy(busy = null) }
+            // The toggle cancelled any pending follow list; read it again so the button doesn't stay unsure.
+            loadFollowed(owner)
             val error = (result as? PlatformSlice.Failed)?.error ?: LurkError.NotSignedIn
             effectChannel.trySend(ChannelEffect.ShowError(error))
         }
@@ -210,6 +217,7 @@ class ChannelViewModel(
         val slice: PlatformSlice<ChannelProfile> = PlatformSlice.Loading,
         val owner: String? = null,
         val membership: Boolean? = null,
+        val checked: Boolean = false,
         val busy: Boolean? = null,
     )
 
@@ -240,7 +248,8 @@ class ChannelViewModel(
                     data.busy != null -> FollowState.Busy(data.busy)
                     data.membership == true -> FollowState.Following
                     data.membership == false -> FollowState.NotFollowing
-                    else -> FollowState.Unknown
+                    data.checked -> FollowState.Unknown
+                    else -> FollowState.Checking
                 }
             return ChannelUiState(load = data.slice, follow = follow)
         }

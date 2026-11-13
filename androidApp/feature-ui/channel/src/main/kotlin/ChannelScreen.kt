@@ -3,8 +3,10 @@ package io.github.kemurixd.lurk.featureui.channel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -176,6 +178,6 @@ private fun ChannelBody(
             SectionTitle(stringResource(R.string.section_last_stream))
             LastStreamCard(channel)
         }
-        Box(Modifier.padding(bottom = 12.dp))
+        Spacer(Modifier.height(12.dp))
     }
 }

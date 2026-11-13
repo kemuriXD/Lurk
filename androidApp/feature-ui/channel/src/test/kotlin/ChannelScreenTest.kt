@@ -153,6 +153,13 @@ class ChannelScreenTest {
     }
 
     @Test
+    fun checkingFollowIsDisabled() {
+        show(loaded(channel(), FollowState.Checking))
+        rule.onNodeWithTag(ChannelTestTags.FOLLOW).assertTextContains("Follow")
+        rule.onNodeWithTag(ChannelTestTags.FOLLOW).assertIsNotEnabled()
+    }
+
+    @Test
     fun busyFollowIsDisabledAndShowsTheTarget() {
         show(loaded(channel(), FollowState.Busy(true)))
         rule.onNodeWithTag(ChannelTestTags.FOLLOW).assertTextContains("Following")

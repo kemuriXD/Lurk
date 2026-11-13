@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -64,26 +67,31 @@ fun StreamCard(
                 .padding(CardPadding),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        StreamThumbnail(stream)
+        StreamThumbnail(stream, Modifier.size(ThumbnailWidth, ThumbnailHeight))
         StreamInfo(stream, onOpenChannel, Modifier.weight(1f))
     }
 }
 
+/**
+ * A stream's picture with the LIVE badge top left and the viewer count bottom left on a scrim. The size comes from
+ * [modifier]. [content] draws on top, for example a play button.
+ */
 @Composable
-private fun StreamThumbnail(stream: Stream) {
-    Box(
-        Modifier
-            .size(ThumbnailWidth, ThumbnailHeight)
-            .clip(RoundedCornerShape(LurkRadius.md))
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-    ) {
+fun StreamThumbnail(
+    stream: Stream,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(LurkRadius.md),
+    overlayInset: Dp = OverlayInset,
+    content: @Composable BoxScope.() -> Unit = {},
+) {
+    Box(modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
         AsyncImage(
             model = stream.thumbnailUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(ThumbnailWidth, ThumbnailHeight),
+            modifier = Modifier.fillMaxSize(),
         )
-        LiveBadge(Modifier.align(Alignment.TopStart).padding(OverlayInset))
+        LiveBadge(Modifier.align(Alignment.TopStart).padding(overlayInset))
         Text(
             text = stringResource(R.string.viewers_count, formatViewers(stream.viewers)),
             style = MaterialTheme.typography.labelSmall,
@@ -91,11 +99,12 @@ private fun StreamThumbnail(stream: Stream) {
             modifier =
                 Modifier
                     .align(Alignment.BottomStart)
-                    .padding(OverlayInset)
+                    .padding(overlayInset)
                     .clip(RoundedCornerShape(LurkRadius.xs))
                     .background(PlayerColors.scrim)
                     .padding(horizontal = 8.dp, vertical = 2.dp),
         )
+        content()
     }
 }
 

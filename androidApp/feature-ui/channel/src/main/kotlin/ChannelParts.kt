@@ -46,6 +46,7 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.LiveBadge
 import io.github.kemurixd.lurk.designsystem.component.LurkAvatar
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
+import io.github.kemurixd.lurk.designsystem.component.StreamThumbnail
 import io.github.kemurixd.lurk.designsystem.component.formatViewers
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.theme.PlayerColors
@@ -193,7 +194,7 @@ internal fun FollowActions(
         } else {
             // While a change runs the button shows where it is heading and can't be pressed again.
             val following = follow == FollowState.Following || (follow as? FollowState.Busy)?.target == true
-            val enabled = follow !is FollowState.Busy
+            val enabled = follow !is FollowState.Busy && follow != FollowState.Checking
             if (following) {
                 FilledTonalButton(
                     onClick = onToggle,
@@ -253,7 +254,23 @@ internal fun LivePreview(
                 .semantics(mergeDescendants = true) { contentDescription = label },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        LiveThumbnail(stream)
+        StreamThumbnail(
+            stream = stream,
+            modifier = Modifier.fillMaxWidth().aspectRatio(THUMBNAIL_RATIO),
+            shape = RoundedCornerShape(LurkRadius.lg),
+            overlayInset = 12.dp,
+        ) {
+            Box(
+                Modifier.align(Alignment.Center).size(PlayButton).background(PlayerColors.scrim, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(DesignR.drawable.ic_play_arrow),
+                    contentDescription = null,
+                    tint = PlayerColors.onScrim,
+                )
+            }
+        }
         Text(
             text = stream.title,
             style = MaterialTheme.typography.titleMedium,
@@ -300,46 +317,5 @@ internal fun LastStreamCard(channel: Channel) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-@Composable
-private fun LiveThumbnail(stream: Stream) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(THUMBNAIL_RATIO)
-            .clip(RoundedCornerShape(LurkRadius.lg))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
-        AsyncImage(
-            model = stream.thumbnailUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        LiveBadge(Modifier.align(Alignment.TopStart).padding(12.dp))
-        Text(
-            text = stringResource(DesignR.string.viewers_count, formatViewers(stream.viewers)),
-            style = MaterialTheme.typography.labelSmall,
-            color = PlayerColors.onScrim,
-            modifier =
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(LurkRadius.sm))
-                    .background(PlayerColors.scrim)
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-        )
-        Box(
-            Modifier.align(Alignment.Center).size(PlayButton).background(PlayerColors.scrim, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painterResource(DesignR.drawable.ic_play_arrow),
-                contentDescription = null,
-                tint = PlayerColors.onScrim,
-            )
-        }
     }
 }

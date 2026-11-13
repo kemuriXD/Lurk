@@ -10,7 +10,10 @@ sealed interface FollowState {
     /** Signed out of this platform: no Follow button. */
     data object Hidden : FollowState
 
-    /** Signed in, but the follow list isn't known (still loading, or it failed). The button works as "Follow". */
+    /** Signed in, and the follow list is still loading. Shown disabled; a tap does nothing. */
+    data object Checking : FollowState
+
+    /** Signed in, but the follow list couldn't be read. The button works as "Follow". */
     data object Unknown : FollowState
 
     data object Following : FollowState

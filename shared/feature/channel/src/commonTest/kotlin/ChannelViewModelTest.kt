@@ -189,7 +189,10 @@ class ChannelViewModelTest {
             val vm = viewModel(kick, accounts(Platform.KICK))
 
             vm.state.test {
-                assertEquals(FollowState.Unknown, awaitUntil { it.loaded() }.follow)
+                assertEquals(
+                    FollowState.Unknown,
+                    awaitUntil { it.loaded() && it.follow != FollowState.Checking }.follow,
+                )
                 cancelAndIgnoreRemainingEvents()
             }
             assertTrue(kick.followedCalls >= 1)
@@ -327,6 +330,64 @@ class ChannelViewModelTest {
 
             vm.effects.test {
                 vm.onIntent(ChannelIntent.Share)
+                assertEquals(ChannelEffect.ShareText("https://www.twitch.tv/streamer1"), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.effects.test { expectNoEvents() }
+        }
+
+    @Test
+    fun tapBeforeFollowedCompletesIsIgnored() =
+        runTest {
+            val gate = CompletableDeferred<Outcome<Followed>>()
+            kick.followed = { gate.await() }
+            val vm = viewModel(kick, accounts(Platform.KICK))
+            keepCollecting(vm)
+
+            assertEquals(FollowState.Checking, vm.state.value.follow)
+            vm.onIntent(ChannelIntent.ToggleFollow)
+            runCurrent()
+            assertEquals(0, kick.setFollowCalls)
+            assertEquals(FollowState.Checking, vm.state.value.follow)
+
+            gate.complete(Outcome.Success(Followed(emptyList(), listOf(testChannel(Platform.KICK, id = "")))))
+            runCurrent()
+            assertEquals(FollowState.Following, vm.state.value.follow)
+        }
+
+    @Test
+    fun failedToggleReloadsTheFollowList() =
+        runTest {
+            var calls = 0
+            kick.followed = {
+                calls++
+                if (calls == 1) {
+                    Outcome.Failure(LurkError.Timeout)
+                } else {
+                    Outcome.Success(Followed(emptyList(), listOf(testChannel(Platform.KICK, id = ""))))
+                }
+            }
+            kick.setFollow = { _, _ -> Outcome.Failure(LurkError.Blocked) }
+            val vm = viewModel(kick, accounts(Platform.KICK))
+            keepCollecting(vm)
+            assertEquals(FollowState.Unknown, vm.state.value.follow)
+
+            vm.onIntent(ChannelIntent.ToggleFollow)
+            runCurrent()
+
+            assertEquals(2, kick.followedCalls)
+            assertEquals(FollowState.Following, vm.state.value.follow)
+        }
+
+    @Test
+    fun effectSentWithNoCollectorIsDeliveredOnceToTheNextOne() =
+        runTest {
+            val vm = viewModel(twitch, accounts(Platform.TWITCH))
+            keepCollecting(vm)
+            vm.onIntent(ChannelIntent.Share)
+            runCurrent()
+
+            vm.effects.test {
                 assertEquals(ChannelEffect.ShareText("https://www.twitch.tv/streamer1"), awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
