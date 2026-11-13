@@ -11,6 +11,7 @@ import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.SearchResults
+import io.github.kemurixd.lurk.feature.common.LastLiveLoader
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
@@ -22,6 +23,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -59,7 +61,13 @@ class SearchViewModelTest {
     private fun viewModel(platforms: List<StreamingPlatform> = listOf(twitch, kick)): SearchViewModel {
         val factory =
             viewModelFactory {
-                initializer { SearchViewModel(platforms, TestDispatchers(dispatcher)) }
+                initializer {
+                    SearchViewModel(
+                        platforms,
+                        TestDispatchers(dispatcher),
+                        LastLiveLoader(platforms, TestDispatchers(dispatcher)),
+                    )
+                }
             }
         return ViewModelProvider.create(store, factory)["vm", SearchViewModel::class]
     }
@@ -432,6 +440,29 @@ class SearchViewModelTest {
             assertEquals(then, byLogin.getValue("amy").lastStream?.startedAt)
             assertEquals(null, byLogin.getValue("bob").lastStream?.startedAt)
             assertEquals(listOf(ChannelRef(Platform.KICK, "amy")), kick.lastLiveRequests)
+        }
+
+    @Test
+    fun aResultHiddenBeforeItsTurnCostsNoLookup() =
+        runTest {
+            kick.search = { found(channel(Platform.KICK, "amy")) }
+            kick.lastLive = {
+                delay(1_000)
+                Outcome.Success(Instant.parse("2026-01-01T00:00:00Z"))
+            }
+            val vm = viewModel()
+            watch(vm.state)
+            type(vm, "a")
+
+            // Three rows elsewhere hold every permit, so amy has to wait her turn.
+            repeat(3) { vm.onIntent(SearchIntent.OfflineRowShown(ChannelRef(Platform.KICK, "busy$it"))) }
+            vm.onIntent(SearchIntent.OfflineRowShown(ChannelRef(Platform.KICK, "amy")))
+            runCurrent()
+            vm.onIntent(SearchIntent.OfflineRowHidden(ChannelRef(Platform.KICK, "amy")))
+            advanceTimeBy(5_000)
+            runCurrent()
+
+            assertTrue(ChannelRef(Platform.KICK, "amy") !in kick.lastLiveRequests, "fetched: ${kick.lastLiveRequests}")
         }
 
     @Test

@@ -49,14 +49,15 @@ import kotlin.time.Instant
  * not finish.
  *
  * Offline results whose platform leaves out when they were last live get the time from [lastLive], only once the
- * screen reports them with [SearchIntent.OfflineRowShown].
+ * screen reports them with [SearchIntent.OfflineRowShown]. A row reported with [SearchIntent.OfflineRowHidden]
+ * before its turn costs no request.
  *
  * Call [onIntent] from the main thread.
  */
 class SearchViewModel(
     private val platforms: List<StreamingPlatform>,
     private val dispatchers: DispatcherProvider,
-    private val lastLive: LastLiveLoader = LastLiveLoader(platforms, dispatchers),
+    private val lastLive: LastLiveLoader,
     private val debounce: Duration = 300.milliseconds,
 ) : ViewModel() {
     /** Everything the screen shows, in one value so it never sees the query and its results out of step. */
@@ -86,6 +87,7 @@ class SearchViewModel(
             is SearchIntent.SelectFilter -> core.update { it.copy(filter = intent.filter) }
             is SearchIntent.Retry -> retry(intent.platform)
             is SearchIntent.OfflineRowShown -> lastLive.request(intent.channel, viewModelScope)
+            is SearchIntent.OfflineRowHidden -> lastLive.release(intent.channel)
         }
     }
 

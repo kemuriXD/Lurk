@@ -62,6 +62,11 @@ sealed interface SearchIntent {
         val channel: ChannelRef,
     ) : SearchIntent
 
+    /** That row left the screen. A lookup for it still waiting its turn is dropped. Pairs with [OfflineRowShown]. */
+    data class OfflineRowHidden(
+        val channel: ChannelRef,
+    ) : SearchIntent
+
     /** Empties the field and the results. */
     data object Clear : SearchIntent
 }
