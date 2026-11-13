@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -26,6 +28,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -60,6 +65,7 @@ import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.search.SearchIntent
 import io.github.kemurixd.lurk.feature.search.SearchPhase
+import io.github.kemurixd.lurk.feature.search.SearchType
 import io.github.kemurixd.lurk.feature.search.SearchUiState
 import io.github.kemurixd.lurk.feature.search.SearchViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -118,6 +124,7 @@ fun SearchScreen(
             }
         } else {
             Progress(searching = state.phase == SearchPhase.TYPING)
+            TypeSwitch(selected = state.type, onSelect = { onIntent(SearchIntent.SelectType(it)) })
             PlatformFilterChips(
                 selected = state.filter,
                 onSelect = { onIntent(SearchIntent.SelectFilter(it)) },
@@ -194,6 +201,42 @@ private fun SearchField(
     )
 }
 
+/** All / Channels / Categories, in the same segmented style as Browse's Top Live / Categories switch. */
+@Composable
+private fun TypeSwitch(
+    selected: SearchType,
+    onSelect: (SearchType) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        val types = SearchType.entries
+        types.forEachIndexed { index, type ->
+            SegmentedButton(
+                selected = type == selected,
+                onClick = { onSelect(type) },
+                shape = SegmentedButtonDefaults.itemShape(index, types.size),
+                modifier = Modifier.testTag(type.tag()).heightIn(min = 48.dp),
+            ) {
+                Text(
+                    stringResource(
+                        when (type) {
+                            SearchType.ALL -> R.string.type_all
+                            SearchType.CHANNELS -> R.string.type_channels
+                            SearchType.CATEGORIES -> R.string.type_categories
+                        },
+                    ),
+                )
+            }
+        }
+    }
+}
+
+private fun SearchType.tag(): String =
+    when (this) {
+        SearchType.ALL -> SearchTestTags.TYPE_ALL
+        SearchType.CHANNELS -> SearchTestTags.TYPE_CHANNELS
+        SearchType.CATEGORIES -> SearchTestTags.TYPE_CATEGORIES
+    }
+
 /** The 4 dp strip under the field. It keeps its height when idle so the chips don't jump. */
 @Composable
 private fun Progress(searching: Boolean) {
@@ -217,6 +260,10 @@ private fun LazyGridScope.results(
     onOpenChannel: (ChannelRef) -> Unit,
     onOpenCategory: (Category) -> Unit,
 ) {
+    // A lazy list holds on to its first visible item when rows land above it. Categories often answer before channels,
+    // so without this anchor the new channels would push the list down to the categories. The anchor never moves, so
+    // a list the user has not scrolled stays at the top while results land.
+    fullWidth("top_anchor") { Spacer(Modifier.height(1.dp)) }
     state.slices.forEach { (platform, slice) ->
         if (slice is PlatformSlice.Failed) {
             fullWidth("error:${platform.name}") {

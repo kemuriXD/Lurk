@@ -7,6 +7,13 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 
+/** Which kinds of result Search shows. */
+enum class SearchType {
+    ALL,
+    CHANNELS,
+    CATEGORIES,
+}
+
 /** Which of the Figma states the Search screen is in. */
 enum class SearchPhase {
     /** The query is blank: nothing was searched. */
@@ -25,12 +32,14 @@ enum class SearchPhase {
 /**
  * The Search screen. [query] is the text as typed; the search itself uses it trimmed. [channels] list live ones first,
  * then each platform's own order. [channels], [categories] and [slices] cover only the platforms [filter] includes.
+ * [channels] and [categories] also cover only the kind [type] includes.
  *
  * While a new search runs, the previous results stay on screen and the slices read `Loading`.
  */
 data class SearchUiState(
     val query: String = "",
     val filter: PlatformFilter = PlatformFilter.ALL,
+    val type: SearchType = SearchType.ALL,
     val channels: List<Channel> = emptyList(),
     val categories: List<Category> = emptyList(),
     val slices: Map<Platform, PlatformSlice<Unit>> = emptyMap(),
@@ -47,6 +56,11 @@ sealed interface SearchIntent {
     /** Picks a platform chip. Hides rows; never searches again. */
     data class SelectFilter(
         val filter: PlatformFilter,
+    ) : SearchIntent
+
+    /** Picks All, Channels or Categories. Hides rows; never searches again. */
+    data class SelectType(
+        val type: SearchType,
     ) : SearchIntent
 
     /** Searches one platform again, from its error chip. */

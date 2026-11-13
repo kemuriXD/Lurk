@@ -7,6 +7,10 @@
     <string name="search_empty_title">Search both platforms</string>
     <string name="search_empty_body">Find channels and categories on Twitch and Kick at once. Live channels come first.</string>
 
+    <string name="type_all">All</string>
+    <string name="type_channels">Channels</string>
+    <string name="type_categories">Categories</string>
+
     <string name="section_channels">Channels</string>
     <string name="section_categories">Categories</string>
 

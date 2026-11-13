@@ -1,9 +1,14 @@
 package io.github.kemurixd.lurk.featureui.search
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -14,6 +19,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Channel
@@ -26,6 +33,7 @@ import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.search.SearchIntent
 import io.github.kemurixd.lurk.feature.search.SearchPhase
+import io.github.kemurixd.lurk.feature.search.SearchType
 import io.github.kemurixd.lurk.feature.search.SearchUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -207,6 +215,91 @@ class SearchScreenTest {
     fun typingPhaseShowsSearchingProgress() {
         show(SearchUiState(query = "pix", phase = SearchPhase.TYPING))
         rule.onNodeWithTag(SearchTestTags.PROGRESS).assertIsDisplayed()
+    }
+
+    @Test
+    fun channelsArrivingAfterCategoriesLeaveTheListAtTheTop() {
+        val pixel = Category(Platform.TWITCH, "1000003", "Pixel Game", null, 1000)
+        var state by mutableStateOf(results(categories = listOf(pixel)))
+        rule.setContent {
+            CompositionLocalProvider(
+                LocalSoftwareKeyboardController provides keyboard,
+                LocalClock provides fixedClock,
+            ) {
+                LurkTheme(dynamicColor = false) {
+                    SearchScreen(
+                        state = state,
+                        onIntent = { allIntents += it },
+                        onOpenChannel = { channels += it },
+                        onOpenCategory = { categories += it },
+                    )
+                }
+            }
+        }
+        rule.onNodeWithText("Pixel Game").assertIsDisplayed()
+
+        state = results(channels = (1..30).map { channel("pixel$it") }, categories = listOf(pixel))
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Pixel1").assertIsDisplayed()
+    }
+
+    @Test
+    fun resultsLandingDoNotMoveAListTheUserScrolled() {
+        val pixel = Category(Platform.TWITCH, "1000003", "Pixel Game", null, 1000)
+        var state by mutableStateOf(results(channels = (1..30).map { channel("pixel$it") }, categories = listOf(pixel)))
+        rule.setContent {
+            CompositionLocalProvider(
+                LocalSoftwareKeyboardController provides keyboard,
+                LocalClock provides fixedClock,
+            ) {
+                LurkTheme(dynamicColor = false) {
+                    SearchScreen(
+                        state = state,
+                        onIntent = { allIntents += it },
+                        onOpenChannel = { channels += it },
+                        onOpenCategory = { categories += it },
+                    )
+                }
+            }
+        }
+        rule.onNodeWithTag(SearchTestTags.LIST).performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        rule.onNodeWithText("Pixel1").assertDoesNotExist()
+
+        state = state.copy(channels = state.channels + channel("pixel31"))
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Pixel1").assertDoesNotExist()
+    }
+
+    @Test
+    fun typeSwitchSendsSelectType() {
+        show(results(channels = listOf(channel("pixelotter"))))
+        rule.onNodeWithTag(SearchTestTags.TYPE_CATEGORIES).performClick()
+        rule.onNodeWithTag(SearchTestTags.TYPE_CHANNELS).performClick()
+        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).performClick()
+        assertEquals(
+            listOf<SearchIntent>(
+                SearchIntent.SelectType(SearchType.CATEGORIES),
+                SearchIntent.SelectType(SearchType.CHANNELS),
+                SearchIntent.SelectType(SearchType.ALL),
+            ),
+            intents,
+        )
+    }
+
+    @Test
+    fun typeSwitchShowsTheSelectedType() {
+        show(results(channels = listOf(channel("pixelotter"))).copy(type = SearchType.CHANNELS))
+        rule.onNodeWithTag(SearchTestTags.TYPE_CHANNELS).assertIsSelected()
+        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).assertIsNotSelected()
+    }
+
+    @Test
+    fun typeSwitchIsHiddenUntilThereIsAQuery() {
+        show(SearchUiState())
+        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).assertDoesNotExist()
     }
 
     private fun results(

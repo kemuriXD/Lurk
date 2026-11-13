@@ -85,6 +85,7 @@ class SearchViewModel(
             is SearchIntent.QueryChanged -> changeQuery(intent.text)
             SearchIntent.Clear -> changeQuery("")
             is SearchIntent.SelectFilter -> core.update { it.copy(filter = intent.filter) }
+            is SearchIntent.SelectType -> core.update { it.copy(type = intent.type) }
             is SearchIntent.Retry -> retry(intent.platform)
             is SearchIntent.OfflineRowShown -> lastLive.request(intent.channel, viewModelScope)
             is SearchIntent.OfflineRowHidden -> lastLive.release(intent.channel)
@@ -164,6 +165,7 @@ class SearchViewModel(
     private data class Core(
         val query: String = "",
         val filter: PlatformFilter = PlatformFilter.ALL,
+        val type: SearchType = SearchType.ALL,
         val found: Map<Platform, SearchResults> = emptyMap(),
         val status: Map<Platform, PlatformSlice<Unit>> = emptyMap(),
         val searched: String = "",
@@ -176,8 +178,17 @@ class SearchViewModel(
         val shown = platforms.map { it.id }.sortedBy { it.ordinal }.filter(core.filter::includes)
         val slices = shown.mapNotNull { id -> core.status[id]?.let { id to it } }.toMap()
         val channels: List<Channel> =
-            shown.flatMap { core.found[it]?.channels.orEmpty() }.sortedBy { it.live == null }.withLastLive(times)
-        val categories: List<Category> = shown.flatMap { core.found[it]?.categories.orEmpty() }
+            if (core.type == SearchType.CATEGORIES) {
+                emptyList()
+            } else {
+                shown.flatMap { core.found[it]?.channels.orEmpty() }.sortedBy { it.live == null }.withLastLive(times)
+            }
+        val categories: List<Category> =
+            if (core.type == SearchType.CHANNELS) {
+                emptyList()
+            } else {
+                shown.flatMap { core.found[it]?.categories.orEmpty() }
+            }
         val phase =
             when {
                 core.query.isBlank() -> {
@@ -200,7 +211,7 @@ class SearchViewModel(
                     SearchPhase.NO_RESULTS
                 }
             }
-        return SearchUiState(core.query, core.filter, channels, categories, slices, phase)
+        return SearchUiState(core.query, core.filter, core.type, channels, categories, slices, phase)
     }
 
     private companion object {

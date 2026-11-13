@@ -419,6 +419,48 @@ class SearchViewModelTest {
             assertEquals(SearchPhase.NO_RESULTS, state.value.phase)
         }
 
+    @Test
+    fun typeFilterShowsOnlyChannelsOrOnlyCategoriesWithoutSearchingAgain() =
+        runTest {
+            val game = Category(Platform.TWITCH, "1000003", "Pixel Game", null)
+            twitch.search = { found(channel(Platform.TWITCH, "t1"), categories = listOf(game)) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "pix")
+            val calls = twitch.searchCalls + kick.searchCalls
+
+            vm.onIntent(SearchIntent.SelectType(SearchType.CHANNELS))
+            runCurrent()
+            assertEquals(listOf("t1"), state.value.channels.logins())
+            assertEquals(emptyList(), state.value.categories)
+            assertEquals(SearchType.CHANNELS, state.value.type)
+
+            vm.onIntent(SearchIntent.SelectType(SearchType.CATEGORIES))
+            runCurrent()
+            assertEquals(emptyList(), state.value.channels.logins())
+            assertEquals(listOf(game), state.value.categories)
+
+            vm.onIntent(SearchIntent.SelectType(SearchType.ALL))
+            runCurrent()
+            assertEquals(listOf("t1"), state.value.channels.logins())
+            assertEquals(listOf(game), state.value.categories)
+            assertEquals(calls, twitch.searchCalls + kick.searchCalls)
+        }
+
+    @Test
+    fun typeFilterWithNothingOfThatTypeGivesNoResultsPhase() =
+        runTest {
+            twitch.search = { found(channel(Platform.TWITCH, "t1")) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "pix")
+
+            vm.onIntent(SearchIntent.SelectType(SearchType.CATEGORIES))
+            runCurrent()
+
+            assertEquals(SearchPhase.NO_RESULTS, state.value.phase)
+        }
+
     private companion object {
         const val DEBOUNCE_MS = 300L
     }
