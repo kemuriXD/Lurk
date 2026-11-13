@@ -2,7 +2,6 @@ package io.github.kemurixd.lurk.designsystem.component
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -38,7 +37,7 @@ fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            modifier = Modifier.weight(1f, fill = false).semantics(mergeDescendants = true) { heading() },
+            modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { heading() },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -58,7 +57,6 @@ fun SectionHeader(
                 )
             }
         }
-        Spacer(Modifier.weight(1f))
         trailing?.invoke()
     }
 }
