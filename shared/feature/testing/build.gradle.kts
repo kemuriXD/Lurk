@@ -7,6 +7,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":shared:feature:common"))
+            api(project(":shared:platform:api"))
+            api(project(":shared:auth"))
         }
     }
 }
