@@ -14,5 +14,8 @@ kotlin {
             api(libs.kotlinx.coroutines.core)
             api(libs.koin.core)
         }
+        commonTest.dependencies {
+            implementation(project(":shared:feature:testing"))
+        }
     }
 }
