@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.browse
 
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -29,14 +30,18 @@ class CategoryScreenTest {
     private val players = mutableListOf<Stream>()
     private var backs = 0
 
+    /** Bumping it recomposes the screen with fresh callbacks, without changing the state. */
+    private val recomposeTick = mutableIntStateOf(0)
+
     private fun show(state: CategoryStreamsUiState) {
         rule.setContent {
+            val tick = recomposeTick.intValue
             LurkTheme(dynamicColor = false) {
                 CategoryScreen(
                     platform = Platform.KICK,
                     name = "Cozy Builder",
                     state = state,
-                    onIntent = { intents += it },
+                    onIntent = { if (tick >= 0) intents += it },
                     onOpenPlayer = { players += it },
                     onOpenChannel = {},
                     onBack = { backs++ },
@@ -64,7 +69,11 @@ class CategoryScreenTest {
     fun endOfListTriggersLoadMore() {
         show(state(streams = listOf(stream()), canLoadMore = true))
         rule.waitForIdle()
-        assertEquals(listOf<CategoryStreamsIntent>(CategoryStreamsIntent.LoadMore), intents.distinct())
+        repeat(3) {
+            recomposeTick.intValue++
+            rule.waitForIdle()
+        }
+        assertEquals(listOf<CategoryStreamsIntent>(CategoryStreamsIntent.LoadMore), intents)
     }
 
     @Test

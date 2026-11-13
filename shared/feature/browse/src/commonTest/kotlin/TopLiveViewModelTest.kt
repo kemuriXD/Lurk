@@ -232,6 +232,57 @@ class TopLiveViewModelTest {
         }
 
     @Test
+    fun aRetriedPageLandsBelowTheRowsAlreadyShown() =
+        runTest {
+            twoTwitchPages()
+            var kickFails = true
+            kick.topLive = { cursor ->
+                when {
+                    cursor == null -> pageOf(s(Platform.KICK, "k1", 500), next = "k2")
+                    kickFails -> Outcome.Failure(LurkError.Offline)
+                    else -> pageOf(s(Platform.KICK, "k3", 950))
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertEquals(listOf(900L, 500L, 800L), state.value.streams.viewers())
+
+            kickFails = false
+            vm.onIntent(TopLiveIntent.Retry(Platform.KICK))
+            runCurrent()
+
+            assertEquals(listOf(900L, 500L, 800L, 950L), state.value.streams.viewers())
+        }
+
+    @Test
+    fun aPlatformHiddenDuringLoadMoreAppendsBelowWhenShownAgain() =
+        runTest {
+            twoTwitchPages()
+            kick.topLive = { cursor ->
+                if (cursor == null) {
+                    pageOf(s(Platform.KICK, "k1", 500), next = "k2")
+                } else {
+                    pageOf(s(Platform.KICK, "k3", 950))
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(TopLiveIntent.SelectFilter(PlatformFilter.TWITCH))
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            vm.onIntent(TopLiveIntent.SelectFilter(PlatformFilter.ALL))
+            runCurrent()
+            assertEquals(listOf(900L, 500L, 800L), state.value.streams.viewers())
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(listOf(900L, 500L, 800L, 950L), state.value.streams.viewers())
+        }
+
+    @Test
     fun aStreamRepeatedOnALaterPageShowsOnce() =
         runTest {
             twitch.topLive = { cursor ->

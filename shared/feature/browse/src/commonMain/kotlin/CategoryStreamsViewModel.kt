@@ -66,7 +66,7 @@ class CategoryStreamsViewModel(
 
     private fun uiState(feed: PagedState<Stream>) =
         CategoryStreamsUiState(
-            streams = feed.pages.flatMap { it.sortedByViewers() },
+            streams = feed.pages.flatMap { it.items.sortedByViewers() },
             slice = feed.slice,
             canLoadMore = feed.canLoadMore,
             loadingMore = feed.loadingMore,

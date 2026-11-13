@@ -45,6 +45,9 @@ class TopLiveViewModel(
                 ) { source, cursor -> source.topLive(cursor) }
         }
 
+    /** The next batch number. Every load that starts gets a new one, so its rows land below all earlier batches. */
+    private var nextBatch = 0
+
     private val filter = MutableStateFlow(PlatformFilter.ALL)
 
     private val content: Flow<TopLiveUiState> =
@@ -55,7 +58,8 @@ class TopLiveViewModel(
     /** Emits nothing: it starts the first page of each platform on the first collector. */
     private val firstLoad: Flow<Nothing> =
         flow {
-            feeds.values.forEach { it.start() }
+            val batch = nextBatch++
+            feeds.values.forEach { it.start(batch) }
             awaitCancellation()
         }
 
@@ -69,17 +73,32 @@ class TopLiveViewModel(
     /** Handles a user action. */
     fun onIntent(intent: TopLiveIntent) {
         when (intent) {
-            is TopLiveIntent.SelectFilter -> filter.value = intent.filter
-            TopLiveIntent.LoadMore -> loadMore()
-            TopLiveIntent.Refresh -> feeds.values.forEach { it.refresh() }
-            is TopLiveIntent.Retry -> feeds[intent.platform]?.retry()
+            is TopLiveIntent.SelectFilter -> {
+                filter.value = intent.filter
+            }
+
+            TopLiveIntent.LoadMore -> {
+                loadMore()
+            }
+
+            TopLiveIntent.Refresh -> {
+                val batch = nextBatch++
+                feeds.values.forEach { it.refresh(batch) }
+            }
+
+            is TopLiveIntent.Retry -> {
+                feeds[intent.platform]?.retry(nextBatch++)
+            }
         }
     }
 
     /** One load-more for all shown platforms together; while any of them is busy nothing starts. */
     private fun loadMore() {
         val shown = feeds.filterKeys(filter.value::includes).values
-        if (shown.none { it.busy }) shown.forEach { it.loadMore() }
+        if (shown.none { it.busy }) {
+            val batch = nextBatch++
+            shown.forEach { it.loadMore(batch) }
+        }
     }
 
     private companion object {
@@ -90,11 +109,13 @@ class TopLiveViewModel(
             states: Map<Platform, PagedState<Stream>>,
         ): TopLiveUiState {
             val shown = states.filterKeys(selected::includes)
-            val rounds = shown.values.maxOfOrNull { it.pages.size } ?: 0
             val streams =
-                (0 until rounds).flatMap { round ->
-                    shown.values.flatMap { it.pages.getOrNull(round).orEmpty() }.sortedByViewers()
-                }
+                shown.values
+                    .flatMap { it.pages }
+                    .groupBy { it.id }
+                    .toSortedMap()
+                    .values
+                    .flatMap { batch -> batch.flatMap { it.items }.sortedByViewers() }
             val moreErrors: Map<Platform, LurkError> =
                 shown.mapNotNull { (platform, s) -> s.moreError?.let { platform to it } }.toMap()
             return TopLiveUiState(

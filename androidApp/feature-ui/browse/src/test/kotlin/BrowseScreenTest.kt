@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.browse
 
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -36,15 +37,19 @@ class BrowseScreenTest {
     private val channels = mutableListOf<ChannelRef>()
     private val opened = mutableListOf<Category>()
 
+    /** Bumping it recomposes the screen with fresh callbacks, without changing the state. */
+    private val recomposeTick = mutableIntStateOf(0)
+
     private fun show(
         topLive: TopLiveUiState = topLiveState(),
         categories: CategoriesUiState = categoriesState(),
     ) {
         rule.setContent {
+            val tick = recomposeTick.intValue
             LurkTheme(dynamicColor = false) {
                 BrowseScreen(
                     topLive = topLive,
-                    onTopLiveIntent = { topLiveIntents += it },
+                    onTopLiveIntent = { if (tick >= 0) topLiveIntents += it },
                     categories = categories,
                     onCategoriesIntent = { categoryIntents += it },
                     onOpenPlayer = { players += it },
@@ -98,7 +103,11 @@ class BrowseScreenTest {
     fun endOfListTriggersLoadMore() {
         show(topLive = topLiveState(streams = listOf(stream()), canLoadMore = true))
         rule.waitForIdle()
-        assertEquals(listOf<TopLiveIntent>(TopLiveIntent.LoadMore), topLiveIntents.distinct())
+        repeat(3) {
+            recomposeTick.intValue++
+            rule.waitForIdle()
+        }
+        assertEquals(listOf<TopLiveIntent>(TopLiveIntent.LoadMore), topLiveIntents)
     }
 
     @Test

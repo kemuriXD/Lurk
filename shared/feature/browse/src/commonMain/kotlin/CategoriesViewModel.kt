@@ -94,7 +94,7 @@ class CategoriesViewModel(
             feed: PagedState<Category>,
         ) = CategoriesUiState(
             platform = platform,
-            categories = feed.pages.flatten(),
+            categories = feed.pages.flatMap { it.items },
             slice = feed.slice,
             canLoadMore = feed.canLoadMore,
             loadingMore = feed.loadingMore,
