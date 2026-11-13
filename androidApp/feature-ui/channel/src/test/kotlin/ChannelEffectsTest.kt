@@ -39,7 +39,7 @@ class ChannelEffectsTest {
 
     private val effects = Channel<ChannelEffect>(Channel.BUFFERED)
     private val players = mutableListOf<Stream>()
-    private val errors = mutableListOf<LurkError>()
+    private val errors = mutableListOf<ChannelEffect.ShowError>()
     private var couldNotOpen = 0
     private val intents = mutableListOf<ChannelIntent>()
     private val signIns = mutableListOf<Platform>()
@@ -86,7 +86,7 @@ class ChannelEffectsTest {
     @Test
     fun failedFollowShowsASnackbarWhoseRetryFollowsAgain() {
         showWithSnackbar()
-        effects.trySend(ChannelEffect.ShowError(LurkError.Timeout))
+        effects.trySend(ChannelEffect.ShowError(LurkError.Timeout, follow = true))
         rule.onNodeWithText("Couldn’t follow Streamer One. ${text(DesignR.string.error_timeout)}").assertIsDisplayed()
 
         rule.onNodeWithText("Retry").performClick()
@@ -96,17 +96,18 @@ class ChannelEffectsTest {
     }
 
     @Test
-    fun failedUnfollowSaysUnfollow() {
-        channelState = channelState.copy(follow = FollowState.Following)
+    fun failedUnfollowSaysUnfollowEvenWhileTheButtonStillShowsBusy() {
+        // The effect can arrive before the restored state reaches the screen.
+        channelState = channelState.copy(follow = FollowState.Busy(false))
         showWithSnackbar()
-        effects.trySend(ChannelEffect.ShowError(LurkError.Timeout))
+        effects.trySend(ChannelEffect.ShowError(LurkError.Timeout, follow = false))
         rule.onNodeWithText("Couldn’t unfollow Streamer One. ${text(DesignR.string.error_timeout)}").assertIsDisplayed()
     }
 
     @Test
     fun expiredSessionOnFollowSignsInAgainToThisPlatform() {
         showWithSnackbar()
-        effects.trySend(ChannelEffect.ShowError(LurkError.AuthExpired))
+        effects.trySend(ChannelEffect.ShowError(LurkError.AuthExpired, follow = true))
 
         rule.onNodeWithText("Sign in again").performClick()
         rule.waitForIdle()
@@ -162,11 +163,11 @@ class ChannelEffectsTest {
         val stream =
             Stream(ChannelRef(Platform.TWITCH, "streamer1"), "1000001", "Streamer One", "t", null, 1, null, null, null)
         effects.trySend(ChannelEffect.OpenPlayer(stream))
-        effects.trySend(ChannelEffect.ShowError(LurkError.Blocked))
+        effects.trySend(ChannelEffect.ShowError(LurkError.Blocked, follow = true))
         rule.waitForIdle()
 
         assertEquals(listOf(stream), players)
-        assertEquals(listOf<LurkError>(LurkError.Blocked), errors)
+        assertEquals(listOf(ChannelEffect.ShowError(LurkError.Blocked, follow = true)), errors)
         assertNull(nextStarted())
     }
 }

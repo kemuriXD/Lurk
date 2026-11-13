@@ -39,7 +39,6 @@ import io.github.kemurixd.lurk.feature.channel.ChannelEffect
 import io.github.kemurixd.lurk.feature.channel.ChannelIntent
 import io.github.kemurixd.lurk.feature.channel.ChannelUiState
 import io.github.kemurixd.lurk.feature.channel.ChannelViewModel
-import io.github.kemurixd.lurk.feature.channel.FollowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -85,8 +84,8 @@ fun ChannelEntry(
 /**
  * Acts on the channel's effects, sending failures to the app's snackbar with what failed ("Couldn't follow Streamer
  * One") before why: a failed follow or unfollow with the mapped action (Retry toggles again, Sign in opens the
- * channel's platform's login), and a link or share nothing could open with none. [state] is read when a failure
- * arrives; by then the view model has put the old follow state back, so Following means an unfollow failed.
+ * channel's platform's login), and a link or share nothing could open with none. Whether a follow or an unfollow
+ * failed comes with the failure; [state] only gives the channel's name.
  */
 @Composable
 internal fun ChannelEffectsWithSnackbar(
@@ -106,18 +105,15 @@ internal fun ChannelEffectsWithSnackbar(
     HandleChannelEffects(
         effects = effects,
         onOpenPlayer = onOpenPlayer,
-        onError = { error ->
-            val verb =
-                if (current().follow ==
-                    FollowState.Following
-                ) {
-                    R.string.unfollow_failed
-                } else {
-                    R.string.follow_failed
-                }
-            val title = resources.getString(verb, name())
+        onError = { failure ->
+            // The attempt travels with the failure: the composed state may still show the button as busy.
+            val title =
+                resources.getString(
+                    if (failure.follow) R.string.follow_failed else R.string.unfollow_failed,
+                    name(),
+                )
             scope.launch {
-                snackbar.showError(error, platform = ref.platform, title = title, onRetry = {
+                snackbar.showError(failure.error, platform = ref.platform, title = title, onRetry = {
                     send(ChannelIntent.ToggleFollow)
                 })
             }

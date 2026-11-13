@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.Flow
 fun HandleChannelEffects(
     effects: Flow<ChannelEffect>,
     onOpenPlayer: (Stream) -> Unit,
-    onError: (LurkError) -> Unit,
+    onError: (ChannelEffect.ShowError) -> Unit,
     onCouldNotOpen: (share: Boolean) -> Unit,
 ) {
     val context = LocalContext.current
@@ -53,7 +53,7 @@ fun HandleChannelEffects(
                     }
 
                     is ChannelEffect.ShowError -> {
-                        showError(effect.error)
+                        showError(effect)
                     }
                 }
             }
