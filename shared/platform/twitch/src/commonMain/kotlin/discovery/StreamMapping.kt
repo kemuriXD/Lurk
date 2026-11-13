@@ -10,7 +10,11 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
+/** The most `games` and `game.streams` answer with per request. */
 internal const val PAGE_SIZE = 100
+
+/** The most the top-level `streams` field accepts per request: a larger `first` is refused and answers `null`. */
+internal const val TOP_STREAMS_PAGE_SIZE = 30
 
 /** The fields of a live stream that every discovery query asks for. */
 internal const val STREAM_FIELDS =

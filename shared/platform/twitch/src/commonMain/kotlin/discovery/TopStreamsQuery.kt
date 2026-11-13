@@ -22,13 +22,17 @@ internal suspend fun GqlClient.topLive(
     cursor: String?,
 ): Outcome<Page<Stream>> =
     sessions.twitchCall { token ->
-        query(TOP_STREAMS_OPERATION, TOP_STREAMS_QUERY, pageVariables(cursor), token, ::decodeTopStreams)
+        val variables = pageVariables(cursor, TOP_STREAMS_PAGE_SIZE)
+        query(TOP_STREAMS_OPERATION, TOP_STREAMS_QUERY, variables, token, ::decodeTopStreams)
     }
 
 /** `first` and, past the first page, `after`. */
-internal fun pageVariables(cursor: String?): JsonObject =
+internal fun pageVariables(
+    cursor: String?,
+    size: Int = PAGE_SIZE,
+): JsonObject =
     buildJsonObject {
-        put("first", PAGE_SIZE)
+        put("first", size)
         if (cursor != null) put("after", cursor)
     }
 

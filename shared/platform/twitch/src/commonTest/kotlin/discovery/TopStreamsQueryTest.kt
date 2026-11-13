@@ -125,14 +125,14 @@ class TopStreamsQueryTest {
         }
 
     @Test
-    fun asksForAFullPageAfterTheCursor() =
+    fun asksForThirtyPerPageTheMostTopLiveAllows() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/top-streams.json")) }
             r.gql.topLive(r.sessions, "cursor-9")
             r.gql.topLive(r.sessions, null)
 
             val variables = r.operation(0)["variables"]!!.jsonObject
-            assertEquals(100, variables["first"]!!.jsonPrimitive.int)
+            assertEquals(30, variables["first"]!!.jsonPrimitive.int)
             assertEquals("cursor-9", variables["after"]!!.jsonPrimitive.content)
             assertFalse("after" in r.operation(1)["variables"]!!.jsonObject)
             assertTrue("streams(first: \$first, after: \$after)" in r.operation(0)["query"]!!.jsonPrimitive.content)
