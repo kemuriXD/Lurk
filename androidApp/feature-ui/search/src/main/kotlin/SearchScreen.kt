@@ -54,17 +54,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.ChannelRow
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
-import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
+import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
+import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
+import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.time.rememberNowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
@@ -110,7 +111,7 @@ fun SearchEntry(
 /**
  * The Search screen (Figma 04 Search). The state decides which Figma frame shows:
  * `EMPTY` the invitation, `TYPING` the progress bar with skeleton cards below any rows already there, `RESULTS` the
- * Channels and Categories sections with one error chip per failed platform, and `NO_RESULTS` the empty state.
+ * Channels and Categories sections with one error banner per failed platform (one full-screen error when all failed), and `NO_RESULTS` the empty state.
  *
  * The field keeps its own text so fast typing never races the state flow; [SearchUiState.query] only seeds it.
  * Results sit under the field with the keyboard's inset applied, so the keyboard never covers them.
@@ -294,10 +295,35 @@ private fun LazyGridScope.results(
     // so without this anchor the new channels would push the list down to the categories. The anchor never moves, so
     // a list the user has not scrolled stays at the top while results land.
     fullWidth("top_anchor") { Spacer(Modifier.height(1.dp)) }
-    state.slices.forEach { (platform, slice) ->
-        if (slice is PlatformSlice.Failed) {
+    val failures =
+        state.slices.mapNotNull { (platform, slice) ->
+            (slice as? PlatformSlice.Failed)?.let {
+                platform to
+                    it.error
+            }
+        }
+    val nothingFound = state.channels.isEmpty() && state.categories.isEmpty()
+    if (failures.isNotEmpty() && failures.size == state.slices.size && nothingFound) {
+        // Every platform failed: one full-screen state, whose Retry asks each of them again.
+        val (platform, error) = failures.first()
+        fullWidth("failed") {
+            ErrorState(
+                title = stringResource(R.string.search_error_title),
+                error = error,
+                onRetry = { failures.forEach { (failed, _) -> onIntent(SearchIntent.Retry(failed)) } },
+                platform = platform,
+            )
+        }
+    } else {
+        failures.forEach { (platform, error) ->
             fullWidth("error:${platform.name}") {
-                ErrorChip(platform, slice.error) { onIntent(SearchIntent.Retry(platform)) }
+                ErrorBanner(
+                    title = stringResource(DesignR.string.error_load_platform, stringResource(platform.labelRes)),
+                    error = error,
+                    onRetry = { onIntent(SearchIntent.Retry(platform)) },
+                    platform = platform,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
         }
     }
@@ -373,18 +399,4 @@ private fun LazyGridScope.fullWidth(
 ) {
     // The key's kind (before any colon) is the content type, so rows of one kind reuse each other's composition.
     item(key = key, span = { GridItemSpan(maxLineSpan) }, contentType = key.substringBefore(':')) { content() }
-}
-
-@Composable
-private fun ErrorChip(
-    platform: Platform,
-    error: LurkError,
-    onRetry: () -> Unit,
-) {
-    InlineErrorChip(
-        platform = platform,
-        error = error,
-        onRetry = onRetry,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
 }

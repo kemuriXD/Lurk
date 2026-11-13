@@ -32,6 +32,9 @@ import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
+import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.designsystem.time.LocalClock
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
@@ -87,12 +90,14 @@ class SearchScreenTest {
                 LocalClock provides fixedClock,
             ) {
                 LurkTheme(dynamicColor = false) {
-                    SearchScreen(
-                        state = state,
-                        onIntent = { allIntents += it },
-                        onOpenChannel = { channels += it },
-                        onOpenCategory = { categories += it },
-                    )
+                    ErrorHost(ErrorHandlers()) {
+                        SearchScreen(
+                            state = state,
+                            onIntent = { allIntents += it },
+                            onOpenChannel = { channels += it },
+                            onOpenCategory = { categories += it },
+                        )
+                    }
                 }
             }
         }
@@ -189,7 +194,7 @@ class SearchScreenTest {
     }
 
     @Test
-    fun partialFailureShowsRetryChip() {
+    fun partialFailureShowsARetryBanner() {
         show(
             results(
                 channels = listOf(channel("pixelotter", Platform.KICK)),
@@ -200,9 +205,31 @@ class SearchScreenTest {
                     ),
             ),
         )
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
         rule.onNodeWithText("Couldn’t load Twitch").assertIsDisplayed()
         rule.onNodeWithContentDescription("Retry loading Twitch").performClick()
         assertEquals(listOf<SearchIntent>(SearchIntent.Retry(Platform.TWITCH)), intents)
+    }
+
+    @Test
+    fun everyPlatformFailingShowsOneErrorStateThatRetriesBoth() {
+        show(
+            results(
+                slices =
+                    mapOf(
+                        Platform.TWITCH to PlatformSlice.Failed(LurkError.Offline),
+                        Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
+                    ),
+            ),
+        )
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithTag(ErrorTags.BANNER).assertDoesNotExist()
+        rule.onNodeWithText("Couldn’t search").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(
+            listOf<SearchIntent>(SearchIntent.Retry(Platform.TWITCH), SearchIntent.Retry(Platform.KICK)),
+            intents,
+        )
     }
 
     @Test
@@ -234,12 +261,14 @@ class SearchScreenTest {
                 LocalClock provides fixedClock,
             ) {
                 LurkTheme(dynamicColor = false) {
-                    SearchScreen(
-                        state = state,
-                        onIntent = { allIntents += it },
-                        onOpenChannel = { channels += it },
-                        onOpenCategory = { categories += it },
-                    )
+                    ErrorHost(ErrorHandlers()) {
+                        SearchScreen(
+                            state = state,
+                            onIntent = { allIntents += it },
+                            onOpenChannel = { channels += it },
+                            onOpenCategory = { categories += it },
+                        )
+                    }
                 }
             }
         }

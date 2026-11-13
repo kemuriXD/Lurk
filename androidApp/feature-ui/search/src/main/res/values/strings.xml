@@ -17,5 +17,6 @@
     <string name="no_results_title">No results for “%1$s”</string>
     <string name="no_channels_title">No channels for “%1$s”</string>
     <string name="no_categories_title">No categories for “%1$s”</string>
+    <string name="search_error_title">Couldn’t search</string>
     <string name="no_results_body">Check the spelling, or try a category name instead.</string>
 </resources>
