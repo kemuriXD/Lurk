@@ -19,6 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,7 +37,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.PlatformContext
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
@@ -73,6 +80,21 @@ fun StreamCard(
 }
 
 /**
+ * The request for a preview at [url]. While it loads, the image already shown from [shown], if it is still in the
+ * memory cache, stays as the placeholder, so a refreshed preview URL doesn't flash the grey box.
+ */
+internal fun thumbnailRequest(
+    context: PlatformContext,
+    url: String?,
+    shown: String?,
+): ImageRequest =
+    ImageRequest
+        .Builder(context)
+        .data(url)
+        .placeholderMemoryCacheKey(shown?.takeIf { it != url })
+        .build()
+
+/**
  * A stream's picture with the LIVE badge top left and the viewer count bottom left on a scrim. The size comes from
  * [modifier]. [content] draws on top, for example a play button.
  */
@@ -84,9 +106,13 @@ fun StreamThumbnail(
     overlayInset: Dp = OverlayInset,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
+    val context = LocalPlatformContext.current
+    // The preview URL changes every few minutes so the image refreshes; the last one shown stays up while it loads.
+    var shown by remember(stream.channel) { mutableStateOf<String?>(null) }
     Box(modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
         AsyncImage(
-            model = stream.thumbnailUrl,
+            model = thumbnailRequest(context, stream.thumbnailUrl, shown),
+            onSuccess = { shown = stream.thumbnailUrl },
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
