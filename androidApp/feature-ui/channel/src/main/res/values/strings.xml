@@ -18,4 +18,8 @@
     <string name="last_stream_footer">We’ll show the stream here when %1$s goes live again.</string>
 
     <string name="load_error_title">Couldn’t load this channel</string>
+    <string name="follow_failed">Couldn’t follow %1$s</string>
+    <string name="unfollow_failed">Couldn’t unfollow %1$s</string>
+    <string name="share_failed">Couldn’t share %1$s</string>
+    <string name="open_failed">Couldn’t open the link</string>
 </resources>

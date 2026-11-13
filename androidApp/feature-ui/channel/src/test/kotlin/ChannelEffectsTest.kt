@@ -15,6 +15,9 @@ import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.channel.ChannelEffect
 import io.github.kemurixd.lurk.feature.channel.ChannelIntent
+import io.github.kemurixd.lurk.feature.channel.ChannelUiState
+import io.github.kemurixd.lurk.feature.channel.FollowState
+import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import org.junit.Assert.assertEquals
@@ -26,6 +29,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import io.github.kemurixd.lurk.core.model.Channel as ChannelProfile
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 @RunWith(RobolectricTestRunner::class)
@@ -40,13 +44,33 @@ class ChannelEffectsTest {
     private val intents = mutableListOf<ChannelIntent>()
     private val signIns = mutableListOf<Platform>()
 
+    private var channelState =
+        ChannelUiState(
+            PlatformSlice.Loaded(
+                ChannelProfile(
+                    ref = ChannelRef(Platform.KICK, "streamer1"),
+                    id = "1000001",
+                    chatId = "streamer1",
+                    displayName = "Streamer One",
+                    avatarUrl = null,
+                    bannerUrl = null,
+                    bio = null,
+                    followers = null,
+                    live = null,
+                    lastStream = null,
+                ),
+            ),
+            FollowState.NotFollowing,
+        )
+
     /** The entry's own wiring: effects to snackbars, in the app's one error host. */
     private fun showWithSnackbar() {
         rule.setContent {
             LurkTheme(dynamicColor = false) {
                 ErrorHost(ErrorHandlers(signIn = { signIns += it })) {
                     ChannelEffectsWithSnackbar(
-                        platform = Platform.KICK,
+                        ref = ChannelRef(Platform.KICK, "streamer1"),
+                        state = { channelState },
                         effects = effects.receiveAsFlow(),
                         onOpenPlayer = { players += it },
                         onIntent = { intents += it },
@@ -63,12 +87,20 @@ class ChannelEffectsTest {
     fun failedFollowShowsASnackbarWhoseRetryFollowsAgain() {
         showWithSnackbar()
         effects.trySend(ChannelEffect.ShowError(LurkError.Timeout))
-        rule.onNodeWithText(text(DesignR.string.error_timeout)).assertIsDisplayed()
+        rule.onNodeWithText("Couldn’t follow Streamer One. ${text(DesignR.string.error_timeout)}").assertIsDisplayed()
 
         rule.onNodeWithText("Retry").performClick()
         rule.waitForIdle()
 
         assertEquals(listOf<ChannelIntent>(ChannelIntent.ToggleFollow), intents)
+    }
+
+    @Test
+    fun failedUnfollowSaysUnfollow() {
+        channelState = channelState.copy(follow = FollowState.Following)
+        showWithSnackbar()
+        effects.trySend(ChannelEffect.ShowError(LurkError.Timeout))
+        rule.onNodeWithText("Couldn’t unfollow Streamer One. ${text(DesignR.string.error_timeout)}").assertIsDisplayed()
     }
 
     @Test

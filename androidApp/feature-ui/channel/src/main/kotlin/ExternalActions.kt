@@ -22,14 +22,14 @@ import kotlinx.coroutines.flow.Flow
  * Acts on the ViewModel's one-shot effects while the screen is started: links open in a Custom Tab, shares go through
  * the system share sheet. Collecting stops below STARTED, so an effect sent meanwhile waits in the ViewModel and is
  * handled once, when the screen is back, never twice. [onError] gets a failed follow or unfollow; [onCouldNotOpen] a
- * link or share that nothing on the device could open.
+ * link (false) or share (true) that nothing on the device could open.
  */
 @Composable
 fun HandleChannelEffects(
     effects: Flow<ChannelEffect>,
     onOpenPlayer: (Stream) -> Unit,
     onError: (LurkError) -> Unit,
-    onCouldNotOpen: () -> Unit,
+    onCouldNotOpen: (share: Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -41,11 +41,11 @@ fun HandleChannelEffects(
             effects.collect { effect ->
                 when (effect) {
                     is ChannelEffect.OpenExternal -> {
-                        if (!openInCustomTab(context, effect.url)) couldNotOpen()
+                        if (!openInCustomTab(context, effect.url)) couldNotOpen(false)
                     }
 
                     is ChannelEffect.ShareText -> {
-                        if (!shareText(context, effect.text)) couldNotOpen()
+                        if (!shareText(context, effect.text)) couldNotOpen(true)
                     }
 
                     is ChannelEffect.OpenPlayer -> {

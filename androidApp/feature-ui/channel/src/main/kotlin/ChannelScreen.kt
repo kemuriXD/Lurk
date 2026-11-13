@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -38,6 +39,7 @@ import io.github.kemurixd.lurk.feature.channel.ChannelEffect
 import io.github.kemurixd.lurk.feature.channel.ChannelIntent
 import io.github.kemurixd.lurk.feature.channel.ChannelUiState
 import io.github.kemurixd.lurk.feature.channel.ChannelViewModel
+import io.github.kemurixd.lurk.feature.channel.FollowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -63,7 +65,13 @@ fun ChannelEntry(
     viewModel: ChannelViewModel = koinViewModel { parametersOf(platform, login) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    ChannelEffectsWithSnackbar(platform, viewModel.effects, onOpenPlayer, viewModel::onIntent)
+    ChannelEffectsWithSnackbar(
+        ref = ChannelRef(platform, login),
+        state = { state },
+        effects = viewModel.effects,
+        onOpenPlayer = onOpenPlayer,
+        onIntent = viewModel::onIntent,
+    )
     ChannelScreen(
         ref = ChannelRef(platform, login),
         state = state,
@@ -75,28 +83,57 @@ fun ChannelEntry(
 }
 
 /**
- * Acts on the channel's effects, sending failures to the app's snackbar: a failed follow or unfollow with the mapped
- * action (Retry toggles again, Sign in opens [platform]'s login), and a link or share nothing could open with none.
+ * Acts on the channel's effects, sending failures to the app's snackbar with what failed ("Couldn't follow Streamer
+ * One") before why: a failed follow or unfollow with the mapped action (Retry toggles again, Sign in opens the
+ * channel's platform's login), and a link or share nothing could open with none. [state] is read when a failure
+ * arrives; by then the view model has put the old follow state back, so Following means an unfollow failed.
  */
 @Composable
 internal fun ChannelEffectsWithSnackbar(
-    platform: Platform,
+    ref: ChannelRef,
+    state: () -> ChannelUiState,
     effects: Flow<ChannelEffect>,
     onOpenPlayer: (Stream) -> Unit,
     onIntent: (ChannelIntent) -> Unit,
 ) {
     val snackbar = rememberErrorSnackbar()
     val scope = rememberCoroutineScope()
+    val resources = LocalResources.current
     val send by rememberUpdatedState(onIntent)
+    val current by rememberUpdatedState(state)
+
+    fun name(): String = (current().load as? PlatformSlice.Loaded)?.value?.displayName ?: ref.login
     HandleChannelEffects(
         effects = effects,
         onOpenPlayer = onOpenPlayer,
         onError = { error ->
+            val verb =
+                if (current().follow ==
+                    FollowState.Following
+                ) {
+                    R.string.unfollow_failed
+                } else {
+                    R.string.follow_failed
+                }
+            val title = resources.getString(verb, name())
             scope.launch {
-                snackbar.showError(error, platform = platform, onRetry = { send(ChannelIntent.ToggleFollow) })
+                snackbar.showError(error, platform = ref.platform, title = title, onRetry = {
+                    send(ChannelIntent.ToggleFollow)
+                })
             }
         },
-        onCouldNotOpen = { scope.launch { snackbar.showError(LurkError.Unexpected, action = null) } },
+        onCouldNotOpen = { share ->
+            val title =
+                if (share) {
+                    resources.getString(
+                        R.string.share_failed,
+                        name(),
+                    )
+                } else {
+                    resources.getString(R.string.open_failed)
+                }
+            scope.launch { snackbar.showError(LurkError.Unexpected, action = null, title = title) }
+        },
     )
 }
 
@@ -124,8 +161,18 @@ fun ChannelScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when (val load = state.load) {
-                    PlatformSlice.Loading, PlatformSlice.NotSignedIn -> {
+                    PlatformSlice.Loading -> {
                         LoadingBody()
+                    }
+
+                    PlatformSlice.NotSignedIn -> {
+                        // Never a spinner: say so, with Sign in for this channel's platform.
+                        ErrorState(
+                            title = stringResource(R.string.load_error_title),
+                            error = LurkError.NotSignedIn,
+                            onRetry = { onIntent(ChannelIntent.Retry) },
+                            platform = ref.platform,
+                        )
                     }
 
                     is PlatformSlice.Failed -> {

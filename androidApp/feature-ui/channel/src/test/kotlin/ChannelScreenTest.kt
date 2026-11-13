@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -43,11 +44,12 @@ class ChannelScreenTest {
     private val category = Category(Platform.TWITCH, "42", "Retro Racers", null)
 
     private var errorBacks = 0
+    private val errorSignIns = mutableListOf<Platform>()
 
     private fun show(state: ChannelUiState) {
         rule.setContent {
             LurkTheme(dynamicColor = false) {
-                ErrorHost(ErrorHandlers(goBack = { errorBacks++ })) {
+                ErrorHost(ErrorHandlers(goBack = { errorBacks++ }, signIn = { errorSignIns += it })) {
                     ChannelScreen(
                         ref = ChannelRef(Platform.TWITCH, "streamer1"),
                         state = state,
@@ -221,6 +223,15 @@ class ChannelScreenTest {
         rule.onNodeWithText("Couldn’t load this channel").assertIsDisplayed()
         rule.onNodeWithText("Retry").performClick()
         assertEquals(listOf<ChannelIntent>(ChannelIntent.Retry), intents)
+    }
+
+    @Test
+    fun signedOutLoadOffersSignInInsteadOfSpinning() {
+        show(ChannelUiState(PlatformSlice.NotSignedIn, FollowState.Hidden))
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithContentDescription("Loading").assertDoesNotExist()
+        rule.onNodeWithText("Sign in").performClick()
+        assertEquals(listOf(Platform.TWITCH), errorSignIns)
     }
 
     @Test
