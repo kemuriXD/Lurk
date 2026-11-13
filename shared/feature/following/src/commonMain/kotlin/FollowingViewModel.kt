@@ -6,6 +6,7 @@ import io.github.kemurixd.lurk.auth.AccountState
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Channel
+import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
@@ -22,32 +23,38 @@ import io.github.kemurixd.lurk.feature.common.sortedByViewers
 import io.github.kemurixd.lurk.feature.common.withLastLive
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 /**
  * The Following list: every platform's followed channels, loaded concurrently and merged.
  *
  * While [state] has a collector, every signed-in platform reloads every [refreshInterval], and again whenever a
- * platform's account changes. Five seconds after the last collector leaves, the loop stops and the cached state resets.
+ * platform's account changes. Five seconds after the last collector leaves, the loop stops; the state stays, kept
+ * current for account changes, so coming back shows the items at once and reloads quietly under them. Only a
+ * reload the user asked for with [FollowingIntent.Refresh] shows a spinner ([FollowingUiState.manualRefresh]).
  * A platform that is still loading for the same account is never asked twice, whether the request comes from the
  * loop, [FollowingIntent.Refresh] or [FollowingIntent.Retry].
  *
@@ -61,6 +68,7 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Call [onIntent] from the main thread.
  */
+@OptIn(FlowPreview::class)
 class FollowingViewModel(
     private val platforms: List<StreamingPlatform>,
     private val accounts: AccountsState,
@@ -83,9 +91,17 @@ class FollowingViewModel(
             .map { Choices(it.followingFilter.toFilter(), it.followingSort.toSort()) }
             .distinctUntilChanged()
 
-    private val content: Flow<FollowingUiState> =
-        combine(choices, loads, owners, lastLive.times) { choices, loads, owners, times ->
-            uiState(choices, loads, owners).let { it.copy(offline = it.offline.withLastLive(times)) }
+    /** The stored filter and sort and the looked-up times, as the latest values. Fed for the view model's life. */
+    private val choicesNow = MutableStateFlow(Choices())
+    private val timesNow = MutableStateFlow(emptyMap<ChannelRef, Instant>())
+
+    /** How many collectors [state] has right now. */
+    private val collectors = MutableStateFlow(0)
+
+    /** What the screen shows right now, built from the live loads and the current accounts. */
+    private fun render(): FollowingUiState =
+        uiState(choicesNow.value, loads.value, ownersOf(accounts.states.value)).let {
+            it.copy(offline = it.offline.withLastLive(timesNow.value))
         }
 
     /** Emits nothing: it reloads on start, every [refreshInterval], and when an account changes. */
@@ -101,26 +117,75 @@ class FollowingViewModel(
         }
 
     /**
-     * The screen state. The first value uses the default filter and sort; the stored ones replace them as soon as the
-     * settings load. After the 5 s stop the cached value resets to that first value, so a collector that comes back
-     * never starts from data an account change has made stale.
+     * The screen state. It is a function of the loads, the accounts, the stored choices and the looked-up times, all
+     * read live, so a collector that comes back after the 5 s stop starts from the kept items, never from a skeleton,
+     * and never from another account's data, even for the instant before anything has been recomputed. Only the
+     * network loop stops with the last collector. The first value uses the default filter and sort until the stored
+     * ones load.
      */
     val state: StateFlow<FollowingUiState> =
-        merge(content, autoRefresh).stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS, replayExpirationMillis = 0),
-            initialValue = uiState(Choices(), loads.value, ownersOf(accounts.states.value)),
-        )
+        object : StateFlow<FollowingUiState> {
+            override val replayCache: List<FollowingUiState> get() = listOf(value)
+
+            override val value: FollowingUiState get() = render()
+
+            override suspend fun collect(collector: FlowCollector<FollowingUiState>): Nothing {
+                collectors.update { it + 1 }
+                try {
+                    combine(choicesNow, loads, accounts.states, timesNow) { _, _, _, _ -> render() }
+                        .distinctUntilChanged()
+                        .collect(collector)
+                } finally {
+                    collectors.update { it - 1 }
+                }
+                awaitCancellation()
+            }
+        }
+
+    init {
+        choices.onEach { choicesNow.value = it }.launchIn(viewModelScope)
+        lastLive.times.onEach { timesNow.value = it }.launchIn(viewModelScope)
+        // Runs the loop while somebody collects [state], and for 5 s after the last one leaves.
+        collectors
+            .map { it > 0 }
+            .debounce { present -> if (present) 0L else STOP_TIMEOUT_MILLIS }
+            .distinctUntilChanged()
+            .onEach { present ->
+                loopJob?.cancel()
+                loopJob = if (present) autoRefresh.launchIn(viewModelScope) else null
+            }.launchIn(viewModelScope)
+    }
+
+    private var loopJob: Job? = null
 
     /** Handles a user action. [FollowingIntent.Refresh] with no collector still loads once, shown on next subscribe. */
     fun onIntent(intent: FollowingIntent) {
         when (intent) {
-            is FollowingIntent.SelectFilter -> save { it.copy(followingFilter = intent.filter.toSetting()) }
-            is FollowingIntent.SelectSort -> save { it.copy(followingSort = intent.sort.toSetting()) }
-            FollowingIntent.Refresh -> refresh(platforms)
-            is FollowingIntent.Retry -> refresh(platforms.filter { it.id == intent.platform })
-            is FollowingIntent.OfflineRowShown -> lastLive.request(intent.channel, viewModelScope)
-            is FollowingIntent.OfflineRowHidden -> lastLive.release(intent.channel)
+            is FollowingIntent.SelectFilter -> {
+                save { it.copy(followingFilter = intent.filter.toSetting()) }
+            }
+
+            is FollowingIntent.SelectSort -> {
+                save { it.copy(followingSort = intent.sort.toSetting()) }
+            }
+
+            FollowingIntent.Refresh -> {
+                refresh(platforms)
+                // Only a reload the user asked for shows a spinner. With nothing loading there is nothing to show.
+                loads.update { it.copy(manual = inFlight.values.any { flight -> flight.job.isActive }) }
+            }
+
+            is FollowingIntent.Retry -> {
+                refresh(platforms.filter { it.id == intent.platform })
+            }
+
+            is FollowingIntent.OfflineRowShown -> {
+                lastLive.request(intent.channel, viewModelScope)
+            }
+
+            is FollowingIntent.OfflineRowHidden -> {
+                lastLive.release(intent.channel)
+            }
         }
     }
 
@@ -202,6 +267,7 @@ class FollowingViewModel(
         val owners: Map<Platform, String> = emptyMap(),
         val errors: Map<Platform, LurkError> = emptyMap(),
         val loading: Map<Platform, String> = emptyMap(),
+        val manual: Boolean = false,
     ) {
         /**
          * The same account's loaded items stay on screen, marked stale, while they reload. Anything else, including
@@ -234,7 +300,9 @@ class FollowingViewModel(
             result: PlatformSlice<Followed>,
         ): LoadState {
             val previous = slices.getValue(platform)
-            val done = copy(owners = owners + (platform to owner), loading = loading - platform)
+            val done =
+                copy(owners = owners + (platform to owner), loading = loading - platform)
+                    .let { it.copy(manual = it.manual && it.loading.isNotEmpty()) }
             return if (result is PlatformSlice.Failed && previous is PlatformSlice.Loaded &&
                 owners[platform] == owner
             ) {
@@ -247,7 +315,8 @@ class FollowingViewModel(
             }
         }
 
-        fun finished(platform: Platform): LoadState = copy(loading = loading - platform)
+        fun finished(platform: Platform): LoadState =
+            (loading - platform).let { left -> copy(loading = left, manual = manual && left.isNotEmpty()) }
     }
 
     private data class Choices(
@@ -287,13 +356,15 @@ class FollowingViewModel(
                         }
                     }.filterKeys(choices.filter::includes)
             val followed = shown.values.mapNotNull { (it as? PlatformSlice.Loaded)?.value }
+            val refreshing = loads.loading.any { (platform, owner) -> owners[platform] == owner }
             return FollowingUiState(
                 filter = choices.filter,
                 sort = choices.sort,
                 live = followed.flatMap { it.live }.sortedFor(choices.sort),
                 offline = followed.flatMap { it.offline }.sortedWith(byName),
                 slices = shown,
-                refreshing = loads.loading.any { (platform, owner) -> owners[platform] == owner },
+                refreshing = refreshing,
+                manualRefresh = loads.manual && refreshing,
                 refreshErrors = loads.errors.filterKeys { current(it) && choices.filter.includes(it) },
             )
         }

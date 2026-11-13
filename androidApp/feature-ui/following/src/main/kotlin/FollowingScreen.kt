@@ -18,6 +18,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -26,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -51,7 +52,11 @@ import io.github.kemurixd.lurk.designsystem.R as DesignR
 private const val PLACEHOLDER_COUNT = 5
 private val CardPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
 
-/** Gets the [FollowingViewModel], reloads on every resume and hands the state to [FollowingScreen]. */
+/**
+ * Gets the [FollowingViewModel] and hands the state to [FollowingScreen]. It sends no reload of its own: the view model
+ * reloads quietly whenever the screen starts collecting again, so a return from another tab or from the background
+ * needs no intent, and an entry that merely recomposes or re-enters can never trigger one.
+ */
 @Composable
 fun FollowingEntry(
     onOpenPlayer: (Stream) -> Unit,
@@ -62,10 +67,6 @@ fun FollowingEntry(
     viewModel: FollowingViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LifecycleResumeEffect(viewModel) {
-        viewModel.onIntent(FollowingIntent.Refresh)
-        onPauseOrDispose {}
-    }
     FollowingScreen(
         state = state,
         onIntent = viewModel::onIntent,
@@ -92,6 +93,7 @@ fun FollowingScreen(
     onOpenBrowse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val pullState = rememberPullToRefreshState()
     Column(modifier.fillMaxSize()) {
         PlatformFilterChips(
             selected = state.filter,
@@ -99,9 +101,20 @@ fun FollowingScreen(
             modifier = Modifier.padding(vertical = 8.dp),
         )
         PullToRefreshBox(
-            isRefreshing = state.refreshing,
+            // Only a reload the user asked for shows a spinner; the timed and the coming-back reloads stay quiet.
+            isRefreshing = state.manualRefresh,
             onRefresh = { onIntent(FollowingIntent.Refresh) },
             modifier = Modifier.weight(1f),
+            state = pullState,
+            indicator = {
+                if (state.manualRefresh || pullState.distanceFraction > 0f) {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = state.manualRefresh,
+                        modifier = Modifier.align(Alignment.TopCenter).testTag(FollowingTestTags.REFRESH_INDICATOR),
+                    )
+                }
+            },
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 300.dp),

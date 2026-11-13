@@ -235,6 +235,41 @@ class FollowingScreenTest {
     }
 
     @Test
+    fun openingTheSortMenuSendsNothing() {
+        show(loaded(live = listOf(stream("streamer1")), offline = emptyList()))
+        rule.onNodeWithContentDescription("Sort live channels, currently by Viewers").performClick()
+        rule.onNodeWithText("A–Z").assertIsDisplayed()
+        rule.waitForIdle()
+        assertEquals(emptyList<FollowingIntent>(), intents)
+    }
+
+    @Test
+    fun showingTheScreenSendsNothing() {
+        show(loaded(live = listOf(stream("streamer1")), offline = emptyList()))
+        rule.waitForIdle()
+        assertEquals(emptyList<FollowingIntent>(), intents)
+    }
+
+    @Test
+    fun aQuietReloadOverItemsShowsNoSpinnerAndNoPlaceholders() {
+        show(loaded(live = listOf(stream("streamer1")), offline = emptyList()).copy(refreshing = true))
+        rule.onNodeWithTag(FollowingTestTags.REFRESH_INDICATOR).assertDoesNotExist()
+        rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
+        rule.onAllNodesWithTag("stream_card").assertCountEquals(1)
+    }
+
+    @Test
+    fun aReloadTheUserAskedForShowsTheSpinner() {
+        show(
+            loaded(
+                live = listOf(stream("streamer1")),
+                offline = emptyList(),
+            ).copy(refreshing = true, manualRefresh = true),
+        )
+        rule.onNodeWithTag(FollowingTestTags.REFRESH_INDICATOR).assertIsDisplayed()
+    }
+
+    @Test
     fun duplicateLoginAcrossPlatformsRendersBoth() {
         val twitch = stream("streamer1", Platform.TWITCH)
         val kick = stream("streamer1", Platform.KICK)

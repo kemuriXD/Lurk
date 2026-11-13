@@ -507,6 +507,111 @@ class FollowingViewModelTest {
             }
         }
 
+    @Test
+    fun comingBackAfterTheStopShowsTheKeptItemsAtOnce() =
+        runTest {
+            val big = testStream(Platform.TWITCH, login = "big", viewers = 900)
+            twitch.followed = { followed(live = listOf(big)) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded && big in it.live }
+                cancelAndIgnoreRemainingEvents()
+            }
+            advanceTimeBy(6.seconds)
+            runCurrent()
+
+            vm.state.test {
+                val first = awaitItem()
+                assertTrue(big in first.live, "the first value after coming back lost the items")
+                assertTrue(first.slices.values.none { it == PlatformSlice.Loading }, "a skeleton would show")
+                // The reload that follows keeps the items too: not one value without them.
+                while (true) {
+                    val state = awaitItem()
+                    assertTrue(big in state.live)
+                    assertTrue(state.slices.values.none { it == PlatformSlice.Loading })
+                    if (state.allLoaded) break
+                }
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun comingBackWithinTheStopTimeoutDoesNotReload() =
+        runTest {
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                cancelAndIgnoreRemainingEvents()
+            }
+            advanceTimeBy(3.seconds)
+            vm.state.test {
+                runCurrent()
+                advanceTimeBy(10.seconds)
+                runCurrent()
+                assertEquals(1, twitch.followedCalls)
+                assertEquals(1, kick.followedCalls)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun theTimedReloadNeverAsksForASpinner() =
+        runTest {
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                advanceTimeBy(60.seconds)
+                runCurrent()
+                val seen =
+                    cancelAndConsumeRemainingEvents()
+                        .filterIsInstance<app.cash.turbine.Event.Item<FollowingUiState>>()
+                assertTrue(seen.any { it.value.refreshing }, "the timed reload should have run")
+                assertTrue(seen.none { it.value.manualRefresh }, "the timed reload showed a spinner")
+            }
+        }
+
+    @Test
+    fun aRefreshTheUserAsksForShowsTheSpinnerUntilItEnds() =
+        runTest {
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                val gate = CompletableDeferred<Unit>()
+                twitch.followed = {
+                    gate.await()
+                    followed()
+                }
+                vm.onIntent(FollowingIntent.Refresh)
+                val spinning = awaitUntil { it.manualRefresh }
+                assertTrue(spinning.refreshing)
+                gate.complete(Unit)
+                val done = awaitUntil { !it.refreshing }
+                assertFalse(done.manualRefresh)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun pickingASortNeverReloads() =
+        runTest {
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                vm.onIntent(FollowingIntent.SelectSort(FollowingSort.NAME))
+                runCurrent()
+                advanceTimeBy(10.seconds)
+                runCurrent()
+                assertEquals(1, twitch.followedCalls)
+                assertEquals(1, kick.followedCalls)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     private companion object {
         const val TOKEN = "test-token"
         val SECOND_KICK_ACCOUNT = testAccount(Platform.KICK, "streamer2", "Streamer Two", "1000002")
