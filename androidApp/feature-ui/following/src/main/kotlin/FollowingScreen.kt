@@ -41,12 +41,14 @@ import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
+import io.github.kemurixd.lurk.designsystem.time.rememberNow
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.following.FollowingIntent
 import io.github.kemurixd.lurk.feature.following.FollowingUiState
 import io.github.kemurixd.lurk.feature.following.FollowingViewModel
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.time.Instant
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 private const val PLACEHOLDER_COUNT = 5
@@ -94,6 +96,8 @@ fun FollowingScreen(
     modifier: Modifier = Modifier,
 ) {
     val pullState = rememberPullToRefreshState()
+    // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in.
+    val now = rememberNow()
     Column(modifier.fillMaxSize()) {
         PlatformFilterChips(
             selected = state.filter,
@@ -121,7 +125,7 @@ fun FollowingScreen(
                 modifier = Modifier.fillMaxSize().testTag(FollowingTestTags.LIST),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
-                content(state, onIntent, onOpenPlayer, onOpenChannel, onSignIn, onOpenBrowse)
+                content(state, now, onIntent, onOpenPlayer, onOpenChannel, onSignIn, onOpenBrowse)
             }
         }
     }
@@ -129,6 +133,7 @@ fun FollowingScreen(
 
 private fun LazyGridScope.content(
     state: FollowingUiState,
+    now: Instant,
     onIntent: (FollowingIntent) -> Unit,
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
@@ -192,7 +197,7 @@ private fun LazyGridScope.content(
                     onDispose { onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
                 }
             }
-            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) })
+            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = now)
         }
     }
 }

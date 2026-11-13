@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -267,6 +268,43 @@ class FollowingScreenTest {
             ).copy(refreshing = true, manualRefresh = true),
         )
         rule.onNodeWithTag(FollowingTestTags.REFRESH_INDICATOR).assertIsDisplayed()
+    }
+
+    @Test
+    fun offlineRowsEnteringWhileScrollingShareOneClock() {
+        var clockReads = 0
+        val countingClock =
+            object : Clock {
+                override fun now(): Instant {
+                    clockReads++
+                    return now
+                }
+            }
+        val state = loaded(live = emptyList(), offline = (1..200).map { channel("sleeper$it") })
+        rule.setContent {
+            CompositionLocalProvider(LocalClock provides countingClock) {
+                LurkTheme(dynamicColor = false) {
+                    FollowingScreen(
+                        state = state,
+                        onIntent = { intents += it },
+                        onOpenPlayer = { players += it },
+                        onOpenChannel = { channels += it },
+                        onSignIn = { signIns += it },
+                        onOpenBrowse = { browseTaps++ },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        clockReads = 0
+        intents.clear()
+        repeat(8) {
+            rule.onNodeWithTag(FollowingTestTags.LIST).performTouchInput { swipeUp() }
+            rule.waitForIdle()
+        }
+        val entered = intents.count { it is FollowingIntent.OfflineRowShown }
+        assertTrue("only $entered rows entered, too few to mean anything", entered > 30)
+        assertTrue("rows read the clock $clockReads times while $entered entered", clockReads <= 2)
     }
 
     @Test
