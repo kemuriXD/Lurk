@@ -11,8 +11,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
+import kotlin.time.Duration.Companion.seconds
+
+private val RESTORE_TIMEOUT = 5.seconds
 
 class LurkApplication : Application() {
     private val scope = startupScope()
@@ -30,9 +34,9 @@ class LurkApplication : Application() {
                 modules(appModules(this@LurkApplication))
             }.koin
         scope.launch {
-            // A failed restore still lets the app start, signed out.
+            // A failed or stuck restore still lets the app start, signed out, so the splash never sticks.
             try {
-                koin.get<SessionRepository>().restore()
+                withTimeoutOrNull(RESTORE_TIMEOUT) { koin.get<SessionRepository>().restore() }
             } finally {
                 restored.value = true
             }

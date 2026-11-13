@@ -18,7 +18,10 @@ enum class TopLevel(
     ;
 
     companion object {
-        /** The tab that owns a back stack: its first key is always a tab root. */
-        fun of(backStack: List<NavKey>): TopLevel? = entries.firstOrNull { it.route == backStack.firstOrNull() }
+        /** The tab whose root is [key], or null for a pushed route. */
+        fun of(key: NavKey?): TopLevel? = entries.firstOrNull { it.route == key }
+
+        /** The tab showing now: the last tab root on the stack, since a non-start tab sits above the start tab. */
+        fun current(backStack: List<NavKey>): TopLevel? = backStack.lastOrNull { of(it) != null }?.let(::of)
     }
 }

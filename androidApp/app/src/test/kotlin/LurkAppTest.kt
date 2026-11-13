@@ -22,11 +22,13 @@ import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.navigation.BrowseRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
 import io.github.kemurixd.lurk.navigation.PlayerRoute
+import io.github.kemurixd.lurk.navigation.TopLevel
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -38,6 +40,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 // A plain Application keeps LurkApplication's real Koin graph and startup work out of the test.
 @RunWith(RobolectricTestRunner::class)
@@ -48,18 +51,19 @@ class LurkAppTest {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
+    private val sessions =
+        SessionRepository(
+            InMemorySecureStore(),
+            listOf(FakeProfileFetcher(Platform.TWITCH), FakeProfileFetcher(Platform.KICK)),
+            scope,
+        )
+
     @Before
     fun startKoinWithFakes() {
         startKoin {
             modules(
                 module {
-                    single {
-                        SessionRepository(
-                            InMemorySecureStore(),
-                            listOf(FakeProfileFetcher(Platform.TWITCH), FakeProfileFetcher(Platform.KICK)),
-                            scope,
-                        )
-                    }
+                    single { sessions }
                     single { AccountsState(get()) }
                     single<List<StreamingPlatform>> {
                         listOf(FakeStreamingPlatform(Platform.TWITCH), FakeStreamingPlatform(Platform.KICK))
@@ -109,7 +113,7 @@ class LurkAppTest {
     fun accountButtonOpensSettings() {
         compose.setContent { LurkTheme { LurkApp() } }
 
-        compose.onNodeWithContentDescription("Account and settings").performClick()
+        compose.onNodeWithContentDescription(string(DesignR.string.cd_account_and_settings)).performClick()
 
         compose.onNodeWithText(string(R.string.placeholder_settings)).assertIsDisplayed()
     }
@@ -139,5 +143,57 @@ class LurkAppTest {
 
         compose.onNodeWithText(string(R.string.placeholder_channel)).assertIsDisplayed()
         compose.runOnIdle { assertEquals(ChannelRoute(Platform.KICK, "streamer1"), backStack.last()) }
+    }
+
+    @Test
+    fun startsOnFollowingWhenSignedIn() {
+        runBlocking { sessions.signIn(Platform.TWITCH, STAND_IN_COOKIE) }
+
+        compose.setContent { LurkTheme { LurkApp() } }
+
+        compose.onNodeWithText(string(R.string.placeholder_following)).assertIsDisplayed()
+    }
+
+    @Test
+    fun backAtAnotherTabsRootReturnsToTheStartTab() {
+        runBlocking { sessions.signIn(Platform.TWITCH, STAND_IN_COOKIE) }
+        compose.setContent { LurkTheme { LurkApp() } }
+        tab(R.string.tab_search).performClick()
+        compose.onNodeWithText(string(R.string.placeholder_search)).assertIsDisplayed()
+
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+
+        compose.onNodeWithText(string(R.string.placeholder_following)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.placeholder_search)).assertDoesNotExist()
+    }
+
+    @Test
+    fun playerHidesTheNavigationSuite() {
+        val backStack = showShellWithStack()
+        tab(R.string.tab_search).assertIsDisplayed()
+
+        compose.runOnIdle {
+            backStack.add(PlayerRoute(Platform.TWITCH, "streamer1", "Test stream", thumbnailUrl = null))
+        }
+
+        compose.onNodeWithText("Test stream").assertIsDisplayed()
+        TopLevel.entries.forEach { tab(it.label).assertDoesNotExist() }
+        compose.onNodeWithContentDescription(string(DesignR.string.cd_account_and_settings)).assertDoesNotExist()
+    }
+
+    @Test
+    fun topBarBackArrowPopsThePushedRoute() {
+        val backStack = showShellWithStack()
+        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        compose.onNodeWithText(string(R.string.placeholder_channel)).assertIsDisplayed()
+
+        compose.onNodeWithContentDescription(string(R.string.cd_back)).performClick()
+
+        compose.onNodeWithText(string(R.string.placeholder_browse)).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
+    }
+
+    private companion object {
+        const val STAND_IN_COOKIE = "stand-in-cookie"
     }
 }
