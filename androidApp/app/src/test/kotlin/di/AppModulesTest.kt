@@ -24,6 +24,10 @@ import io.github.kemurixd.lurk.core.storage.SecureStore
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.db.LurkDatabase
 import io.github.kemurixd.lurk.core.storage.storageModule
+import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
+import io.github.kemurixd.lurk.feature.browse.CategoryStreamsViewModel
+import io.github.kemurixd.lurk.feature.browse.TopLiveViewModel
+import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.feature.following.FollowingViewModel
@@ -43,6 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.core.module.Module
+import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
@@ -153,9 +158,10 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(15, modules.size)
+        assertEquals(16, modules.size)
         assertTrue(featureCommonModule in modules)
         assertTrue(followingModule in modules)
+        assertTrue(browseModule in modules)
         assertTrue(platformsModule in modules)
         assertTrue(playbackModule in modules)
         assertTrue(authModule in modules)
@@ -195,6 +201,21 @@ class AppModulesTest {
         val app = platformGraph()
         app.modules(followingModule, module { single { inMemorySettingsStore() } })
         app.koin.get<FollowingViewModel>()
+    }
+
+    @Test
+    fun browseViewModelsResolveOverTheRealPlatforms() {
+        val app = platformGraph()
+        app.modules(browseModule)
+        app.koin.get<TopLiveViewModel>()
+        app.koin.get<CategoriesViewModel>()
+    }
+
+    @Test
+    fun categoryStreamsViewModelTakesPlatformAndIdAsParameters() {
+        val app = platformGraph()
+        app.modules(browseModule)
+        app.koin.get<CategoryStreamsViewModel> { parametersOf(Platform.KICK, "42") }
     }
 
     @Test

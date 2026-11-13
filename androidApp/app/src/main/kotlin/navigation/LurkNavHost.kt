@@ -18,8 +18,11 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.github.kemurixd.lurk.R
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.LurkTopBar
+import io.github.kemurixd.lurk.featureui.browse.BrowseEntry
+import io.github.kemurixd.lurk.featureui.browse.CategoryEntry
 import io.github.kemurixd.lurk.featureui.following.FollowingEntry
 import io.github.kemurixd.lurk.player.PlayerPlaceholderScreen
 import io.github.kemurixd.lurk.designsystem.R as DesignR
@@ -46,13 +49,13 @@ fun LurkNavHost(
                     TabPage(TopLevel.FOLLOWING, navigator) { FollowingTab(navigator) }
                 }
                 entry<BrowseRoute> {
-                    TabPage(TopLevel.BROWSE, navigator) { Placeholder(stringResource(R.string.placeholder_browse)) }
+                    TabPage(TopLevel.BROWSE, navigator) { BrowseTab(navigator) }
                 }
                 entry<SearchRoute> {
                     TabPage(TopLevel.SEARCH, navigator) { Placeholder(stringResource(R.string.placeholder_search)) }
                 }
                 entry<CategoryRoute> { route ->
-                    PushedPage(route.name, navigator) { Placeholder(stringResource(R.string.placeholder_category)) }
+                    PushedPage(route.name, navigator) { CategoryPage(route, navigator) }
                 }
                 entry<ChannelRoute> { route ->
                     PushedPage(route.login, navigator) { Placeholder(stringResource(R.string.placeholder_channel)) }
@@ -86,19 +89,45 @@ private val Platform.label: Int
             Platform.KICK -> DesignR.string.platform_kick
         }
 
+private fun Navigator.openPlayer(stream: Stream) {
+    push(
+        PlayerRoute(
+            platform = stream.channel.platform,
+            login = stream.channel.login,
+            title = stream.title,
+            thumbnailUrl = stream.thumbnailUrl,
+        ),
+    )
+}
+
+@Composable
+private fun BrowseTab(navigator: Navigator) {
+    BrowseEntry(
+        onOpenPlayer = navigator::openPlayer,
+        onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
+        onOpenCategory = { category -> navigator.push(CategoryRoute(category.platform, category.id, category.name)) },
+    )
+}
+
+@Composable
+private fun CategoryPage(
+    route: CategoryRoute,
+    navigator: Navigator,
+) {
+    CategoryEntry(
+        platform = route.platform,
+        categoryId = route.id,
+        name = route.name,
+        onOpenPlayer = navigator::openPlayer,
+        onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
+        onBack = navigator::back,
+    )
+}
+
 @Composable
 private fun FollowingTab(navigator: Navigator) {
     FollowingEntry(
-        onOpenPlayer = { stream ->
-            navigator.push(
-                PlayerRoute(
-                    platform = stream.channel.platform,
-                    login = stream.channel.login,
-                    title = stream.title,
-                    thumbnailUrl = stream.thumbnailUrl,
-                ),
-            )
-        },
+        onOpenPlayer = navigator::openPlayer,
         onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
         onSignIn = { platform -> navigator.push(LoginRoute(platform)) },
         onOpenBrowse = { navigator.select(TopLevel.BROWSE) },

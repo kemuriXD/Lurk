@@ -17,6 +17,7 @@ import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
+import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
@@ -24,6 +25,7 @@ import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
 import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
 import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
+import io.github.kemurixd.lurk.featureui.browse.BrowseTestTags
 import io.github.kemurixd.lurk.featureui.following.FollowingTestTags
 import io.github.kemurixd.lurk.navigation.BrowseRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
@@ -69,6 +71,7 @@ class LurkAppTest {
         startKoin {
             modules(
                 followingModule,
+                browseModule,
                 module {
                     single { inMemorySettingsStore() }
                     single<DispatcherProvider> { TestDispatchers(Dispatchers.Unconfined) }
@@ -108,7 +111,7 @@ class LurkAppTest {
     @Test
     fun tabSelectionSwitchesDestination() {
         compose.setContent { LurkTheme { LurkApp() } }
-        compose.onNodeWithText(string(R.string.placeholder_browse)).assertIsDisplayed()
+        compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
 
         tab(R.string.tab_following).performClick()
         compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
@@ -198,7 +201,7 @@ class LurkAppTest {
 
         compose.onNodeWithContentDescription(string(R.string.cd_back)).performClick()
 
-        compose.onNodeWithText(string(R.string.placeholder_browse)).assertIsDisplayed()
+        compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
         compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
     }
 

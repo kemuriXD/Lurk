@@ -12,9 +12,7 @@
 
     <!-- Shown by routes whose screen hasn't been built yet. -->
     <string name="placeholder_title">Coming soon</string>
-    <string name="placeholder_browse">Top live streams and categories will show here.</string>
     <string name="placeholder_search">Channel, stream and category results will show here.</string>
-    <string name="placeholder_category">Live streams in this category will show here.</string>
     <string name="placeholder_channel">The channel page will show here.</string>
     <string name="placeholder_settings">Accounts and settings will show here.</string>
     <string name="placeholder_login">The sign-in page will show here.</string>

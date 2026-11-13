@@ -10,6 +10,7 @@ import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.storageModule
 import io.github.kemurixd.lurk.emotes.emotesModule
+import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
@@ -63,4 +64,5 @@ fun appModules(context: Context): List<Module> =
         platformsModule,
         featureCommonModule,
         followingModule,
+        browseModule,
     )
