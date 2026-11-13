@@ -17,7 +17,10 @@ import io.github.kemurixd.lurk.feature.testing.testStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -73,7 +76,7 @@ class CategoryStreamsViewModelTest {
     ) = testStream(Platform.KICK, login = login, viewers = viewers, displayName = login)
 
     @Test
-    fun loadsThePlatformsCategorySortedByViewers() =
+    fun signedOutKickDefaultsToViewersSoItLoadsTheCategorySortedByViewers() =
         runTest {
             kick.liveInCategory = { id, _, _ -> if (id == "42") pageOf(k("a", 10), k("b", 30)) else pageOf() }
             val state = watch(viewModel().state)
@@ -340,6 +343,83 @@ class CategoryStreamsViewModelTest {
             assertEquals(CategorySort.FEATURED, state.value.sort)
             assertTrue(CategorySort.RECOMMENDED in state.value.sorts)
             assertEquals(listOf(CategorySort.VIEWERS_HIGH, CategorySort.FEATURED), asked)
+        }
+
+    private suspend fun expireKick() {
+        fetchers.first { it.platform == Platform.KICK }.result = Outcome.Failure(LurkError.AuthExpired)
+        sessions!!.reportUnauthorized(Platform.KICK)
+    }
+
+    @Test
+    fun anExpiredKickSessionDoesNotOfferRecommendedAndStartsOnViewers() =
+        runTest {
+            sessions().signIn(Platform.KICK, TOKEN)
+            expireKick()
+            val asked = mutableListOf<CategorySort>()
+            kick.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val state = watch(viewModel().state)
+
+            assertEquals(listOf(CategorySort.FEATURED, CategorySort.VIEWERS_HIGH), state.value.sorts)
+            assertEquals(CategorySort.VIEWERS_HIGH, state.value.sort)
+            assertEquals(listOf(CategorySort.VIEWERS_HIGH), asked)
+        }
+
+    @Test
+    fun theSessionExpiringMidwayFallsBackToTheDefaultAndReloads() =
+        runTest {
+            sessions().signIn(Platform.KICK, TOKEN)
+            val asked = mutableListOf<CategorySort>()
+            kick.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val state = watch(viewModel().state)
+
+            expireKick()
+            runCurrent()
+
+            assertEquals(CategorySort.VIEWERS_HIGH, state.value.sort)
+            assertEquals(listOf(CategorySort.FEATURED, CategorySort.VIEWERS_HIGH), state.value.sorts)
+            assertEquals(listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH), asked)
+        }
+
+    @Test
+    fun signingInWithNoPickReloadsAsRecommended() =
+        runTest {
+            val asked = mutableListOf<CategorySort>()
+            kick.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val state = watch(viewModel().state)
+
+            sessions().signIn(Platform.KICK, TOKEN)
+            runCurrent()
+
+            assertEquals(CategorySort.RECOMMENDED, state.value.sort)
+            assertEquals(listOf(CategorySort.VIEWERS_HIGH, CategorySort.RECOMMENDED), asked)
+        }
+
+    @Test
+    fun switchingTheSortNeverShowsTheOldPagesUnderTheNewSort() =
+        runTest {
+            twitch.liveInCategory = { _, _, sort ->
+                if (sort == CategorySort.RECENT) pageOf(t("new", 1)) else pageOf(t("old", 10))
+            }
+            val vm = viewModel(Platform.TWITCH)
+            val seen = mutableListOf<CategoryStreamsUiState>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.toList(seen) }
+            runCurrent()
+
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.RECENT))
+            runCurrent()
+
+            val underNewSort = seen.filter { it.sort == CategorySort.RECENT }
+            assertTrue(underNewSort.isNotEmpty())
+            assertTrue(underNewSort.none { s -> s.streams.any { it.channel.login == "old" } })
         }
 
     private companion object {

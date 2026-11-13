@@ -15,6 +15,7 @@ import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.common.sortedByViewers
 import io.github.kemurixd.lurk.platform.api.Capabilities
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,9 +23,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 
 /** The sorts on offer and the one in use. */
@@ -69,14 +69,16 @@ class CategoryStreamsViewModel(
         if (source == null) {
             emptyFlow()
         } else {
-            combine(picked, accounts.states.map { it[platform] != AccountState.SignedOut }) { pick, signedIn ->
+            combine(picked, accounts.states.map { it[platform].canUseSignInSorts() }) { pick, signedIn ->
                 source.capabilities.choiceOf(pick, signedIn)
             }.distinctUntilChanged()
         }
 
-    private val firstChoice: SortChoice? = source?.capabilities?.choiceOf(null, accounts.signedIn(platform))
+    private val firstChoice: SortChoice? =
+        source?.capabilities?.choiceOf(null, accounts.states.value[platform].canUseSignInSorts())
 
     /** The sort the feed loads with. It changes only together with a refresh of the feed. */
+    @Volatile
     private var activeSort: CategorySort? = firstChoice?.sort
 
     private val feed: PagedFeed<Stream>? =
@@ -91,27 +93,27 @@ class CategoryStreamsViewModel(
             }
         }
 
-    private val content: Flow<CategoryStreamsUiState> =
-        feed?.let { combine(it.state, choices, ::uiState) } ?: emptyFlow()
-
     /**
-     * Emits nothing. On the first collector it starts the first page. From then on, whenever the sort in use changes,
-     * it reloads from the first page and drops any page still on its way.
+     * Emits nothing until a sort is settled. On the first choice it starts the first page. From then on, whenever the
+     * sort in use changes, it reloads from the first page and drops any page still on its way. The refresh runs before
+     * the feed is read again, so the old pages are never paired with the new sort.
      */
-    private val loads: Flow<Nothing> =
-        flow {
-            choices.collect { choice ->
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val content: Flow<CategoryStreamsUiState> =
+        feed?.let { feed ->
+            choices.flatMapLatest { choice ->
                 if (choice.sort == activeSort) {
-                    feed?.start()
+                    feed.start()
                 } else {
                     activeSort = choice.sort
-                    feed?.refresh()
+                    feed.refresh()
                 }
+                feed.state.map { uiState(it, choice) }
             }
-        }
+        } ?: emptyFlow()
 
     val state: StateFlow<CategoryStreamsUiState> =
-        merge(content, loads).stateIn(
+        content.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS, replayExpirationMillis = 0),
             initialValue =
@@ -149,6 +151,9 @@ class CategoryStreamsViewModel(
             CategorySort.VIEWERS_LOW -> page.sortedBy { it.viewers }
             else -> page
         }
+
+    /** Only a live session unlocks the sign-in sorts. Expired keeps its token but can't call them. */
+    private fun AccountState?.canUseSignInSorts(): Boolean = this is AccountState.SignedIn
 
     private companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L
