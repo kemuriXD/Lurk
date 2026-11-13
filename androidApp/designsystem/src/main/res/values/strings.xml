@@ -59,10 +59,6 @@
 
     <string name="cd_open_channel">Open %1$s</string>
     <string name="cd_account_and_settings">Account and settings</string>
-    <string name="error_chip_message">Couldn’t load %1$s</string>
-    <string name="error_chip_more_message">Couldn’t load more from %1$s</string>
-    <string name="error_chip_retry">Retry</string>
-    <string name="error_chip_retry_cd">Retry loading %1$s</string>
 
     <string name="error_action_retry">Retry</string>
     <string name="error_action_sign_in">Sign in</string>
