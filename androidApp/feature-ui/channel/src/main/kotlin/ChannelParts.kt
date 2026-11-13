@@ -47,6 +47,7 @@ import io.github.kemurixd.lurk.designsystem.component.LiveDot
 import io.github.kemurixd.lurk.designsystem.component.LurkAvatar
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.StreamThumbnail
+import io.github.kemurixd.lurk.designsystem.component.cornerInset
 import io.github.kemurixd.lurk.designsystem.component.formatViewers
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.theme.PlayerColors
@@ -113,7 +114,7 @@ internal fun ChannelHeader(
                     .offset(BadgeStart, BadgeTop)
                     .background(MaterialTheme.colorScheme.surface, CircleShape)
                     .padding(4.dp),
-            ) { LiveDot() }
+            ) { LiveDot(describe = false) }
         }
         HeaderIdentity(name, ref, channel, now)
     }
@@ -275,7 +276,7 @@ internal fun LivePreview(
         }
         // The card is clipped to rounded corners, so the text keeps off the bottom corners.
         Column(
-            modifier = Modifier.padding(start = TextInset, end = TextInset, bottom = TextInset),
+            modifier = Modifier.cornerInset(TextInset),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(

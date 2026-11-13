@@ -57,7 +57,7 @@ fun CategoryTile(
         }
         // The tile is clipped to rounded corners, so the text keeps off the bottom corners.
         Column(
-            modifier = Modifier.padding(start = TextInset, end = TextInset, bottom = TextInset),
+            modifier = Modifier.cornerInset(TextInset),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
