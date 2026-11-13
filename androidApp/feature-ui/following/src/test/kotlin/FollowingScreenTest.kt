@@ -31,6 +31,9 @@ import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
+import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardTags
 import io.github.kemurixd.lurk.designsystem.component.SectionHeaderTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
@@ -68,18 +71,22 @@ class FollowingScreenTest {
             override fun now(): Instant = now
         }
 
+    private val errorSignIns = mutableListOf<Platform>()
+
     private fun show(state: FollowingUiState) {
         rule.setContent {
             CompositionLocalProvider(LocalClock provides fixedClock) {
                 LurkTheme(dynamicColor = false) {
-                    FollowingScreen(
-                        state = state,
-                        onIntent = { intents += it },
-                        onOpenPlayer = { players += it },
-                        onOpenChannel = { channels += it },
-                        onSignIn = { signIns += it },
-                        onOpenBrowse = { browseTaps++ },
-                    )
+                    ErrorHost(ErrorHandlers(signIn = { errorSignIns += it })) {
+                        FollowingScreen(
+                            state = state,
+                            onIntent = { intents += it },
+                            onOpenPlayer = { players += it },
+                            onOpenChannel = { channels += it },
+                            onSignIn = { signIns += it },
+                            onOpenBrowse = { browseTaps++ },
+                        )
+                    }
                 }
             }
         }
@@ -209,10 +216,63 @@ class FollowingScreenTest {
                     ),
             ),
         )
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithTag(ErrorTags.STATE).assertDoesNotExist()
         rule.onNodeWithText("Couldn’t load Kick").assertIsDisplayed()
         rule.onNodeWithTag(ExpandedStreamCardTags.CARD).assertIsDisplayed()
         rule.onNodeWithContentDescription("Retry loading Kick").performClick()
         assertEquals(listOf<FollowingIntent>(FollowingIntent.Retry(Platform.KICK)), intents)
+    }
+
+    @Test
+    fun everyPlatformFailingShowsOneErrorStateThatRetriesBoth() {
+        show(
+            state(
+                slices =
+                    mapOf(
+                        Platform.TWITCH to PlatformSlice.Failed(LurkError.Timeout),
+                        Platform.KICK to PlatformSlice.Failed(LurkError.Timeout),
+                    ),
+            ),
+        )
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithTag(ErrorTags.BANNER).assertDoesNotExist()
+        rule.onNodeWithText("Couldn’t load your follows").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(
+            listOf<FollowingIntent>(FollowingIntent.Retry(Platform.TWITCH), FollowingIntent.Retry(Platform.KICK)),
+            intents,
+        )
+    }
+
+    @Test
+    fun aFailedRefreshOverLoadedFollowsShowsABanner() {
+        val loaded = PlatformSlice.Loaded(Followed(listOf(stream("streamer1")), emptyList()), stale = true)
+        show(
+            state(live = listOf(stream("streamer1")), slices = mapOf(Platform.TWITCH to loaded)).copy(
+                refreshErrors = mapOf(Platform.TWITCH to LurkError.Offline),
+            ),
+        )
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithTag(ExpandedStreamCardTags.CARD).assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Twitch").performClick()
+        assertEquals(listOf<FollowingIntent>(FollowingIntent.Retry(Platform.TWITCH)), intents)
+    }
+
+    @Test
+    fun expiredSessionBannerSignsInAgainToThatPlatform() {
+        show(
+            state(
+                live = listOf(stream("streamer1")),
+                slices =
+                    mapOf(
+                        Platform.TWITCH to PlatformSlice.Failed(LurkError.AuthExpired),
+                        Platform.KICK to PlatformSlice.Loaded(Followed(listOf(stream("streamer1")), emptyList())),
+                    ),
+            ),
+        )
+        rule.onNodeWithText("Sign in again").performClick()
+        assertEquals(listOf(Platform.TWITCH), errorSignIns)
     }
 
     @Test
