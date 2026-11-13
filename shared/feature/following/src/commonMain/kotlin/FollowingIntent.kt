@@ -1,7 +1,6 @@
 package io.github.kemurixd.lurk.feature.following
 
 import io.github.kemurixd.lurk.core.model.Platform
-import io.github.kemurixd.lurk.core.storage.FollowingSort
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 
 /** What the Following screen can ask of [FollowingViewModel]. */
@@ -16,7 +15,10 @@ sealed interface FollowingIntent {
         val sort: FollowingSort,
     ) : FollowingIntent
 
-    /** Reloads every platform; sent on resume and on pull-to-refresh. A platform already loading is left alone. */
+    /**
+     * Reloads every platform; sent on resume and on pull-to-refresh. A platform already loading is left alone. With
+     * no collector the load still runs once, and the next subscriber sees its result.
+     */
     data object Refresh : FollowingIntent
 
     /** Reloads one platform, from its error chip. */

@@ -9,7 +9,7 @@ import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.core.storage.AppSettings
-import io.github.kemurixd.lurk.core.storage.FollowingSort
+import io.github.kemurixd.lurk.core.storage.FollowingSortSetting
 import io.github.kemurixd.lurk.core.storage.PlatformFilterSetting
 import io.github.kemurixd.lurk.core.storage.SettingsStore
 import io.github.kemurixd.lurk.feature.common.AccountsState
@@ -40,9 +40,13 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * The Following list: every platform's followed channels, loaded concurrently and merged.
  *
- * While [state] has a collector, every platform reloads every [refreshInterval], and again whenever a platform is
- * signed in or out. Five seconds after the last collector leaves, the loop stops. A platform that is still loading is
- * never asked twice, whether the request comes from the loop, [FollowingIntent.Refresh] or [FollowingIntent.Retry].
+ * While [state] has a collector, every signed-in platform reloads every [refreshInterval], and again whenever a
+ * platform is signed in. Five seconds after the last collector leaves, the loop stops. A platform that is still
+ * loading is never asked twice, whether the request comes from the loop, [FollowingIntent.Refresh] or
+ * [FollowingIntent.Retry].
+ *
+ * Sign-in comes straight from [AccountsState]: a signed-out platform shows `NotSignedIn` at once, its load is
+ * cancelled, and a result that lands after the sign-out is dropped.
  *
  * Call [onIntent] from the main thread.
  */
@@ -53,112 +57,123 @@ class FollowingViewModel(
     private val dispatchers: DispatcherProvider,
     private val refreshInterval: Duration = 60.seconds,
 ) : ViewModel() {
-    private val slices =
-        MutableStateFlow<Map<Platform, PlatformSlice<Followed>>>(
-            platforms.associate { platform ->
-                platform.id to if (accounts.signedIn(platform.id)) PlatformSlice.Loading else PlatformSlice.NotSignedIn
-            },
-        )
-    private val refreshErrors = MutableStateFlow<Map<Platform, LurkError>>(emptyMap())
-    private val loading = MutableStateFlow<Set<Platform>>(emptySet())
+    /** Every platform's load results in one value, so the UI never sees a slice and its error out of step. */
+    private val loads = MutableStateFlow(LoadState(platforms.associate { it.id to PlatformSlice.Loading }))
 
     /** The job loading each platform. Touched only on the main thread. */
     private val inFlight = mutableMapOf<Platform, Job>()
 
+    private val signedIn: Flow<Set<Platform>> = accounts.states.map { signedInNow() }.distinctUntilChanged()
+
     private val choices: Flow<Choices> =
         settings.settings
-            .map { Choices(it.followingFilter.toFilter(), it.followingSort) }
+            .map { Choices(it.followingFilter.toFilter(), it.followingSort.toSort()) }
             .distinctUntilChanged()
 
-    private val content: Flow<FollowingUiState> =
-        combine(choices, slices, refreshErrors, loading) { choices, slices, errors, loading ->
-            uiState(choices, slices, errors, loading.isNotEmpty())
-        }
+    private val content: Flow<FollowingUiState> = combine(choices, loads, signedIn, ::uiState)
 
     /** Emits nothing: it reloads on start, every [refreshInterval], and when the signed-in platforms change. */
     private val autoRefresh: Flow<Nothing> =
         flow {
-            accounts.states
-                .map { platforms.filter { accounts.signedIn(it.id) }.map { it.id }.toSet() }
-                .distinctUntilChanged()
-                .collectLatest {
-                    while (true) {
-                        refresh(platforms)
-                        delay(refreshInterval)
-                    }
+            signedIn.collectLatest { now ->
+                forgetSignedOut(now)
+                while (true) {
+                    refresh(platforms)
+                    delay(refreshInterval)
                 }
+            }
         }
 
+    /**
+     * The screen state. The first value uses the default filter and sort; the stored ones replace them as soon as the
+     * settings load.
+     */
     val state: StateFlow<FollowingUiState> =
         merge(content, autoRefresh).stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-            initialValue = uiState(Choices(), slices.value, emptyMap(), refreshing = false),
+            initialValue = uiState(Choices(), loads.value, signedInNow()),
         )
 
+    /** Handles a user action. [FollowingIntent.Refresh] with no collector still loads once, shown on next subscribe. */
     fun onIntent(intent: FollowingIntent) {
         when (intent) {
-            is FollowingIntent.SelectFilter -> {
-                save { it.copy(followingFilter = intent.filter.toSetting()) }
-            }
-
-            is FollowingIntent.SelectSort -> {
-                save { it.copy(followingSort = intent.sort) }
-            }
-
-            FollowingIntent.Refresh -> {
-                refresh(platforms)
-            }
-
-            is FollowingIntent.Retry -> {
-                refresh(platforms.filter { it.id == intent.platform })
-            }
+            is FollowingIntent.SelectFilter -> save { it.copy(followingFilter = intent.filter.toSetting()) }
+            is FollowingIntent.SelectSort -> save { it.copy(followingSort = intent.sort.toSetting()) }
+            FollowingIntent.Refresh -> refresh(platforms)
+            is FollowingIntent.Retry -> refresh(platforms.filter { it.id == intent.platform })
         }
     }
+
+    private fun signedInNow(): Set<Platform> = platforms.map { it.id }.filter(accounts::signedIn).toSet()
 
     private fun save(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { settings.update(transform) }
     }
 
-    /** Starts a load for each of [targets] that isn't already loading. */
+    /** Cancels the loads of platforms that left [now] and forgets their results, so a new account starts clean. */
+    private fun forgetSignedOut(now: Set<Platform>) {
+        for (platform in platforms.map { it.id }.filterNot(now::contains)) {
+            inFlight.remove(platform)?.cancel()
+            loads.update { it.forget(platform) }
+        }
+    }
+
+    /** Starts a load for each signed-in platform in [targets] that isn't already loading. */
     private fun refresh(targets: List<StreamingPlatform>) {
         for (platform in targets) {
-            if (inFlight[platform.id]?.isActive == true) continue
-            inFlight[platform.id] =
-                viewModelScope.launch {
-                    loading.update { it + platform.id }
-                    try {
-                        load(platform)
-                    } finally {
-                        loading.update { it - platform.id }
-                    }
-                }
+            if (!accounts.signedIn(platform.id) || inFlight[platform.id]?.isActive == true) continue
+            inFlight[platform.id] = viewModelScope.launch { load(platform) }
         }
     }
 
     private suspend fun load(platform: StreamingPlatform) {
         val id = platform.id
-        if (!accounts.signedIn(id)) {
-            settle(id, PlatformSlice.NotSignedIn, error = null)
-            return
-        }
-        slices.update { it + (id to it.getValue(id).reloading()) }
-        val result = withContext(dispatchers.io) { loadBoth(listOf(platform)) { it.followed() } }.getValue(id)
-        val previous = slices.value.getValue(id)
-        if (result is PlatformSlice.Failed && previous is PlatformSlice.Loaded) {
-            settle(id, previous.copy(stale = true), error = result.error)
-        } else {
-            settle(id, result, error = null)
+        loads.update { it.started(id) }
+        try {
+            val result = withContext(dispatchers.io) { loadBoth(listOf(platform)) { it.followed() } }.getValue(id)
+            // With nobody collecting, a sign-out doesn't cancel this job, so check again before showing the result.
+            if (accounts.signedIn(id)) loads.update { it.settled(id, result) }
+        } finally {
+            loads.update { it.copy(loading = it.loading - id) }
         }
     }
 
-    private fun settle(
-        platform: Platform,
-        slice: PlatformSlice<Followed>,
-        error: LurkError?,
+    private data class LoadState(
+        val slices: Map<Platform, PlatformSlice<Followed>>,
+        val errors: Map<Platform, LurkError> = emptyMap(),
+        val loading: Set<Platform> = emptySet(),
     ) {
-        slices.update { it + (platform to slice) }
-        refreshErrors.update { if (error == null) it - platform else it + (platform to error) }
+        /** Loaded items stay on screen, marked stale, while they reload; anything else shows as loading. */
+        fun started(platform: Platform): LoadState {
+            val current = slices.getValue(platform)
+            val reloading = if (current is PlatformSlice.Loaded) current.copy(stale = true) else PlatformSlice.Loading
+            return copy(slices = slices + (platform to reloading), loading = loading + platform)
+        }
+
+        /** A failure over loaded items keeps them, stale, and records the error; anything else replaces the slice. */
+        fun settled(
+            platform: Platform,
+            result: PlatformSlice<Followed>,
+        ): LoadState {
+            val previous = slices.getValue(platform)
+            return if (result is PlatformSlice.Failed && previous is PlatformSlice.Loaded) {
+                copy(
+                    slices = slices + (platform to previous.copy(stale = true)),
+                    errors = errors + (platform to result.error),
+                    loading = loading - platform,
+                )
+            } else {
+                copy(slices = slices + (platform to result), errors = errors - platform, loading = loading - platform)
+            }
+        }
+
+        fun forget(platform: Platform): LoadState =
+            copy(
+                slices = slices + (platform to PlatformSlice.Loading),
+                errors = errors - platform,
+                loading = loading - platform,
+            )
     }
 
     private data class Choices(
@@ -169,17 +184,16 @@ class FollowingViewModel(
     private companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L
 
-        /** Loaded items stay on screen, marked stale, while they reload; anything else shows as loading. */
-        fun PlatformSlice<Followed>.reloading(): PlatformSlice<Followed> =
-            if (this is PlatformSlice.Loaded) copy(stale = true) else PlatformSlice.Loading
-
+        /** Signed-out platforms show `NotSignedIn` whatever their last load said, and never count as refreshing. */
         fun uiState(
             choices: Choices,
-            slices: Map<Platform, PlatformSlice<Followed>>,
-            errors: Map<Platform, LurkError>,
-            refreshing: Boolean,
+            loads: LoadState,
+            signedIn: Set<Platform>,
         ): FollowingUiState {
-            val shown = slices.filterKeys(choices.filter::includes)
+            val shown =
+                loads.slices
+                    .mapValues { (platform, slice) -> if (platform in signedIn) slice else PlatformSlice.NotSignedIn }
+                    .filterKeys(choices.filter::includes)
             val followed = shown.values.mapNotNull { (it as? PlatformSlice.Loaded)?.value }
             return FollowingUiState(
                 filter = choices.filter,
@@ -187,8 +201,8 @@ class FollowingViewModel(
                 live = followed.flatMap { it.live }.sortedFor(choices.sort),
                 offline = followed.flatMap { it.offline }.sortedWith(byName),
                 slices = shown,
-                refreshing = refreshing,
-                refreshErrors = errors.filterKeys(choices.filter::includes),
+                refreshing = loads.loading.any { it in signedIn },
+                refreshErrors = loads.errors.filterKeys { it in signedIn && choices.filter.includes(it) },
             )
         }
 
@@ -223,6 +237,20 @@ class FollowingViewModel(
                 PlatformFilter.ALL -> PlatformFilterSetting.ALL
                 PlatformFilter.TWITCH -> PlatformFilterSetting.TWITCH
                 PlatformFilter.KICK -> PlatformFilterSetting.KICK
+            }
+
+        private fun FollowingSortSetting.toSort(): FollowingSort =
+            when (this) {
+                FollowingSortSetting.VIEWERS -> FollowingSort.VIEWERS
+                FollowingSortSetting.RECENT -> FollowingSort.RECENT
+                FollowingSortSetting.NAME -> FollowingSort.NAME
+            }
+
+        private fun FollowingSort.toSetting(): FollowingSortSetting =
+            when (this) {
+                FollowingSort.VIEWERS -> FollowingSortSetting.VIEWERS
+                FollowingSort.RECENT -> FollowingSortSetting.RECENT
+                FollowingSort.NAME -> FollowingSortSetting.NAME
             }
     }
 }

@@ -11,7 +11,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.Platform
-import io.github.kemurixd.lurk.core.storage.FollowingSort
+import io.github.kemurixd.lurk.core.storage.FollowingSortSetting
 import io.github.kemurixd.lurk.core.storage.PlatformFilterSetting
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
@@ -52,6 +52,7 @@ class FollowingViewModelTest {
     private val settings = inMemorySettingsStore()
     private val store = ViewModelStore()
     private var created = 0
+    private lateinit var sessions: SessionRepository
 
     @BeforeTest
     fun setUp() {
@@ -66,7 +67,7 @@ class FollowingViewModelTest {
 
     private suspend fun TestScope.accounts(vararg signedIn: Platform = Platform.entries.toTypedArray()): AccountsState {
         val fetchers = Platform.entries.map { FakeProfileFetcher(it) }
-        val sessions = SessionRepository(InMemorySecureStore(), fetchers, backgroundScope)
+        sessions = SessionRepository(InMemorySecureStore(), fetchers, backgroundScope)
         signedIn.forEach { sessions.signIn(it, TOKEN) }
         return AccountsState(sessions)
     }
@@ -206,7 +207,7 @@ class FollowingViewModelTest {
 
             val stored = settings.settings.first()
             assertEquals(PlatformFilterSetting.KICK, stored.followingFilter)
-            assertEquals(FollowingSort.NAME, stored.followingSort)
+            assertEquals(FollowingSortSetting.NAME, stored.followingSort)
 
             viewModel(accounts).state.test {
                 val state = awaitUntil { it.allLoaded }
@@ -364,6 +365,61 @@ class FollowingViewModelTest {
                 vm.onIntent(FollowingIntent.Refresh)
                 val recovered = awaitUntil { it.allLoaded }
                 assertTrue(recovered.refreshErrors.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun signOutDuringLoadShowsNotSignedInAtOnce() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val kickStream = testStream(Platform.KICK, login = "old-account-follow", channelId = "")
+            kick.followed = {
+                gate.await()
+                followed(live = listOf(kickStream))
+            }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.refreshing && it.slices[Platform.TWITCH] is PlatformSlice.Loaded<*> }
+
+                sessions.signOut(Platform.KICK)
+                val signedOut = awaitUntil { it.slices[Platform.KICK] == PlatformSlice.NotSignedIn }
+                assertFalse(signedOut.refreshing)
+                assertTrue(Platform.KICK !in signedOut.refreshErrors)
+
+                gate.complete(Unit)
+                runCurrent()
+
+                val latest = vm.state.value
+                assertEquals(PlatformSlice.NotSignedIn, latest.slices[Platform.KICK])
+                assertTrue(kickStream !in latest.live)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun resubscribeAfterStopReloadsOnceAndResumes() =
+        runTest {
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                cancelAndIgnoreRemainingEvents()
+            }
+            advanceTimeBy(6.seconds)
+            runCurrent()
+            assertEquals(1, twitch.followedCalls)
+
+            vm.state.test {
+                runCurrent()
+                assertEquals(2, twitch.followedCalls)
+                assertEquals(2, kick.followedCalls)
+
+                advanceTimeBy(60.seconds)
+                runCurrent()
+                assertEquals(3, twitch.followedCalls)
+                assertEquals(3, kick.followedCalls)
                 cancelAndIgnoreRemainingEvents()
             }
         }

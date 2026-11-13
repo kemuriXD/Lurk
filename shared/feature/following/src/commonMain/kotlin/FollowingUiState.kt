@@ -5,7 +5,6 @@ import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
-import io.github.kemurixd.lurk.core.storage.FollowingSort
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 

@@ -11,7 +11,7 @@ data class AppSettings(
     val crashReportsOptIn: Boolean = false,
     val onboardingComplete: Boolean = false,
     val followingFilter: PlatformFilterSetting = PlatformFilterSetting.ALL,
-    val followingSort: FollowingSort = FollowingSort.VIEWERS,
+    val followingSort: FollowingSortSetting = FollowingSortSetting.VIEWERS,
 )
 
 /** The stored platform chip. Mirrors the feature layer's `PlatformFilter`, which core can't see. */
@@ -22,9 +22,9 @@ enum class PlatformFilterSetting {
     KICK,
 }
 
-/** How the Following list orders live channels: most viewers, most recently started, or A to Z. */
+/** The stored Following sort. Mirrors the feature layer's `FollowingSort`, which core can't see. */
 @Serializable
-enum class FollowingSort {
+enum class FollowingSortSetting {
     VIEWERS,
     RECENT,
     NAME,

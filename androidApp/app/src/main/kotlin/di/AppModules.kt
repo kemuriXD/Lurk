@@ -12,6 +12,7 @@ import io.github.kemurixd.lurk.core.storage.storageModule
 import io.github.kemurixd.lurk.emotes.emotesModule
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.feature.following.followingModule
+import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
 import io.github.kemurixd.lurk.playback.playbackModule
@@ -38,6 +39,12 @@ val appScopeModule: Module =
         }
     }
 
+/** Every bound platform as one list, so each view model resolves the same `List<StreamingPlatform>` with `get()`. */
+val platformsModule: Module =
+    module {
+        single<List<StreamingPlatform>> { getAll() }
+    }
+
 /** Every Koin module the app starts with. Feature and platform modules join this list as they are built. */
 fun appModules(context: Context): List<Module> =
     listOf(
@@ -53,6 +60,7 @@ fun appModules(context: Context): List<Module> =
         authModule,
         twitchModule,
         kickModule,
+        platformsModule,
         featureCommonModule,
         followingModule,
     )

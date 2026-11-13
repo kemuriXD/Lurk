@@ -5,13 +5,12 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /**
- * Binds [FollowingViewModel]. Needs every `StreamingPlatform`, `AccountsState`, `SettingsStore` and the
+ * Binds [FollowingViewModel]. Needs the app's `List<StreamingPlatform>`, `AccountsState`, `SettingsStore` and the
  * `DispatcherProvider`.
  *
- * Not `viewModelOf`: the platforms are bound one by one and collected with `getAll()`, which a constructor reference
- * can't express, and the refresh interval keeps its default.
+ * A lambda, not `viewModelOf`, so the refresh interval keeps its default instead of being resolved from Koin.
  */
 val followingModule: Module =
     module {
-        viewModel { FollowingViewModel(getAll(), get(), get(), get()) }
+        viewModel { FollowingViewModel(get(), get(), get(), get()) }
     }

@@ -107,6 +107,7 @@ class AppModulesTest {
                 authModule,
                 twitchModule,
                 kickModule,
+                platformsModule,
                 featureCommonModule,
                 module {
                     single<SecureStore> { MemorySecureStore() }
@@ -152,9 +153,10 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(14, modules.size)
+        assertEquals(15, modules.size)
         assertTrue(featureCommonModule in modules)
         assertTrue(followingModule in modules)
+        assertTrue(platformsModule in modules)
         assertTrue(playbackModule in modules)
         assertTrue(authModule in modules)
         assertTrue(twitchModule in modules)
@@ -180,8 +182,13 @@ class AppModulesTest {
         featureCommonModule.verify(extraTypes = listOf(SessionRepository::class))
     }
 
-    // followingModule, like authModule, takes the List of platforms from getAll(), which verify() cannot see
-    // through. Resolving the view model over the real platform graph covers it.
+    // verify() can't check a generic List binding, so followingModule is covered by resolving it over the real graph.
+
+    @Test
+    fun platformListHoldsBothPlatforms() {
+        val koin = platformGraph().koin
+        assertEquals(setOf(Platform.TWITCH, Platform.KICK), koin.get<List<StreamingPlatform>>().map { it.id }.toSet())
+    }
 
     @Test
     fun followingViewModelResolvesOverTheRealPlatforms() {

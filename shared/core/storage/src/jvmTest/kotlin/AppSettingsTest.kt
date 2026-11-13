@@ -45,7 +45,7 @@ class AppSettingsTest {
                     crashReportsOptIn = true,
                     onboardingComplete = true,
                     followingFilter = PlatformFilterSetting.ALL,
-                    followingSort = FollowingSort.VIEWERS,
+                    followingSort = FollowingSortSetting.VIEWERS,
                 ),
                 settings,
             )
@@ -62,7 +62,7 @@ class AppSettingsTest {
                 AppSettings(
                     onboardingComplete = true,
                     followingFilter = PlatformFilterSetting.KICK,
-                    followingSort = FollowingSort.VIEWERS,
+                    followingSort = FollowingSortSetting.VIEWERS,
                 ),
                 settings,
             )
