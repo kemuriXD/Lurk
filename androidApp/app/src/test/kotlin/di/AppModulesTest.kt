@@ -34,6 +34,7 @@ import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.channel.ChannelViewModel
 import io.github.kemurixd.lurk.feature.channel.channelModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.feature.common.LastLiveLoader
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.feature.following.FollowingViewModel
 import io.github.kemurixd.lurk.feature.following.followingModule
@@ -197,8 +198,11 @@ class AppModulesTest {
     }
 
     @Test
-    fun featureCommonModuleIsComplete() {
-        featureCommonModule.verify(extraTypes = listOf(SessionRepository::class))
+    fun featureCommonModuleResolvesOverTheRealPlatforms() {
+        // verify() can't check LastLiveLoader's generic List binding, so the module is resolved over the real graph.
+        val koin = platformGraph().koin
+        koin.get<AccountsState>()
+        koin.get<LastLiveLoader>()
     }
 
     // verify() can't check a generic List binding, so followingModule is covered by resolving it over the real graph.

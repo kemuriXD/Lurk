@@ -28,6 +28,7 @@ import io.github.kemurixd.lurk.feature.accounts.accountsModule
 import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.channel.channelModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.feature.common.LastLiveLoader
 import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.feature.search.searchModule
 import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
@@ -113,6 +114,7 @@ class LurkAppTest {
                     single<DispatcherProvider> { TestDispatchers(Dispatchers.Unconfined) }
                     single { sessions }
                     single { AccountsState(get()) }
+                    single { LastLiveLoader(get(), get()) }
                     single<List<StreamingPlatform>> { listOf(twitch, FakeStreamingPlatform(Platform.KICK)) }
                 },
             )
