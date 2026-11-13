@@ -60,12 +60,11 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.ChannelRow
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
-import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
-import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
+import io.github.kemurixd.lurk.designsystem.component.platformErrors
 import io.github.kemurixd.lurk.designsystem.time.rememberNowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
@@ -111,7 +110,8 @@ fun SearchEntry(
 /**
  * The Search screen (Figma 04 Search). The state decides which Figma frame shows:
  * `EMPTY` the invitation, `TYPING` the progress bar with skeleton cards below any rows already there, `RESULTS` the
- * Channels and Categories sections with one error banner per failed platform (one full-screen error when all failed), and `NO_RESULTS` the empty state.
+ * Channels and Categories sections with one error banner per failed platform (or one full-screen error when every
+ * platform failed), and `NO_RESULTS` the empty state.
  *
  * The field keeps its own text so fast typing never races the state flow; [SearchUiState.query] only seeds it.
  * Results sit under the field with the keyboard's inset applied, so the keyboard never covers them.
@@ -295,38 +295,7 @@ private fun LazyGridScope.results(
     // so without this anchor the new channels would push the list down to the categories. The anchor never moves, so
     // a list the user has not scrolled stays at the top while results land.
     fullWidth("top_anchor") { Spacer(Modifier.height(1.dp)) }
-    val failures =
-        state.slices.mapNotNull { (platform, slice) ->
-            (slice as? PlatformSlice.Failed)?.let {
-                platform to
-                    it.error
-            }
-        }
-    val nothingFound = state.channels.isEmpty() && state.categories.isEmpty()
-    if (failures.isNotEmpty() && failures.size == state.slices.size && nothingFound) {
-        // Every platform failed: one full-screen state, whose Retry asks each of them again.
-        val (platform, error) = failures.first()
-        fullWidth("failed") {
-            ErrorState(
-                title = stringResource(R.string.search_error_title),
-                error = error,
-                onRetry = { failures.forEach { (failed, _) -> onIntent(SearchIntent.Retry(failed)) } },
-                platform = platform,
-            )
-        }
-    } else {
-        failures.forEach { (platform, error) ->
-            fullWidth("error:${platform.name}") {
-                ErrorBanner(
-                    title = stringResource(DesignR.string.error_load_platform, stringResource(platform.labelRes)),
-                    error = error,
-                    onRetry = { onIntent(SearchIntent.Retry(platform)) },
-                    platform = platform,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
-    }
+    searchErrors(state, onIntent)
     if (state.channels.isNotEmpty()) {
         fullWidth("channels_header") { SectionHeader(stringResource(R.string.section_channels)) }
         items(
@@ -375,6 +344,27 @@ private fun LazyGridScope.results(
             StreamCardPlaceholder(Modifier.padding(CardPadding))
         }
     }
+}
+
+/** One banner per failed platform, or one full-screen error when every platform failed and nothing was found. */
+private fun LazyGridScope.searchErrors(
+    state: SearchUiState,
+    onIntent: (SearchIntent) -> Unit,
+) {
+    val failures =
+        state.slices.mapNotNull { (platform, slice) ->
+            (slice as? PlatformSlice.Failed)?.let {
+                platform to
+                    it.error
+            }
+        }
+    val nothingFound = state.channels.isEmpty() && state.categories.isEmpty()
+    platformErrors(
+        failures = failures,
+        nothingElse = failures.size == state.slices.size && nothingFound,
+        allFailedTitle = R.string.search_error_title,
+        onRetry = { onIntent(SearchIntent.Retry(it)) },
+    )
 }
 
 @Composable
