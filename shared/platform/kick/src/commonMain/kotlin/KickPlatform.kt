@@ -25,6 +25,7 @@ import io.github.kemurixd.lurk.platform.kick.account.setFollow
 import io.github.kemurixd.lurk.platform.kick.api.KickApi
 import io.github.kemurixd.lurk.platform.kick.assets.KickBadgeSource
 import io.github.kemurixd.lurk.platform.kick.assets.KickEmoteSource
+import io.github.kemurixd.lurk.platform.kick.channel.LiveDetailsMemo
 import io.github.kemurixd.lurk.platform.kick.chat.KickHistorySource
 import io.github.kemurixd.lurk.platform.kick.chat.KickSender
 import io.github.kemurixd.lurk.platform.kick.discovery.categories
@@ -49,6 +50,8 @@ class KickPlatform(
     private val clock: Clock = Clock.System,
 ) : StreamingPlatform {
     override val id: Platform = Platform.KICK
+    private val liveDetails = LiveDetailsMemo(clock)
+
     override val capabilities =
         Capabilities(
             follows = true,
@@ -79,7 +82,7 @@ class KickPlatform(
 
     override suspend fun channel(ref: ChannelRef): Outcome<Channel> = api.channel(sessions, ref)
 
-    override suspend fun followed(): Outcome<Followed> = api.followed(sessions)
+    override suspend fun followed(): Outcome<Followed> = api.followed(sessions, liveDetails)
 
     /** One `channels/{slug}/videos` request: the followed and search replies don't carry the time. */
     override suspend fun lastLive(ref: ChannelRef): Outcome<Instant?> = api.lastLive(sessions, ref)

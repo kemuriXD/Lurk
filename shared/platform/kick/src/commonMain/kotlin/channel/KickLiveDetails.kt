@@ -7,9 +7,14 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.platform.kick.api.KickApi
 import io.github.kemurixd.lurk.platform.kick.api.KickBase
 import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 @Serializable
@@ -77,3 +82,30 @@ internal fun Stream.withDetails(details: LiveDetails?): Stream =
             startedAt = startedAt ?: details.startedAt,
         )
     }
+
+/**
+ * Remembers each live channel's [LiveDetails] for [ttl], so the Following auto-refresh doesn't ask `/livestream` for
+ * every live follow every minute. 90 s matches the `max-age` `images.kick.com` sends for the preview itself. Only
+ * answers are remembered; a failure or a finished stream is asked again next time.
+ */
+internal class LiveDetailsMemo(
+    private val clock: Clock,
+    private val ttl: Duration = 90.seconds,
+) {
+    private val entries = MutableStateFlow(emptyMap<String, Remembered>())
+
+    fun get(slug: String): LiveDetails? = entries.value[slug]?.takeIf { clock.now() - it.at < ttl }?.details
+
+    fun put(
+        slug: String,
+        details: LiveDetails,
+    ) {
+        val now = clock.now()
+        entries.update { current -> current.filterValues { now - it.at < ttl } + (slug to Remembered(details, now)) }
+    }
+
+    private class Remembered(
+        val details: LiveDetails,
+        val at: Instant,
+    )
+}

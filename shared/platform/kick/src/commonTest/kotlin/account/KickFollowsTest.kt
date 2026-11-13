@@ -12,6 +12,7 @@ import io.github.kemurixd.lurk.platform.kick.RIG_TOKEN
 import io.github.kemurixd.lurk.platform.kick.api.Rig
 import io.github.kemurixd.lurk.platform.kick.api.json
 import io.github.kemurixd.lurk.platform.kick.api.mockEngine
+import io.github.kemurixd.lurk.platform.kick.channel.LiveDetailsMemo
 import io.github.kemurixd.lurk.platform.kick.fixture
 import io.github.kemurixd.lurk.platform.kick.queryOf
 import io.github.kemurixd.lurk.platform.kick.rigSessions
@@ -29,6 +30,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 import kotlin.time.Instant
 
 class KickFollowsTest {
@@ -149,9 +151,9 @@ class KickFollowsTest {
         }
 
     /** Serves the two follows pages, and [livestream] for each live channel's livestream lookup. */
-    private fun MockRequestHandleScope.follows(
+    private suspend fun MockRequestHandleScope.follows(
         request: HttpRequestData,
-        livestream: MockRequestHandleScope.(slug: String) -> HttpResponseData,
+        livestream: suspend MockRequestHandleScope.(slug: String) -> HttpResponseData,
     ): HttpResponseData {
         val path = request.url.encodedPath
         return when {
@@ -256,6 +258,58 @@ class KickFollowsTest {
 
             assertEquals(10, followed.live.count { it.thumbnailUrl != null })
             assertEquals(4, peak)
+        }
+
+    @Test
+    fun aLookupThatNeverAnswersTimesOutAndLeavesOnlyThatCardBare() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        follows(it) { slug ->
+                            if (slug == "streamer2") delay(60_000)
+                            json(fixture("api/livestream-live.json"))
+                        }
+                    },
+                ).api
+            val started = testScheduler.currentTime
+            val followed = api.followed(rigSessions(signedIn = true)).value()
+
+            assertTrue(testScheduler.currentTime - started <= 5_000, "took ${testScheduler.currentTime - started} ms")
+            val byLogin = followed.live.associateBy { it.channel.login }
+            assertNull(byLogin.getValue("streamer2").thumbnailUrl)
+            assertEquals("https://cdn.example/t/9.webp", byLogin.getValue("streamer3").thumbnailUrl)
+        }
+
+    @Test
+    fun theMemoStopsARefetchWithinItsWindow() =
+        runTest {
+            var lookups = 0
+            val api =
+                Rig(
+                    mockEngine {
+                        follows(it) {
+                            lookups++
+                            json(fixture("api/livestream-live.json"))
+                        }
+                    },
+                ).api
+            val clock =
+                object : Clock {
+                    override fun now(): Instant = Instant.fromEpochMilliseconds(testScheduler.currentTime)
+                }
+            val memo = LiveDetailsMemo(clock)
+            val sessions = rigSessions(signedIn = true)
+
+            api.followed(sessions, memo).value()
+            delay(60_000)
+            val again = api.followed(sessions, memo).value()
+            assertEquals(2, lookups)
+            assertTrue(again.live.all { it.thumbnailUrl == "https://cdn.example/t/9.webp" })
+
+            delay(31_000)
+            api.followed(sessions, memo).value()
+            assertEquals(4, lookups)
         }
 
     @Test

@@ -13,6 +13,7 @@ import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.platform.api.authed
+import io.github.kemurixd.lurk.platform.kick.account.LIVE_DETAILS_TIMEOUT
 import io.github.kemurixd.lurk.platform.kick.api.KickApi
 import io.github.kemurixd.lurk.platform.kick.api.KickBase
 import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
@@ -24,6 +25,7 @@ import io.github.kemurixd.lurk.platform.kick.channel.toCategory
 import io.github.kemurixd.lurk.platform.kick.channel.toChannel
 import io.github.kemurixd.lurk.platform.kick.channel.withDetails
 import io.github.kemurixd.lurk.platform.kick.channel.withLastStream
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlin.time.Instant
@@ -164,7 +166,8 @@ internal suspend fun KickApi.channel(
             }
 
             live != null -> {
-                Outcome.Success(channel.copy(live = live.withDetails(liveDetails(token, ref.login))))
+                val details = withTimeoutOrNull(LIVE_DETAILS_TIMEOUT) { liveDetails(token, ref.login) }
+                Outcome.Success(channel.copy(live = live.withDetails(details)))
             }
 
             else -> {

@@ -13,6 +13,8 @@ import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.kick.api.KickApi
 import io.github.kemurixd.lurk.platform.kick.api.KickBase
 import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
+import io.github.kemurixd.lurk.platform.kick.channel.LiveDetails
+import io.github.kemurixd.lurk.platform.kick.channel.LiveDetailsMemo
 import io.github.kemurixd.lurk.platform.kick.channel.liveDetails
 import io.github.kemurixd.lurk.platform.kick.channel.withDetails
 import io.github.kemurixd.lurk.platform.kick.discovery.asObject
@@ -26,14 +28,19 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlin.time.Duration.Companion.seconds
 
 internal const val FOLLOWED_MAX_PAGES = 20
 
 /** How many live follows have their `livestream` details read at once. */
 internal const val LIVE_DETAILS_PARALLEL = 4
+
+/** How long one `livestream` lookup may take before its card is left bare, so one slow channel can't hold the list. */
+internal val LIVE_DETAILS_TIMEOUT = 5.seconds
 
 /**
  * One followed channel as the follows list gives it. It names no IDs, no thumbnail, no category ID and no start time;
@@ -61,10 +68,14 @@ private class FollowedPage(
  *
  * Kick's list has no channel IDs, so `Stream.channelId`, `Channel.id` and `chatId` are empty here; `channel` has the
  * real values. It has no preview, category ID or start time either, so each live stream costs one
- * `channels/{slug}/livestream` request, at most [LIVE_DETAILS_PARALLEL] at a time. A stream whose request fails keeps
- * no preview and no category, and the list still loads.
+ * `channels/{slug}/livestream` request, at most [LIVE_DETAILS_PARALLEL] at a time and each cut off after
+ * [LIVE_DETAILS_TIMEOUT]. A stream whose request fails or times out keeps no preview and no category, and the list
+ * still loads. With a [memo], an answer is reused for its window instead of asked again.
  */
-internal suspend fun KickApi.followed(sessions: SessionRepository): Outcome<Followed> =
+internal suspend fun KickApi.followed(
+    sessions: SessionRepository,
+    memo: LiveDetailsMemo? = null,
+): Outcome<Followed> =
     sessions.authed(Platform.KICK, anonymousFallback = false) { token ->
         if (token == null) return@authed Outcome.Failure(LurkError.NotSignedIn)
         val items = mutableListOf<FollowedItemJson>()
@@ -86,21 +97,33 @@ internal suspend fun KickApi.followed(sessions: SessionRepository): Outcome<Foll
             pages++
         } while (cursor != null && pages < FOLLOWED_MAX_PAGES)
         val followed = split(items)
-        Outcome.Success(followed.copy(live = withLiveDetails(followed.live, token)))
+        Outcome.Success(followed.copy(live = withLiveDetails(followed.live, token, memo)))
     }
 
 private suspend fun KickApi.withLiveDetails(
     live: List<Stream>,
     token: String,
+    memo: LiveDetailsMemo?,
 ): List<Stream> {
     val permits = Semaphore(LIVE_DETAILS_PARALLEL)
     return coroutineScope {
         live
             .map { stream ->
-                async { permits.withPermit { stream.withDetails(liveDetails(token, stream.channel.login)) } }
+                async { stream.withDetails(detailsOf(stream.channel.login, token, memo, permits)) }
             }.awaitAll()
     }
 }
+
+private suspend fun KickApi.detailsOf(
+    slug: String,
+    token: String,
+    memo: LiveDetailsMemo?,
+    permits: Semaphore,
+): LiveDetails? =
+    memo?.get(slug)
+        ?: permits
+            .withPermit { withTimeoutOrNull(LIVE_DETAILS_TIMEOUT) { liveDetails(token, slug) } }
+            ?.also { memo?.put(slug, it) }
 
 private fun decodeFollowed(root: JsonElement): FollowedPage {
     val reply = root.asObject()
