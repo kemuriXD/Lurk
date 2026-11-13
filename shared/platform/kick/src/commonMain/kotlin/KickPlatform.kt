@@ -98,7 +98,7 @@ class KickPlatform(
     }
 
     private suspend fun resolve(ref: ChannelRef): Channel =
-        when (val result = api.channel(sessions, ref)) {
+        when (val result = api.channel(sessions, ref, lastStream = false)) {
             is Outcome.Success -> result.value
             is Outcome.Failure -> throw LurkException(result.error)
         }

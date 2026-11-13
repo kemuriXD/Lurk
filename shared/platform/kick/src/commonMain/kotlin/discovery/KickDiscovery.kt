@@ -89,12 +89,14 @@ private fun decodeCategories(root: JsonElement): Page<Category> {
 /**
  * A channel's profile, with its stream when it is live. A slug Kick does not know is `NotFound`.
  *
- * The profile doesn't say when an offline channel was last live, so an offline channel costs a second request for
- * its past broadcasts. If that one fails, the channel still loads, without the time.
+ * The profile doesn't say when an offline channel was last live, so with [lastStream] an offline channel costs a
+ * second request for its past broadcasts. If that one fails, the channel still loads, without the time. Callers that
+ * only need the IDs, such as chat, pass `lastStream = false`.
  */
 internal suspend fun KickApi.channel(
     sessions: SessionRepository,
     ref: ChannelRef,
+    lastStream: Boolean = true,
 ): Outcome<Channel> =
     sessions.authed(Platform.KICK, anonymousFallback = true) { token ->
         val path = "v2/channels/${ref.login.asPathSegment()}"
@@ -103,7 +105,7 @@ internal suspend fun KickApi.channel(
                 decodeKickChannel(it).toChannel() ?: throw LurkException(LurkError.SchemaChanged)
             }
         val channel = (result as? Outcome.Success)?.value
-        if (channel == null || channel.live != null) {
+        if (!lastStream || channel == null || channel.live != null) {
             result
         } else {
             val past = (get(KickBase.API, "$path/videos", token).decode(::latestPastStream) as? Outcome.Success)?.value

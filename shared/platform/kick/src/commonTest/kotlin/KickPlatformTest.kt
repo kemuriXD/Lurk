@@ -45,12 +45,19 @@ class KickPlatformTest {
         seen: MutableList<HttpRequestData> = mutableListOf(),
         signedIn: Boolean = false,
         status: HttpStatusCode = HttpStatusCode.OK,
+        channelFixture: String = "api/channel-live.json",
     ): KickPlatform {
         val rig =
             Rig(
                 mockEngine {
                     seen += it
-                    json(if (status == HttpStatusCode.OK) fixture("api/channel-live.json") else "{}", status)
+                    val body =
+                        when {
+                            status != HttpStatusCode.OK -> "{}"
+                            it.url.encodedPath.endsWith("/videos") -> fixture("api/channel-videos.json")
+                            else -> fixture(channelFixture)
+                        }
+                    json(body, status)
                 },
             )
         val sessions = rigSessions(signedIn)
@@ -114,6 +121,23 @@ class KickPlatformTest {
             assertNotNull(endpoints.sender)
             endpoints.history!!.fetch()
             assertEquals("/api/v1/chat/1000001/history", seen.last().url.encodedPath)
+        }
+
+    @Test
+    fun resolvingAnOfflineChannelForChatSkipsPastStreams() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            platform(seen, channelFixture = "api/channel-offline.json").chat(channel("", ""))
+            assertEquals(0, seen.count { it.url.encodedPath.endsWith("/videos") })
+        }
+
+    @Test
+    fun channelPageForAnOfflineChannelLooksUpPastStreams() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val result = platform(seen, channelFixture = "api/channel-offline.json").channel(channel("", "").ref)
+            assertNotNull((result as Outcome.Success).value.lastStream?.startedAt)
+            assertEquals(1, seen.count { it.url.encodedPath == "/api/v2/channels/streamer1/videos" })
         }
 
     @Test
