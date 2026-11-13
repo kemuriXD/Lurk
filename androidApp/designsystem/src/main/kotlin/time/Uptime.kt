@@ -11,6 +11,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -31,7 +34,8 @@ fun formatUptime(elapsed: Duration): String {
 private fun Long.twoDigits(): String = toString().padStart(2, '0')
 
 /**
- * The time since [startedAt], ticking each second on the second. The clock is read here and nowhere else, so a tick
+ * The time since [startedAt], ticking each second on the second, but only while the app is at least started: in the background it stands still, and
+ * on return it shows the right time at once before ticking again. The clock is read here and nowhere else, so a tick
  * recomposes this text alone, never the card around it. The ticking lives as long as this text is composed: a card
  * scrolled off screen leaves the lazy list and stops.
  */
@@ -44,11 +48,15 @@ fun UptimeText(
 ) {
     val clock = LocalClock.current
     var elapsed by remember(clock, startedAt) { mutableStateOf(clock.now() - startedAt) }
-    LaunchedEffect(clock, startedAt) {
-        while (true) {
-            val intoSecond = (clock.now() - startedAt).inWholeMilliseconds.mod(MILLIS_PER_SECOND)
-            delay(MILLIS_PER_SECOND - intoSecond)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(clock, startedAt, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             elapsed = clock.now() - startedAt
+            while (true) {
+                val intoSecond = (clock.now() - startedAt).inWholeMilliseconds.mod(MILLIS_PER_SECOND)
+                delay(MILLIS_PER_SECOND - intoSecond)
+                elapsed = clock.now() - startedAt
+            }
         }
     }
     Text(text = formatUptime(elapsed), modifier = modifier, style = style, color = color, maxLines = 1)
