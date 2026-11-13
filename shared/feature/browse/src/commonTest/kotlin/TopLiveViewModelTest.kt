@@ -1,0 +1,252 @@
+package io.github.kemurixd.lurk.feature.browse
+
+import io.github.kemurixd.lurk.core.common.LurkError
+import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.feature.common.PlatformFilter
+import io.github.kemurixd.lurk.feature.common.PlatformSlice
+import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
+import io.github.kemurixd.lurk.feature.testing.TestDispatchers
+import io.github.kemurixd.lurk.feature.testing.testStream
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class TopLiveViewModelTest {
+    private val harness = BrowseTestHarness()
+    private val twitch = FakeStreamingPlatform(Platform.TWITCH)
+    private val kick = FakeStreamingPlatform(Platform.KICK)
+
+    @BeforeTest
+    fun setUp() {
+        Dispatchers.setMain(harness.dispatcher)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        harness.store.clear()
+        Dispatchers.resetMain()
+    }
+
+    private fun viewModel(): TopLiveViewModel =
+        harness.create(TopLiveViewModel::class) {
+            TopLiveViewModel(listOf(twitch, kick), TestDispatchers(harness.dispatcher))
+        }
+
+    private fun s(
+        platform: Platform,
+        login: String,
+        viewers: Long,
+    ): Stream = testStream(platform, login = login, viewers = viewers, displayName = login)
+
+    private fun List<Stream>.viewers() = map { it.viewers }
+
+    /** Twitch with a first page of 900 viewers and a second of 800. */
+    private fun twoTwitchPages() {
+        twitch.topLive = { cursor ->
+            if (cursor == null) {
+                pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+            } else {
+                pageOf(s(Platform.TWITCH, "t3", 800))
+            }
+        }
+    }
+
+    @Test
+    fun topLiveMergedByViewers() =
+        runTest {
+            twitch.topLive = { pageOf(s(Platform.TWITCH, "t1", 300), s(Platform.TWITCH, "t2", 900)) }
+            kick.topLive = { pageOf(s(Platform.KICK, "k1", 500)) }
+            val state = watch(viewModel().state)
+
+            assertEquals(listOf(900L, 500L, 300L), state.value.streams.viewers())
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.TWITCH])
+            assertEquals(PlatformFilter.ALL, state.value.filter)
+        }
+
+    @Test
+    fun loadMoreAppendsSortedBatchWithoutReshuffling() =
+        runTest {
+            twoTwitchPages()
+            kick.topLive = { cursor ->
+                if (cursor == null) {
+                    pageOf(s(Platform.KICK, "k1", 500), next = "k2")
+                } else {
+                    pageOf(s(Platform.KICK, "k3", 950))
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            assertTrue(state.value.canLoadMore)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(listOf(900L, 500L, 950L, 800L), state.value.streams.viewers())
+            assertFalse(state.value.canLoadMore)
+            assertFalse(state.value.loadingMore)
+        }
+
+    @Test
+    fun loadMoreSkipsPlatformWithoutCursor() =
+        runTest {
+            twoTwitchPages()
+            kick.topLive = { pageOf(s(Platform.KICK, "k1", 500), next = null) }
+            val vm = viewModel()
+            watch(vm.state)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(2, twitch.topLiveCalls)
+            assertEquals(1, kick.topLiveCalls)
+        }
+
+    @Test
+    fun loadMoreIgnoredWhileLoading() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            twitch.topLive = { cursor ->
+                if (cursor == null) {
+                    pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+                } else {
+                    gate.await()
+                    pageOf(s(Platform.TWITCH, "t3", 800))
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertTrue(state.value.loadingMore)
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertEquals(2, twitch.topLiveCalls)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertFalse(state.value.loadingMore)
+        }
+
+    @Test
+    fun loadMoreIgnoredBeforeFirstPageLands() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            twitch.topLive = {
+                gate.await()
+                pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+            }
+            val vm = viewModel()
+            watch(vm.state)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(1, twitch.topLiveCalls)
+        }
+
+    @Test
+    fun filterIsClientSideNoRefetch() =
+        runTest {
+            twitch.topLive = { pageOf(s(Platform.TWITCH, "t1", 900)) }
+            kick.topLive = { pageOf(s(Platform.KICK, "k1", 500)) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            vm.onIntent(TopLiveIntent.SelectFilter(PlatformFilter.KICK))
+            runCurrent()
+
+            assertEquals(listOf(Platform.KICK), state.value.streams.map { it.channel.platform })
+            assertEquals(setOf(Platform.KICK), state.value.slices.keys)
+            assertEquals(1, twitch.topLiveCalls)
+            assertEquals(1, kick.topLiveCalls)
+        }
+
+    @Test
+    fun loadMoreFailureKeepsItemsAndRecordsTheError() =
+        runTest {
+            twitch.topLive = { cursor ->
+                if (cursor == null) {
+                    pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+                } else {
+                    Outcome.Failure(LurkError.Offline)
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(listOf(900L), state.value.streams.viewers())
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.TWITCH])
+            assertEquals(mapOf(Platform.TWITCH to LurkError.Offline), state.value.loadMoreErrors)
+            assertTrue(state.value.canLoadMore)
+        }
+
+    @Test
+    fun retryReloadsTheFailedPlatformOnly() =
+        runTest {
+            twitch.topLive = { pageOf(s(Platform.TWITCH, "t1", 900)) }
+            kick.topLive = { Outcome.Failure(LurkError.Timeout) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            assertEquals(PlatformSlice.Failed(LurkError.Timeout), state.value.slices[Platform.KICK])
+
+            kick.topLive = { pageOf(s(Platform.KICK, "k1", 500)) }
+            vm.onIntent(TopLiveIntent.Retry(Platform.KICK))
+            runCurrent()
+
+            assertEquals(listOf(900L, 500L), state.value.streams.viewers())
+            assertEquals(1, twitch.topLiveCalls)
+        }
+
+    @Test
+    fun refreshStartsOverFromTheFirstPage() =
+        runTest {
+            twoTwitchPages()
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertEquals(2, state.value.streams.size)
+
+            vm.onIntent(TopLiveIntent.Refresh)
+            runCurrent()
+
+            assertEquals(listOf(900L), state.value.streams.viewers())
+            assertEquals(3, twitch.topLiveCalls)
+        }
+
+    @Test
+    fun aStreamRepeatedOnALaterPageShowsOnce() =
+        runTest {
+            twitch.topLive = { cursor ->
+                if (cursor == null) {
+                    pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+                } else {
+                    pageOf(s(Platform.TWITCH, "t1", 880), s(Platform.TWITCH, "t3", 800))
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(listOf(900L, 800L), state.value.streams.viewers())
+        }
+}

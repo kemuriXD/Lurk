@@ -8,6 +8,7 @@ kotlin {
             api(project(":shared:feature:common"))
             implementation(project(":shared:platform:api"))
             implementation(project(":shared:auth"))
+            implementation(libs.koin.core.viewmodel)
         }
         commonTest.dependencies {
             implementation(project(":shared:feature:testing"))
