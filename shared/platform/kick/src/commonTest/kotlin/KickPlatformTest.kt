@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.platform.kick
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
@@ -80,6 +81,9 @@ class KickPlatformTest {
                     chatSend = true,
                     chatHistory = true,
                     cheermotes = false,
+                    categorySorts = listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+                    categorySortsNeedingSignIn = setOf(CategorySort.RECOMMENDED),
+                    categorySortDefaults = listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
                 )
             val platform = platform()
             assertEquals(expected, platform.capabilities)

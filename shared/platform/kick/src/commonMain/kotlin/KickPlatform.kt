@@ -5,6 +5,7 @@ import io.github.kemurixd.lurk.chat.ChatChannel
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -53,6 +54,9 @@ class KickPlatform(
             chatSend = true,
             chatHistory = true,
             cheermotes = false,
+            categorySorts = listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+            categorySortsNeedingSignIn = setOf(CategorySort.RECOMMENDED),
+            categorySortDefaults = listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
         )
     override val nativeEmotes: NativeEmoteSource = KickEmoteSource(api)
     override val badges: BadgeSource = KickBadgeSource(api)
@@ -65,7 +69,8 @@ class KickPlatform(
     override suspend fun liveInCategory(
         categoryId: String,
         cursor: String?,
-    ): Outcome<Page<Stream>> = api.categoryLive(sessions, categoryId, cursor)
+        sort: CategorySort,
+    ): Outcome<Page<Stream>> = api.categoryLive(sessions, categoryId, cursor, sort)
 
     override suspend fun search(query: String): Outcome<SearchResults> = api.search(query)
 

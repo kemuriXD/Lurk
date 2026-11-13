@@ -5,6 +5,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Page
@@ -26,38 +27,70 @@ import kotlinx.serialization.json.JsonObject
 private const val LIVE_PAGE_SIZE = "24"
 private const val CATEGORY_PAGE_SIZE = "32"
 private const val FIRST_CATEGORY_PAGE = "1"
+private const val VIEWERS_DESC = "viewer_count_desc"
+private const val FEATURED = "featured"
 
 /** One page of the live streams with the most viewers. The cursor is the previous page's `nextCursor`. */
 internal suspend fun KickApi.topLive(
     sessions: SessionRepository,
     cursor: String?,
-): Outcome<Page<Stream>> = livestreams(sessions, categoryId = null, cursor = cursor)
+): Outcome<Page<Stream>> = livestreams(sessions, categoryId = null, cursor = cursor, sort = VIEWERS_DESC)
 
 /**
- * One page of the live streams in a category, most viewers first. [categoryId] is `Category.id`. A blank ID is
+ * One page of the live streams in a category, in [sort] order. [categoryId] is `Category.id`. A blank ID is
  * `NotFound` with no request: Kick would answer an empty filter with the unfiltered list.
+ *
+ * Kick's site has three sorts (probed 2026-11-13). Featured and Viewers (High to Low) are `sort=featured` and
+ * `sort=viewer_count_desc` on the livestreams list and work signed out. Recommended is a separate list that answers
+ * 403 without a session, so signed out it is `NotSignedIn` without a request. Kick also accepts `viewer_count_asc` but
+ * returns the high-to-low order for it, so it is not offered. Other sorts are `Unsupported`.
  */
 internal suspend fun KickApi.categoryLive(
     sessions: SessionRepository,
     categoryId: String,
     cursor: String?,
+    sort: CategorySort,
 ): Outcome<Page<Stream>> =
-    if (categoryId.isBlank()) Outcome.Failure(LurkError.NotFound) else livestreams(sessions, categoryId, cursor)
+    when {
+        categoryId.isBlank() -> Outcome.Failure(LurkError.NotFound)
+        sort == CategorySort.FEATURED -> livestreams(sessions, categoryId, cursor, FEATURED)
+        sort == CategorySort.VIEWERS_HIGH -> livestreams(sessions, categoryId, cursor, VIEWERS_DESC)
+        sort == CategorySort.RECOMMENDED -> recommended(sessions, categoryId, cursor)
+        else -> Outcome.Failure(LurkError.Unsupported)
+    }
 
 private suspend fun KickApi.livestreams(
     sessions: SessionRepository,
     categoryId: String?,
     cursor: String?,
+    sort: String,
 ): Outcome<Page<Stream>> =
     sessions.authed(Platform.KICK, anonymousFallback = true) { token ->
         val query =
             buildMap {
                 put("limit", LIVE_PAGE_SIZE)
-                put("sort", "viewer_count_desc")
+                put("sort", sort)
                 if (categoryId != null) put("category_id", categoryId)
                 if (cursor != null) put("after", cursor)
             }
         get(KickBase.WEB, "livestreams", token, query).decode(::decodeLivestreams)
+    }
+
+/** The signed-in user's recommended streams in a category. Same reply shape as the livestreams list. */
+private suspend fun KickApi.recommended(
+    sessions: SessionRepository,
+    categoryId: String,
+    cursor: String?,
+): Outcome<Page<Stream>> =
+    sessions.authed(Platform.KICK, anonymousFallback = false) { token ->
+        if (token == null) return@authed Outcome.Failure(LurkError.NotSignedIn)
+        val query =
+            buildMap {
+                put("limit", LIVE_PAGE_SIZE)
+                put("category_id", categoryId)
+                if (cursor != null) put("cursor", cursor)
+            }
+        get(KickBase.WEB, "recommendations/livestreams/list", token, query).decode(::decodeLivestreams)
     }
 
 private fun decodeLivestreams(root: JsonElement): Page<Stream> {

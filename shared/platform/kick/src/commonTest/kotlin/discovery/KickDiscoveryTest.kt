@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.platform.kick.discovery
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Page
@@ -123,7 +124,7 @@ class KickDiscoveryTest {
                         json(fixture("discovery/top-live.json"))
                     },
                 ).api
-            val page = api.categoryLive(rigSessions(), "15", "cursor-2").page()
+            val page = api.categoryLive(rigSessions(), "15", "cursor-2", CategorySort.VIEWERS_HIGH).page()
 
             val request = seen.single()
             assertEquals("/api/v1/livestreams", request.url.encodedPath)
@@ -145,8 +146,99 @@ class KickDiscoveryTest {
                     },
                 ).api
 
-            assertEquals(Outcome.Failure(LurkError.NotFound), api.categoryLive(rigSessions(), "", null))
-            assertEquals(Outcome.Failure(LurkError.NotFound), api.categoryLive(rigSessions(), "  ", null))
+            assertEquals(
+                Outcome.Failure(LurkError.NotFound),
+                api.categoryLive(rigSessions(), "", null, CategorySort.VIEWERS_HIGH),
+            )
+            assertEquals(
+                Outcome.Failure(LurkError.NotFound),
+                api.categoryLive(rigSessions(), "  ", null, CategorySort.VIEWERS_HIGH),
+            )
+            assertEquals(emptyList(), seen)
+        }
+
+    @Test
+    fun featuredAsksForFeaturedAndKeepsKicksOrder() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+            val page = api.categoryLive(rigSessions(), "15", "cursor-1", CategorySort.FEATURED).page()
+
+            val request = seen.single()
+            assertEquals("/api/v1/livestreams", request.url.encodedPath)
+            assertEquals("featured", request.queryOf("sort"))
+            assertEquals("15", request.queryOf("category_id"))
+            assertEquals("cursor-1", request.queryOf("after"))
+            assertEquals(listOf("streamer11", "streamer12"), page.items.map { it.channel.login })
+            assertEquals("cursor-2", page.nextCursor)
+        }
+
+    @Test
+    fun recommendedReadsTheSignedInRecommendationList() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+            val page = api.categoryLive(rigSessions(signedIn = true), "15", "cursor-1", CategorySort.RECOMMENDED).page()
+
+            val request = seen.single()
+            assertEquals("web.kick.example", request.url.host)
+            assertEquals("/api/v1/recommendations/livestreams/list", request.url.encodedPath)
+            assertEquals("15", request.queryOf("category_id"))
+            assertEquals("24", request.queryOf("limit"))
+            assertEquals("cursor-1", request.queryOf("cursor"))
+            assertNull(request.queryOf("after"))
+            assertNull(request.queryOf("sort"))
+            assertEquals("Bearer $RIG_TOKEN", request.headers[HttpHeaders.Authorization])
+            assertEquals(listOf("streamer11", "streamer12"), page.items.map { it.channel.login })
+            assertEquals("cursor-2", page.nextCursor)
+        }
+
+    @Test
+    fun recommendedSignedOutIsNotSignedInWithoutARequest() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+
+            assertEquals(
+                Outcome.Failure(LurkError.NotSignedIn),
+                api.categoryLive(rigSessions(), "15", null, CategorySort.RECOMMENDED),
+            )
+            assertEquals(emptyList(), seen)
+        }
+
+    @Test
+    fun sortsKickDoesNotHaveAreUnsupportedWithoutARequest() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+
+            listOf(CategorySort.VIEWERS_LOW, CategorySort.RECENT).forEach { sort ->
+                assertEquals(Outcome.Failure(LurkError.Unsupported), api.categoryLive(rigSessions(), "15", null, sort))
+            }
             assertEquals(emptyList(), seen)
         }
 
