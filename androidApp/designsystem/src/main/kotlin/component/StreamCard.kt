@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -41,7 +40,6 @@ private val ThumbnailWidth = 160.dp
 private val ThumbnailHeight = 90.dp
 private val CardPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 12.dp, bottom = 8.dp)
 private val OverlayInset = 6.dp
-private val TouchTarget = 48.dp
 private const val TITLE_LINES = 2
 
 /**
@@ -113,34 +111,28 @@ private fun StreamInfo(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
+            LurkAvatar(
+                imageUrl = stream.avatarUrl,
+                name = stream.displayName,
+                size = 32.dp,
                 modifier =
                     Modifier
                         .testTag("stream_card_avatar")
                         .semantics { contentDescription = openChannelLabel }
-                        .sizeIn(minWidth = TouchTarget, minHeight = TouchTarget)
                         .clickable(role = Role.Button, onClick = onOpenChannel),
-                contentAlignment = Alignment.Center,
-            ) {
-                LurkAvatar(imageUrl = stream.avatarUrl, name = stream.displayName, size = 32.dp)
-            }
-            Box(
+            )
+            Text(
+                text = stream.displayName,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier =
                     Modifier
                         .weight(1f)
                         .testTag("stream_card_name")
-                        .sizeIn(minWidth = TouchTarget, minHeight = TouchTarget)
                         .clickable(role = Role.Button, onClick = onOpenChannel),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Text(
-                    text = stream.displayName,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            )
             PlatformBadge(stream.channel.platform)
         }
         Text(

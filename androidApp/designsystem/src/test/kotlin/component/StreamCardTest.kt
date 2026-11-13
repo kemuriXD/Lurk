@@ -1,13 +1,10 @@
 package io.github.kemurixd.lurk.designsystem.component
 
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHasNoClickAction
-import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.height
-import androidx.compose.ui.unit.width
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -57,13 +54,25 @@ class StreamCardTest {
 
     @Test
     fun channelControlsHaveAtLeast48dpTouchTargets() {
-        show()
-        for (tag in listOf("stream_card_avatar", "stream_card_name")) {
-            val bounds = rule.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
-            assertTrue("$tag height ${bounds.height}", bounds.height >= 48.dp)
-            // The name takes whatever width is left, so only the fixed-size avatar is held to a width.
-            if (tag == "stream_card_avatar") assertTrue("$tag width ${bounds.width}", bounds.width >= 48.dp)
+        var density = 1f
+        rule.setContent {
+            density = LocalDensity.current.density
+            LurkTheme(dynamicColor = false) {
+                StreamCard(testStream(), onOpenPlayer = {}, onOpenChannel = {})
+            }
         }
+        // Compose widens small pointer targets to 48 dp; this pins that the layout keeps relying on it.
+        val min = 48 * density - 0.5f
+        val avatar =
+            rule
+                .onNodeWithTag(
+                    "stream_card_avatar",
+                    useUnmergedTree = true,
+                ).fetchSemanticsNode()
+                .touchBoundsInRoot
+        assertTrue("avatar ${avatar.width}x${avatar.height}", avatar.width >= min && avatar.height >= min)
+        val name = rule.onNodeWithTag("stream_card_name", useUnmergedTree = true).fetchSemanticsNode().touchBoundsInRoot
+        assertTrue("name height ${name.height}", name.height >= min)
     }
 
     @Test
