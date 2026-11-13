@@ -9,11 +9,13 @@ import app.cash.turbine.test
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.storage.FollowingSortSetting
 import io.github.kemurixd.lurk.core.storage.PlatformFilterSetting
 import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.feature.common.LastLiveLoader
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
@@ -27,6 +29,7 @@ import io.github.kemurixd.lurk.feature.testing.testStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -54,6 +57,7 @@ class FollowingViewModelTest {
     private val store = ViewModelStore()
     private var created = 0
     private lateinit var sessions: SessionRepository
+    private val lastLive = LastLiveLoader(listOf(twitch, kick), TestDispatchers(dispatcher))
     private val fetchers = Platform.entries.associateWith { FakeProfileFetcher(it) }
 
     @BeforeTest
@@ -83,6 +87,7 @@ class FollowingViewModelTest {
                         accounts,
                         settings,
                         TestDispatchers(dispatcher),
+                        lastLive,
                     )
                 }
             }
@@ -539,6 +544,30 @@ class FollowingViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
             assertEquals(listOf(shown.ref), kick.lastLiveRequests)
+        }
+
+    @Test
+    fun aRowHiddenBeforeItsTurnCostsNoLookup() =
+        runTest {
+            val amy = testChannel(Platform.KICK, login = "amy", id = "", displayName = "Amy")
+            kick.followed = { followed(offline = listOf(amy)) }
+            kick.lastLive = {
+                delay(1_000)
+                Outcome.Success(Instant.parse("2026-01-01T00:00:00Z"))
+            }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                // Three rows elsewhere hold every permit, so amy has to wait her turn.
+                repeat(3) { vm.onIntent(FollowingIntent.OfflineRowShown(ChannelRef(Platform.KICK, "busy$it"))) }
+                vm.onIntent(FollowingIntent.OfflineRowShown(amy.ref))
+                runCurrent()
+                vm.onIntent(FollowingIntent.OfflineRowHidden(amy.ref))
+                advanceTimeBy(5.seconds)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertFalse(amy.ref in kick.lastLiveRequests, "fetched: ${kick.lastLiveRequests}")
         }
 
     @Test

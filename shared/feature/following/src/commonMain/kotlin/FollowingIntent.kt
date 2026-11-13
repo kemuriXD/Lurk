@@ -30,6 +30,11 @@ sealed interface FollowingIntent {
         val channel: ChannelRef,
     ) : FollowingIntent
 
+    /** That row left the screen. A lookup for it still waiting its turn is dropped. Pairs with [OfflineRowShown]. */
+    data class OfflineRowHidden(
+        val channel: ChannelRef,
+    ) : FollowingIntent
+
     /** Reloads one platform, from its error chip. */
     data class Retry(
         val platform: Platform,

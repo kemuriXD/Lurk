@@ -56,7 +56,8 @@ import kotlin.time.Duration.Companion.seconds
  * load that finishes after its account left is dropped.
  *
  * Offline rows whose platform leaves out when they were last live get the time from [lastLive], only once the screen
- * reports them with [FollowingIntent.OfflineRowShown].
+ * reports them with [FollowingIntent.OfflineRowShown]. A row reported with [FollowingIntent.OfflineRowHidden]
+ * before its turn costs no request.
  *
  * Call [onIntent] from the main thread.
  */
@@ -65,7 +66,7 @@ class FollowingViewModel(
     private val accounts: AccountsState,
     private val settings: SettingsStore,
     private val dispatchers: DispatcherProvider,
-    private val lastLive: LastLiveLoader = LastLiveLoader(platforms, dispatchers),
+    private val lastLive: LastLiveLoader,
     private val refreshInterval: Duration = 60.seconds,
 ) : ViewModel() {
     /** Every platform's load results in one value, so the UI never sees a slice and its error out of step. */
@@ -119,6 +120,7 @@ class FollowingViewModel(
             FollowingIntent.Refresh -> refresh(platforms)
             is FollowingIntent.Retry -> refresh(platforms.filter { it.id == intent.platform })
             is FollowingIntent.OfflineRowShown -> lastLive.request(intent.channel, viewModelScope)
+            is FollowingIntent.OfflineRowHidden -> lastLive.release(intent.channel)
         }
     }
 
