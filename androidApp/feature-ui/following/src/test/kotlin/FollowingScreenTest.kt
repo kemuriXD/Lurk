@@ -84,7 +84,7 @@ class FollowingScreenTest {
                 offline = listOf(channel("sleeper1")),
             ),
         )
-        val counts = rule.onAllNodesWithTag(SectionHeaderTags.COUNT)
+        val counts = rule.onAllNodesWithTag(SectionHeaderTags.COUNT, useUnmergedTree = true)
         counts.assertCountEquals(2)
         counts[0].assertTextEquals("2")
         counts[1].assertTextEquals("1")
