@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.designsystem
 import androidx.annotation.StringRes
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.isRetryable
+import io.github.kemurixd.lurk.core.model.Platform
 import kotlin.time.Duration
 
 /** The GitHub Releases page, where "Check for update" goes. */
@@ -45,6 +46,13 @@ fun LurkError.action(firstPage: Boolean = false): ErrorAction? {
         }
     return own ?: if (firstPage) ErrorAction.Retry() else null
 }
+
+/** What a snackbar offers for this failure: the table's action, except Go back, which only a full screen offers. */
+fun LurkError.snackbarAction(): ErrorAction? = action().takeUnless { it == ErrorAction.GoBack }
+
+/** The action as offered where [platform] is the failed one: Sign in needs a platform, so without one it is dropped. */
+internal fun ErrorAction?.forPlatform(platform: Platform?): ErrorAction? =
+    if (this is ErrorAction.SignIn && platform == null) null else this
 
 /** The button's plain verb. */
 @StringRes

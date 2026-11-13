@@ -17,16 +17,15 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.ErrorAction
-import io.github.kemurixd.lurk.designsystem.action
+import io.github.kemurixd.lurk.designsystem.R
+import io.github.kemurixd.lurk.designsystem.forPlatform
 import io.github.kemurixd.lurk.designsystem.labelRes
 import io.github.kemurixd.lurk.designsystem.messageRes
+import io.github.kemurixd.lurk.designsystem.snackbarAction
 
 /**
  * What the error actions that leave the screen do. Only the app knows navigation, so it builds one of these over its
@@ -80,10 +79,8 @@ fun ErrorHost(
         }
         SnackbarHost(
             hostState = snackbar,
-            modifier =
-                snackbarModifier
-                    .align(Alignment.BottomCenter)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
+            // The host already announces each snackbar politely, so nothing here adds a second live region.
+            modifier = snackbarModifier.align(Alignment.BottomCenter),
         ) { data -> Snackbar(data, Modifier.padding(8.dp)) }
     }
 }
@@ -96,25 +93,29 @@ class ErrorSnackbar internal constructor(
     private val handlers: ErrorHandlers,
 ) {
     /**
-     * Shows the reason for [error] with [action]'s label, replacing any snackbar already up, and runs the action if it
-     * is tapped. [platform] is the one to sign in to; [onRetry] is what Retry asks again.
+     * Shows [title] ("Couldn't follow Streamer One") then the reason for [error], with [action]'s label, replacing any
+     * snackbar already up, and runs the action if it is tapped. [platform] is the one to sign in to; without one there
+     * is no Sign in. [onRetry] is what Retry asks again.
      */
     suspend fun showError(
         error: LurkError,
-        action: ErrorAction? = error.action(),
+        action: ErrorAction? = error.snackbarAction(),
         platform: Platform? = null,
+        title: String? = null,
         onRetry: () -> Unit = {},
     ) {
         val host = host ?: return
         host.currentSnackbarData?.dismiss()
-        val label = action?.let { resources.getString(it.labelRes()) }
+        val offered = action.forPlatform(platform)
+        val label = offered?.let { resources.getString(it.labelRes()) }
+        val reason = resources.getString(error.messageRes())
         val result =
             host.showSnackbar(
-                message = resources.getString(error.messageRes()),
+                message = title?.let { resources.getString(R.string.error_snackbar_message, it, reason) } ?: reason,
                 actionLabel = label,
                 duration = if (label == null) SnackbarDuration.Short else SnackbarDuration.Long,
             )
-        if (result == SnackbarResult.ActionPerformed && action != null) handlers.perform(action, platform, onRetry)
+        if (result == SnackbarResult.ActionPerformed && offered != null) handlers.perform(offered, platform, onRetry)
     }
 }
 

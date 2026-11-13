@@ -1,8 +1,13 @@
 package io.github.kemurixd.lurk.designsystem.component
 
 import android.content.Context
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -177,6 +182,40 @@ class ClippingTest {
             ErrorTags.STATE,
             listOf("Couldn’t load categories", text(R.string.error_offline), "Retry"),
         )
+    }
+
+    @Test
+    fun errorStateWithItsLongestActionFitsAPhoneAtDoubleFont() {
+        show(Phone, 2f) {
+            ErrorHost(ErrorHandlers()) { ErrorState("Couldn’t load categories", LurkError.ProxyFailed, {}) }
+        }
+        assertErrorSurfaceFits(
+            ErrorTags.STATE,
+            listOf("Couldn’t load categories", text(R.string.error_proxy_failed), "Open proxy settings"),
+        )
+    }
+
+    @Test
+    fun snackbarWithItsLongestActionFitsAPhoneAtDoubleFont() {
+        show(Phone, 2f) {
+            ErrorHost(ErrorHandlers()) {
+                val snackbar = rememberErrorSnackbar()
+                LaunchedEffect(Unit) {
+                    snackbar.showError(LurkError.ProxyFailed, title = "Couldn’t follow Streamer One", platform = null)
+                }
+                Box(Modifier.fillMaxWidth().height(400.dp))
+            }
+        }
+        val host = rule.onNodeWithTag(HOST).bounds()
+        val message = "Couldn’t follow Streamer One. ${text(R.string.error_proxy_failed)}"
+        for (label in listOf(message, "Open proxy settings")) {
+            val box = rule.onNodeWithText(label, useUnmergedTree = true).bounds()
+            assertTrue(
+                "$label $box leaves $host",
+                box.left >= host.left && box.right <= host.right && box.top >= host.top && box.bottom <= host.bottom,
+            )
+            assertTrue("$label is squeezed to $box", box.width > 0f && box.height > 0f)
+        }
     }
 
     @Test

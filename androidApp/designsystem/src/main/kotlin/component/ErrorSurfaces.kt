@@ -21,6 +21,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -33,6 +34,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -43,6 +45,7 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.ErrorAction
 import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.action
+import io.github.kemurixd.lurk.designsystem.forPlatform
 import io.github.kemurixd.lurk.designsystem.labelRes
 import io.github.kemurixd.lurk.designsystem.messageRes
 import kotlinx.coroutines.delay
@@ -75,7 +78,8 @@ fun ErrorState(
             modifier
                 .fillMaxWidth()
                 .testTag(ErrorTags.STATE)
-                .semantics { liveRegion = LiveRegionMode.Polite }
+                // One announcement: the title and the reason together. The button stays its own node.
+                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
                 .padding(StatePadding),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -93,6 +97,7 @@ fun ErrorState(
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { heading() },
         )
         Text(
             text = stringResource(error.messageRes()),
@@ -100,7 +105,11 @@ fun ErrorState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        if (action != null) ErrorActionButton(action, platform, onRetry, filled = true)
+        // The full screen's title already says what failed, and its Retry may ask several platforms, so the button
+        // keeps its plain label.
+        action.forPlatform(platform)?.let {
+            ErrorActionButton(it, platform, onRetry, filled = true, namesPlatform = false)
+        }
     }
 }
 
@@ -171,7 +180,8 @@ private fun BannerCard(
                 .fillMaxWidth()
                 .heightIn(min = 56.dp)
                 .background(tone.container(), MaterialTheme.shapes.medium)
-                .semantics { liveRegion = LiveRegionMode.Polite }
+                // One announcement: the title and the reason together. The button stays its own node.
+                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
                 .padding(BannerPadding),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -189,7 +199,10 @@ private fun BannerCard(
                     Text(text = reason, style = MaterialTheme.typography.bodyMedium, color = onContainer)
                 }
             },
-            action = action?.let { { ErrorActionButton(it, platform, onRetry, filled = false) } },
+            action =
+                action.forPlatform(platform)?.let {
+                    { ErrorActionButton(it, platform, onRetry, filled = false, namesPlatform = true) }
+                },
             modifier = Modifier.weight(1f),
         )
     }
@@ -227,8 +240,9 @@ private fun TextBesideOrAboveAction(
 }
 
 /**
- * The action's button. Retry with a known wait counts the seconds down and stays off until they run out. Retry names
- * the platform for screen readers ("Retry loading Kick") when there is one.
+ * The action's button. Retry with a known wait counts the seconds down and stays off until they run out, and counts
+ * down again after each try, since an equal failure would not change the action. With [namesPlatform], Retry names the
+ * platform for screen readers ("Retry loading Kick").
  */
 @Composable
 private fun ErrorActionButton(
@@ -236,13 +250,15 @@ private fun ErrorActionButton(
     platform: Platform?,
     onRetry: () -> Unit,
     filled: Boolean,
+    namesPlatform: Boolean,
 ) {
     val handlers = LocalErrorHandlers.current
     val wait = (action as? ErrorAction.Retry)?.after
-    var secondsLeft by remember(action) {
+    var tries by remember(action) { mutableIntStateOf(0) }
+    var secondsLeft by remember(action, tries) {
         mutableLongStateOf(wait?.let { ceil(it.inWholeMilliseconds / SECOND_MILLIS.toDouble()).toLong() } ?: 0L)
     }
-    LaunchedEffect(action) {
+    LaunchedEffect(action, tries) {
         while (secondsLeft > 0) {
             delay(SECOND_MILLIS)
             secondsLeft--
@@ -256,7 +272,7 @@ private fun ErrorActionButton(
             stringResource(action.labelRes())
         }
     val description =
-        if (action is ErrorAction.Retry && platform != null && !waiting) {
+        if (namesPlatform && action is ErrorAction.Retry && platform != null && !waiting) {
             stringResource(R.string.error_retry_cd, stringResource(platform.labelRes))
         } else {
             null
@@ -265,7 +281,10 @@ private fun ErrorActionButton(
         Modifier.heightIn(min = 48.dp).then(
             if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
         )
-    val onClick = { handlers.perform(action, platform, onRetry) }
+    val onClick = {
+        handlers.perform(action, platform, onRetry)
+        if (wait != null) tries++
+    }
     if (filled) {
         Button(onClick = onClick, enabled = !waiting, modifier = buttonModifier) { Text(label) }
     } else {

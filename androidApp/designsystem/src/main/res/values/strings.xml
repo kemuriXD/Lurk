@@ -69,6 +69,7 @@
     <string name="error_action_retry_in">Retry in %1$ds</string>
     <string name="error_retry_cd">Retry loading %1$s</string>
     <string name="error_load_platform">Couldn’t load %1$s</string>
+    <string name="error_snackbar_message">%1$s. %2$s</string>
     <string name="error_load_more">Couldn’t load more from %1$s</string>
 
     <string name="error_offline">You’re offline. Check your connection.</string>

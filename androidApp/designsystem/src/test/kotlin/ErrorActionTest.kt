@@ -62,6 +62,17 @@ class ErrorActionTest {
 
     @Test fun unsupportedHasNoAction() = assertEquals(null, LurkError.Unsupported.action())
 
+    // A snackbar reports something the user did; leaving the page is never the answer there.
+    @Test
+    fun snackbarNeverGoesBack() = assertEquals(null, LurkError.NotFound.snackbarAction())
+
+    @Test
+    fun snackbarKeepsTheOtherActions() {
+        assertEquals(retry, LurkError.Timeout.snackbarAction())
+        assertEquals(ErrorAction.SignIn(again = true), LurkError.AuthExpired.snackbarAction())
+        assertEquals(null, LurkError.IntegrityRequired.snackbarAction())
+    }
+
     // Ruling R41: a first page always offers Retry where the table offers nothing else.
     @Test
     fun firstPageRetriesWhereTheTableOffersNothing() {

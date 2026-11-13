@@ -5,9 +5,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -136,6 +142,112 @@ class ErrorComponentsTest {
         rule.mainClock.advanceTimeBy(1_100)
         rule.onNodeWithText("Retry").assertIsEnabled().performClick()
         assertEquals(1, retries)
+    }
+
+    @Test
+    fun retryWithAKnownWaitCountsDownAgainAfterEachTry() {
+        rule.mainClock.autoAdvance = false
+        show { ErrorBanner("Couldn’t load Kick", LurkError.RateLimited(2.seconds), onRetry = { retries++ }) }
+        rule.mainClock.advanceTimeBy(2_200)
+        rule.onNodeWithText("Retry").performClick()
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeByFrame()
+        rule.onNodeWithText("Retry in 2s").assertIsNotEnabled()
+        assertEquals(1, retries)
+    }
+
+    private val live = SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)
+
+    @Test
+    fun bannerAnnouncesTitleAndReasonOnce() {
+        show { ErrorBanner("Couldn’t load Kick", LurkError.Timeout, onRetry = {}, platform = Platform.KICK) }
+        rule.onAllNodes(live, useUnmergedTree = true).assertCountEquals(1)
+        rule.onNode(live).assert(hasText("Couldn’t load Kick")).assert(hasText(text(R.string.error_timeout)))
+    }
+
+    @Test
+    fun footerAnnouncesTitleAndReasonOnce() {
+        show { ErrorFooter(Platform.KICK, LurkError.Timeout, onRetry = {}) }
+        rule.onAllNodes(live, useUnmergedTree = true).assertCountEquals(1)
+        rule.onNode(live).assert(hasText("Couldn’t load more from Kick")).assert(hasText(text(R.string.error_timeout)))
+    }
+
+    @Test
+    fun errorStateAnnouncesTitleAndReasonOnceWithTheTitleAsAHeading() {
+        show { ErrorState("Couldn’t load categories", LurkError.Offline, onRetry = {}) }
+        rule.onAllNodes(live, useUnmergedTree = true).assertCountEquals(1)
+        rule.onNode(live).assert(hasText("Couldn’t load categories")).assert(hasText(text(R.string.error_offline)))
+        rule.onNode(isHeading() and hasText("Couldn’t load categories"), useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun snackbarIsAnnouncedOnce() {
+        show {
+            val snackbar = rememberErrorSnackbar()
+            val scope = rememberCoroutineScope()
+            Button(onClick = { scope.launch { snackbar.showError(LurkError.Timeout) } }) { Text("fail") }
+        }
+        rule.onNodeWithText("fail").performClick()
+        rule.onNodeWithText(text(R.string.error_timeout)).assertIsDisplayed()
+        rule.onAllNodes(live, useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun errorStateRetryDoesNotNameOnePlatform() {
+        show { ErrorState("Couldn’t load live channels", LurkError.Offline, onRetry = {}, platform = Platform.KICK) }
+        rule.onNodeWithText("Retry").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Kick").assertDoesNotExist()
+    }
+
+    @Test
+    fun signInIsHiddenWithoutAPlatformToSignInTo() {
+        show { ErrorBanner("Couldn’t load", LurkError.NotSignedIn, onRetry = {}) }
+        rule.onNodeWithText(text(R.string.error_not_signed_in)).assertIsDisplayed()
+        rule.onNodeWithText("Sign in").assertDoesNotExist()
+    }
+
+    @Test
+    fun snackbarSignInIsHiddenWithoutAPlatform() {
+        show {
+            val snackbar = rememberErrorSnackbar()
+            val scope = rememberCoroutineScope()
+            Button(onClick = { scope.launch { snackbar.showError(LurkError.AuthExpired) } }) { Text("fail") }
+        }
+        rule.onNodeWithText("fail").performClick()
+        rule.onNodeWithText(text(R.string.error_auth_expired)).assertIsDisplayed()
+        rule.onNodeWithText("Sign in again").assertDoesNotExist()
+    }
+
+    @Test
+    fun snackbarNeverOffersGoBack() {
+        show {
+            val snackbar = rememberErrorSnackbar()
+            val scope = rememberCoroutineScope()
+            Button(onClick = { scope.launch { snackbar.showError(LurkError.NotFound) } }) { Text("fail") }
+        }
+        rule.onNodeWithText("fail").performClick()
+        rule.onNodeWithText(text(R.string.error_not_found)).assertIsDisplayed()
+        rule.onNodeWithText("Go back").assertDoesNotExist()
+    }
+
+    @Test
+    fun snackbarSaysWhatFailedBeforeWhy() {
+        show {
+            val snackbar = rememberErrorSnackbar()
+            val scope = rememberCoroutineScope()
+            Button(
+                onClick = {
+                    scope.launch {
+                        snackbar.showError(
+                            LurkError.Timeout,
+                            title = "Couldn’t follow Streamer One",
+                        )
+                    }
+                },
+            ) { Text("fail") }
+        }
+        rule.onNodeWithText("fail").performClick()
+        rule.onNodeWithText("Couldn’t follow Streamer One. ${text(R.string.error_timeout)}").assertIsDisplayed()
     }
 
     @Test
