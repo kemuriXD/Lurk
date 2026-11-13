@@ -20,9 +20,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.common.LurkError
-import io.github.kemurixd.lurk.core.common.isRetryable
 import io.github.kemurixd.lurk.core.model.Platform
-import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
+import io.github.kemurixd.lurk.designsystem.component.ErrorFooter
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import io.github.kemurixd.lurk.designsystem.R as DesignR
@@ -31,6 +30,9 @@ import io.github.kemurixd.lurk.designsystem.R as DesignR
 private const val PRELOAD_ITEMS = 4
 
 internal val ContentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+
+/** Around an error banner or footer in a list. */
+internal val BannerPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 
 /**
  * Calls [onLoadMore] when the last visible item is within [PRELOAD_ITEMS] of the end, and again each time the list
@@ -62,7 +64,7 @@ internal fun LazyGridScope.fullWidth(
     item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
 }
 
-/** The spinner while the next page loads, then one retry chip for each platform whose next page failed. */
+/** One error footer for each platform whose next page failed, then the spinner while the next page loads. */
 internal fun LazyGridScope.pagingFooter(
     loadingMore: Boolean,
     errors: Map<Platform, LurkError>,
@@ -70,13 +72,11 @@ internal fun LazyGridScope.pagingFooter(
 ) {
     errors.forEach { (platform, error) ->
         fullWidth("more_error:${platform.name}") {
-            InlineErrorChip(
+            ErrorFooter(
                 platform = platform,
                 error = error,
                 onRetry = { onRetry(platform) },
-                title = DesignR.string.error_chip_more_message,
-                showRetry = error.isRetryable,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(BannerPadding),
             )
         }
     }

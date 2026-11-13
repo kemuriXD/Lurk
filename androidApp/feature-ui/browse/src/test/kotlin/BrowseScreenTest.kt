@@ -12,6 +12,7 @@ import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.browse.CategoriesIntent
@@ -91,7 +92,7 @@ class BrowseScreenTest {
     }
 
     @Test
-    fun failedPlatformShowsChipThatRetries() {
+    fun failedPlatformShowsABannerThatRetries() {
         show(
             topLive =
                 topLiveState(
@@ -102,13 +103,15 @@ class BrowseScreenTest {
                         ),
                 ),
         )
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithTag(ErrorTags.STATE).assertDoesNotExist()
         rule.onNodeWithText("Couldn’t load Kick").assertIsDisplayed()
         rule.onNodeWithContentDescription("Retry loading Kick").performClick()
         assertEquals(listOf<TopLiveIntent>(TopLiveIntent.Retry(Platform.KICK)), topLiveIntents)
     }
 
     @Test
-    fun firstPageChipKeepsRetryForAnErrorRetryingCannotFix() {
+    fun firstPageBannerKeepsRetryForAnErrorRetryingCannotFix() {
         show(
             topLive =
                 topLiveState(
@@ -124,16 +127,41 @@ class BrowseScreenTest {
     }
 
     @Test
-    fun loadMoreChipHidesRetryWhenRetryingCannotHelp() {
+    fun loadMoreFooterHidesRetryWhenRetryingCannotHelp() {
         show(topLive = topLiveState(loadMoreErrors = mapOf(Platform.TWITCH to LurkError.IntegrityRequired)))
+        rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
         rule.onNodeWithText("Couldn’t load more from Twitch").assertIsDisplayed()
         rule.onNodeWithContentDescription("Retry loading Twitch").assertDoesNotExist()
     }
 
     @Test
-    fun loadMoreChipKeepsRetryWhenRetryingCanHelp() {
+    fun loadMoreFooterRetriesWhenRetryingCanHelp() {
         show(topLive = topLiveState(loadMoreErrors = mapOf(Platform.TWITCH to LurkError.Timeout)))
-        rule.onNodeWithContentDescription("Retry loading Twitch").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Twitch").performClick()
+        assertEquals(listOf<TopLiveIntent>(TopLiveIntent.Retry(Platform.TWITCH)), topLiveIntents)
+    }
+
+    @Test
+    fun everyPlatformFailingShowsOneErrorStateThatRetriesBoth() {
+        show(
+            topLive =
+                topLiveState(
+                    streams = emptyList(),
+                    slices =
+                        mapOf(
+                            Platform.TWITCH to PlatformSlice.Failed(LurkError.Offline),
+                            Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
+                        ),
+                ),
+        )
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithTag(ErrorTags.BANNER).assertDoesNotExist()
+        rule.onNodeWithText("Couldn’t load live channels").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(
+            listOf<TopLiveIntent>(TopLiveIntent.Retry(Platform.TWITCH), TopLiveIntent.Retry(Platform.KICK)),
+            topLiveIntents,
+        )
     }
 
     @Test
@@ -185,7 +213,18 @@ class BrowseScreenTest {
     fun failedCategoriesRetry() {
         show(categories = categoriesState(slice = PlatformSlice.Failed(LurkError.Offline)))
         rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
-        rule.onNodeWithText("Try again").performClick()
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("Couldn’t load categories").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(listOf<CategoriesIntent>(CategoriesIntent.Retry), categoryIntents)
+    }
+
+    @Test
+    fun categoriesLoadMoreFailureShowsTheFooter() {
+        show(categories = categoriesState(categories = listOf(category("1")), loadMoreError = LurkError.Timeout))
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Twitch").performClick()
         assertEquals(listOf<CategoriesIntent>(CategoriesIntent.Retry), categoryIntents)
     }
 
@@ -207,11 +246,13 @@ class BrowseScreenTest {
     private fun categoriesState(
         categories: List<Category> = emptyList(),
         slice: PlatformSlice<Unit> = PlatformSlice.Loaded(Unit),
+        loadMoreError: LurkError? = null,
     ) = CategoriesUiState(
         platform = Platform.TWITCH,
         categories = categories,
         slice = slice,
         canLoadMore = false,
+        loadMoreError = loadMoreError,
     )
 
     private fun category(id: String) = Category(Platform.TWITCH, id, "Category $id", boxArtUrl = null, viewers = 1200)

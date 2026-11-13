@@ -30,12 +30,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
+import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.SortMenu
@@ -63,7 +63,6 @@ fun CategoryEntry(
     name: String,
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CategoryStreamsViewModel = koinViewModel { parametersOf(platform, categoryId) },
 ) {
@@ -75,7 +74,6 @@ fun CategoryEntry(
         onIntent = viewModel::onIntent,
         onOpenPlayer = onOpenPlayer,
         onOpenChannel = onOpenChannel,
-        onBack = onBack,
         modifier = modifier,
     )
 }
@@ -83,7 +81,7 @@ fun CategoryEntry(
 /**
  * One category: its box art, name and platform, then the live channels in it, in the sort picked from the menu at the
  * right of the section header. The top bar and its
- * back arrow belong to the app. [onBack] is for the not-found state, which has nothing to retry.
+ * back arrow belong to the app. A category that is gone offers Go back, through the app's error handlers.
  */
 @Composable
 fun CategoryScreen(
@@ -93,7 +91,6 @@ fun CategoryScreen(
     onIntent: (CategoryStreamsIntent) -> Unit,
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val gridState = rememberLazyGridState()
@@ -125,7 +122,7 @@ fun CategoryScreen(
                 }
             }
         }
-        streamContent(state, onIntent, onOpenPlayer, onOpenChannel, onBack)
+        streamContent(platform, state, onIntent, onOpenPlayer, onOpenChannel)
         val error = state.loadMoreError
         pagingFooter(state.loadingMore, if (error == null) emptyMap() else mapOf(platform to error)) {
             onIntent(CategoryStreamsIntent.Retry)
@@ -159,11 +156,11 @@ private fun CategorySort.labelRes(platform: Platform): Int =
     }
 
 private fun LazyGridScope.streamContent(
+    platform: Platform,
     state: CategoryStreamsUiState,
     onIntent: (CategoryStreamsIntent) -> Unit,
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
-    onBack: () -> Unit,
 ) {
     val slice = state.slice
     when {
@@ -180,14 +177,12 @@ private fun LazyGridScope.streamContent(
 
         slice is PlatformSlice.Failed -> {
             fullWidth("failed") {
-                if (slice.error == LurkError.NotFound) {
-                    FailureState(slice.error, stringResource(R.string.go_back), onBack)
-                } else {
-                    FailureState(
-                        slice.error,
-                        stringResource(R.string.try_again),
-                    ) { onIntent(CategoryStreamsIntent.Retry) }
-                }
+                ErrorState(
+                    title = stringResource(R.string.category_error_title),
+                    error = slice.error,
+                    onRetry = { onIntent(CategoryStreamsIntent.Retry) },
+                    platform = platform,
+                )
             }
         }
 

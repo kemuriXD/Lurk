@@ -31,19 +31,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
-import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
+import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
+import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
-import io.github.kemurixd.lurk.designsystem.messageRes
 import io.github.kemurixd.lurk.feature.browse.CategoriesIntent
 import io.github.kemurixd.lurk.feature.browse.CategoriesUiState
 import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
@@ -227,14 +226,29 @@ private fun TopLiveGrid(
                         it.error
                 }
             }
-        failures.forEach { (platform, error) ->
-            fullWidth("error:${platform.name}") {
-                InlineErrorChip(
-                    platform = platform,
+        val allFailed = failures.isNotEmpty() && failures.size == state.slices.size && state.streams.isEmpty()
+        if (allFailed) {
+            // Every platform failed: one full-screen state, whose Retry asks each of them again.
+            val (platform, error) = failures.first()
+            fullWidth("failed") {
+                ErrorState(
+                    title = stringResource(R.string.top_live_error_title),
                     error = error,
-                    onRetry = { onIntent(TopLiveIntent.Retry(platform)) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    onRetry = { failures.forEach { (failed, _) -> onIntent(TopLiveIntent.Retry(failed)) } },
+                    platform = platform,
                 )
+            }
+        } else {
+            failures.forEach { (platform, error) ->
+                fullWidth("error:${platform.name}") {
+                    ErrorBanner(
+                        title = stringResource(DesignR.string.error_load_platform, stringResource(platform.labelRes)),
+                        error = error,
+                        onRetry = { onIntent(TopLiveIntent.Retry(platform)) },
+                        platform = platform,
+                        modifier = Modifier.padding(BannerPadding),
+                    )
+                }
             }
         }
         val loading = state.slices.values.any { it == PlatformSlice.Loading }
@@ -309,7 +323,12 @@ private fun LazyGridScope.categoryContent(
 
         slice is PlatformSlice.Failed -> {
             fullWidth("failed") {
-                FailureState(slice.error, stringResource(R.string.try_again)) { onIntent(CategoriesIntent.Retry) }
+                ErrorState(
+                    title = stringResource(R.string.categories_error_title),
+                    error = slice.error,
+                    onRetry = { onIntent(CategoriesIntent.Retry) },
+                    platform = state.platform,
+                )
             }
         }
 
@@ -331,21 +350,6 @@ private fun LazyGridScope.categoryContent(
     pagingFooter(state.loadingMore, if (error == null) emptyMap() else mapOf(state.platform to error)) {
         onIntent(CategoriesIntent.Retry)
     }
-}
-
-/** A failed list: the reason, and one button for what to do about it. */
-@Composable
-internal fun FailureState(
-    error: LurkError,
-    actionLabel: String,
-    onAction: () -> Unit,
-) {
-    EmptyState(
-        title = stringResource(error.messageRes()),
-        body = null,
-        action = actionLabel to onAction,
-        icon = DesignR.drawable.ic_refresh,
-    )
 }
 
 @Composable

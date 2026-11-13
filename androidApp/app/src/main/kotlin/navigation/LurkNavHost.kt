@@ -128,7 +128,6 @@ private fun CategoryPage(
         name = route.name,
         onOpenPlayer = navigator::openPlayer,
         onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
-        onBack = navigator::back,
     )
 }
 

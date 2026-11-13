@@ -12,6 +12,9 @@ import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
+import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsIntent
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsUiState
@@ -42,15 +45,16 @@ class CategoryScreenTest {
         rule.setContent {
             val tick = recomposeTick.intValue
             LurkTheme(dynamicColor = false) {
-                CategoryScreen(
-                    platform = platform,
-                    name = "Cozy Builder",
-                    state = state,
-                    onIntent = { if (tick >= 0) intents += it },
-                    onOpenPlayer = { players += it },
-                    onOpenChannel = {},
-                    onBack = { backs++ },
-                )
+                ErrorHost(ErrorHandlers(goBack = { backs++ })) {
+                    CategoryScreen(
+                        platform = platform,
+                        name = "Cozy Builder",
+                        state = state,
+                        onIntent = { if (tick >= 0) intents += it },
+                        onOpenPlayer = { players += it },
+                        onOpenChannel = {},
+                    )
+                }
             }
         }
     }
@@ -84,6 +88,7 @@ class CategoryScreenTest {
     @Test
     fun notFoundOffersGoingBack() {
         show(state(slice = PlatformSlice.Failed(LurkError.NotFound)))
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
         rule.onNodeWithText("Nothing found here.").assertIsDisplayed()
         rule.onNodeWithText("Go back").performClick()
         assertEquals(1, backs)
@@ -92,7 +97,17 @@ class CategoryScreenTest {
     @Test
     fun otherFailuresOfferRetry() {
         show(state(slice = PlatformSlice.Failed(LurkError.Offline)))
-        rule.onNodeWithText("Try again").performClick()
+        rule.onNodeWithText("Couldn’t load this category").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(listOf<CategoryStreamsIntent>(CategoryStreamsIntent.Retry), intents)
+    }
+
+    @Test
+    fun loadMoreFailureShowsTheFooter() {
+        show(state(streams = listOf(stream()), loadMoreError = LurkError.Timeout))
+        rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        rule.onNodeWithText("Couldn’t load more from Kick").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Kick").performClick()
         assertEquals(listOf<CategoryStreamsIntent>(CategoryStreamsIntent.Retry), intents)
     }
 
@@ -162,6 +177,7 @@ class CategoryScreenTest {
         canLoadMore: Boolean = false,
         sorts: List<CategorySort> = emptyList(),
         sort: CategorySort? = null,
+        loadMoreError: LurkError? = null,
     ) = CategoryStreamsUiState(
         streams = streams,
         slice = slice,
@@ -169,6 +185,7 @@ class CategoryScreenTest {
         loadingMore = false,
         sorts = sorts,
         sort = sort,
+        loadMoreError = loadMoreError,
     )
 
     private fun stream() =
