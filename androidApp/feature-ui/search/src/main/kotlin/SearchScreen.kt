@@ -226,7 +226,7 @@ private fun LazyGridScope.results(
     if (state.channels.isNotEmpty()) {
         fullWidth("channels_header") { SectionHeader(stringResource(R.string.section_channels)) }
         items(state.channels, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
-            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) })
+            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, showLiveRing = false)
         }
     }
     if (state.categories.isNotEmpty()) {

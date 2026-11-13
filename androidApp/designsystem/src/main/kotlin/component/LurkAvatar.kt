@@ -13,9 +13,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+
+/** Test tags on [LurkAvatar]. */
+object AvatarTags {
+    const val LIVE_RING = "avatar_live_ring"
+}
 
 private val RingWidth = 2.dp
 private val RingGap = 4.dp
@@ -32,7 +38,15 @@ fun LurkAvatar(
 ) {
     val initialStyle =
         if (size >= LargeAvatar) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelMedium
-    val ring = if (liveRing) Modifier.border(RingWidth, MaterialTheme.colorScheme.error, CircleShape) else Modifier
+    val ring =
+        if (liveRing) {
+            Modifier
+                .testTag(
+                    AvatarTags.LIVE_RING,
+                ).border(RingWidth, MaterialTheme.colorScheme.error, CircleShape)
+        } else {
+            Modifier
+        }
     Box(modifier.size(size).then(ring), contentAlignment = Alignment.Center) {
         val inner = if (liveRing) Modifier.padding(RingGap / 2).size(size - RingGap) else Modifier.size(size)
         Surface(

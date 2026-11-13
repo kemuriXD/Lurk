@@ -20,12 +20,16 @@ import io.github.kemurixd.lurk.designsystem.R
 
 private val RowPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 24.dp, bottom = 12.dp)
 
-/** One channel in a list (Figma ChannelRow). Shows the live ring, LIVE badge and viewers while live. */
+/**
+ * One channel in a list (Figma ChannelRow). Shows the LIVE badge and viewers while live, and a ring on the avatar
+ * unless [showLiveRing] is off.
+ */
 @Composable
 fun ChannelRow(
     channel: Channel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showLiveRing: Boolean = true,
 ) {
     val live = channel.live
     val category = live?.category
@@ -48,7 +52,7 @@ fun ChannelRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LurkAvatar(channel.avatarUrl, channel.displayName, size = 40.dp, liveRing = live != null)
+        LurkAvatar(channel.avatarUrl, channel.displayName, size = 40.dp, liveRing = live != null && showLiveRing)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
