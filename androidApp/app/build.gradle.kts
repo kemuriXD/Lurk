@@ -28,6 +28,20 @@ android {
 
     buildFeatures { buildConfig = true }
 
+    buildTypes {
+        // A release-like build for measuring performance on a device: R8, not debuggable, profileable from the shell.
+        // Signed with the debug key and keeping the app ID, so it installs over a debug build and keeps its data.
+        // Not the release signing setup.
+        create("benchmark") {
+            initWith(getByName("release"))
+            isMinifyEnabled = true
+            isDebuggable = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
+    }
+
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
@@ -46,6 +60,7 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation(libs.okhttp)
     implementation(libs.splashscreen)
+    implementation(libs.profileinstaller)
     implementation(libs.kotlinx.serialization.json)
 
     implementation(project(":androidApp:designsystem"))
