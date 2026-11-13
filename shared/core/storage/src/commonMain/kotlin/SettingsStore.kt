@@ -34,6 +34,12 @@ class SettingsStore(
 
     private companion object {
         val KEY = stringPreferencesKey("app_settings")
-        val json = Json { ignoreUnknownKeys = true }
+
+        // An enum value this build doesn't know reads as that field's default instead of resetting every setting.
+        val json =
+            Json {
+                ignoreUnknownKeys = true
+                coerceInputValues = true
+            }
     }
 }
