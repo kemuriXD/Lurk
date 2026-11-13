@@ -18,11 +18,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 
-/** Test tags on [LurkAvatar]. */
-object AvatarTags {
-    const val LIVE_RING = "avatar_live_ring"
-}
-
 private val RingWidth = 2.dp
 private val RingGap = 4.dp
 private val LargeAvatar = 40.dp
