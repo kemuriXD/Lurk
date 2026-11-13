@@ -5,12 +5,14 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
@@ -121,6 +123,17 @@ class SearchScreenTest {
         val asked = allIntents.filterIsInstance<SearchIntent.OfflineRowShown>().map { it.channel.login }
         assertTrue("the first result asks", "pixel1" in asked)
         assertTrue("results far below the screen don't ask, asked: $asked", "pixel100" !in asked)
+    }
+
+    @Test
+    fun resultsThatScrollAwayLetGoOfTheirLookup() {
+        val many = (1..100).map { channel("pixel$it", Platform.KICK) }
+        show(results(channels = many))
+        rule.onNodeWithTag(SearchTestTags.LIST).performScrollToNode(hasText("Pixel100"))
+        rule.waitForIdle()
+        val hidden = allIntents.filterIsInstance<SearchIntent.OfflineRowHidden>().map { it.channel.login }
+        assertTrue("the first result lets go once scrolled away, hidden: $hidden", "pixel1" in hidden)
+        assertTrue("the result on screen keeps its lookup", "pixel100" !in hidden)
     }
 
     @Test

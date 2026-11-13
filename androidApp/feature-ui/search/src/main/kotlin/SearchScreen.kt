@@ -28,7 +28,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -227,9 +227,13 @@ private fun LazyGridScope.results(
     if (state.channels.isNotEmpty()) {
         fullWidth("channels_header") { SectionHeader(stringResource(R.string.section_channels)) }
         items(state.channels, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
-            // Composed rows only: the lazy grid composes what is on screen, so off-screen rows never cost a lookup.
+            // Composed rows only: the lazy grid composes what is on screen, so off-screen rows never cost a lookup, and
+            // a row that scrolls away before its turn lets go of it.
             if (channel.live == null && channel.lastStream?.startedAt == null) {
-                LaunchedEffect(channel.ref) { onIntent(SearchIntent.OfflineRowShown(channel.ref)) }
+                DisposableEffect(channel.ref) {
+                    onIntent(SearchIntent.OfflineRowShown(channel.ref))
+                    onDispose { onIntent(SearchIntent.OfflineRowHidden(channel.ref)) }
+                }
             }
             ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, showLiveRing = false)
         }
