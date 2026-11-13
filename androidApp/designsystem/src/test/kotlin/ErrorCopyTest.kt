@@ -61,7 +61,12 @@ class ErrorCopyTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         for (error in everyError) {
             val copy = context.getString(error.messageRes()).lowercase()
-            for (phrase in listOf("try again", "sign in again", "check your proxy settings", "an update may be needed")) {
+            for (phrase in listOf(
+                "try again",
+                "sign in again",
+                "check your proxy settings",
+                "an update may be needed",
+            )) {
                 assertFalse("$error: $copy", copy.contains(phrase))
             }
         }

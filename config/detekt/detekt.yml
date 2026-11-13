@@ -20,6 +20,8 @@ Compose:
       - LocalPlatformColors
       - LocalHighlightColors
       - LocalClock
+      - LocalErrorHandlers
+      - LocalErrorSnackbarHost
   ModifierMissing:
     active: true
   ModifierNaming:

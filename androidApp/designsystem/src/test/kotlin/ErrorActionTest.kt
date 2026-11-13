@@ -40,13 +40,21 @@ class ErrorActionTest {
 
     @Test fun unexpectedRetries() = assertEquals(retry, LurkError.Unexpected.action())
 
-    @Test fun proxyFailedOpensProxySettings() = assertEquals(ErrorAction.OpenProxySettings, LurkError.ProxyFailed.action())
+    @Test fun proxyFailedOpensProxySettings() =
+        assertEquals(
+            ErrorAction.OpenProxySettings,
+            LurkError.ProxyFailed.action(),
+        )
 
     @Test fun authExpiredSignsInAgain() = assertEquals(ErrorAction.SignIn(again = true), LurkError.AuthExpired.action())
 
     @Test fun notSignedInSignsIn() = assertEquals(ErrorAction.SignIn(again = false), LurkError.NotSignedIn.action())
 
-    @Test fun schemaChangedChecksForAnUpdate() = assertEquals(ErrorAction.CheckForUpdate, LurkError.SchemaChanged.action())
+    @Test fun schemaChangedChecksForAnUpdate() =
+        assertEquals(
+            ErrorAction.CheckForUpdate,
+            LurkError.SchemaChanged.action(),
+        )
 
     @Test fun integrityRequiredHasNoAction() = assertEquals(null, LurkError.IntegrityRequired.action())
 
@@ -83,9 +91,13 @@ class ErrorActionTest {
                 ErrorAction.CheckForUpdate,
                 ErrorAction.GoBack,
             ).map { context.getString(it.labelRes()) }
-        assertEquals(listOf("Retry", "Sign in", "Sign in again", "Open proxy settings", "Check for update", "Go back"), labels)
+        assertEquals(
+            listOf("Retry", "Sign in", "Sign in again", "Open proxy settings", "Check for update", "Go back"),
+            labels,
+        )
     }
 
     @Test
-    fun releasesPageIsTheProjectsGitHubReleases() = assertEquals("https://github.com/kemuriXD/Lurk/releases", RELEASES_URL)
+    fun releasesPageIsTheProjectsGitHubReleases() =
+        assertEquals("https://github.com/kemuriXD/Lurk/releases", RELEASES_URL)
 }

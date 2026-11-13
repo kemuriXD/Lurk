@@ -3,9 +3,7 @@ package io.github.kemurixd.lurk.designsystem.component
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -31,8 +29,6 @@ import org.robolectric.annotation.Config
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
-
-private const val CHIP = "error_chip"
 
 /** Text and controls stay inside their containers, at the normal font size and at 200%, on a 360 dp phone. */
 @RunWith(RobolectricTestRunner::class)
@@ -155,39 +151,64 @@ class ClippingTest {
         override fun now(): Instant = at
     }
 
-    @Test
-    fun inlineErrorChipFitsAPhoneAtDoubleFont() {
-        show(Phone, 2f) { InlineErrorChip(Platform.KICK, LurkError.Offline, onRetry = {}) }
+    /** Every label of an error surface lies inside the surface, which lies inside the host. */
+    private fun assertErrorSurfaceFits(
+        tag: String,
+        labels: List<String>,
+    ) {
         val host = rule.onNodeWithTag(HOST).bounds()
-        for (text in listOf("Couldn’t load Kick", "Retry")) {
-            val box = rule.onNodeWithText(text, useUnmergedTree = true).bounds()
-            assertTrue("$text $box leaves $host", box.right <= host.right && box.left >= host.left)
+        val surface = rule.onNodeWithTag(tag).bounds()
+        assertTrue("$tag $surface leaves $host", surface.left >= host.left && surface.right <= host.right)
+        for (label in labels) {
+            val box = rule.onNodeWithText(label, useUnmergedTree = true).bounds()
+            assertTrue(
+                "$label $box leaves $surface",
+                box.left >= surface.left && box.right <= surface.right && box.top >= surface.top &&
+                    box.bottom <= surface.bottom,
+            )
+            assertTrue("$label is squeezed to $box", box.width > 0f && box.height > 0f)
         }
     }
 
     @Test
-    fun inlineErrorChipReasonAndRetryStayInsideTheChipAtDoubleFont() {
+    fun errorStateFitsAPhoneAtDoubleFont() {
+        show(Phone, 2f) { ErrorHost(ErrorHandlers()) { ErrorState("Couldn’t load categories", LurkError.Offline, {}) } }
+        assertErrorSurfaceFits(
+            ErrorTags.STATE,
+            listOf("Couldn’t load categories", text(R.string.error_offline), "Retry"),
+        )
+    }
+
+    @Test
+    fun errorBannerWithItsLongestActionFitsAPhoneAtDoubleFont() {
         show(Phone, 2f) {
-            InlineErrorChip(
-                Platform.TWITCH,
-                LurkError.Offline,
-                onRetry = {},
-                title = R.string.error_chip_more_message,
-                modifier = Modifier.testTag(CHIP),
-            )
+            ErrorHost(ErrorHandlers()) {
+                ErrorBanner("Couldn’t load Twitch", LurkError.ProxyFailed, {}, platform = Platform.TWITCH)
+            }
         }
-        val host = rule.onNodeWithTag(HOST).bounds()
-        val chip = rule.onNodeWithTag(CHIP).bounds()
-        assertTrue("chip $chip leaves $host", chip.left >= host.left && chip.right <= host.right)
-        val reason = text(R.string.error_offline)
-        val title = "Couldn’t load more from Twitch"
-        for (label in listOf(title, reason, "Retry")) {
-            val box = rule.onNodeWithText(label, useUnmergedTree = true).bounds()
-            assertTrue(
-                "$label $box leaves $chip",
-                box.left >= chip.left && box.right <= chip.right && box.top >= chip.top && box.bottom <= chip.bottom,
-            )
+        assertErrorSurfaceFits(
+            ErrorTags.BANNER,
+            listOf("Couldn’t load Twitch", text(R.string.error_proxy_failed), "Open proxy settings"),
+        )
+    }
+
+    @Test
+    fun errorBannerFitsAPhoneAtNormalFont() {
+        show(Phone, 1f) {
+            ErrorHost(
+                ErrorHandlers(),
+            ) { ErrorBanner("Couldn’t load Kick", LurkError.Offline, {}, platform = Platform.KICK) }
         }
+        assertErrorSurfaceFits(ErrorTags.BANNER, listOf("Couldn’t load Kick", text(R.string.error_offline), "Retry"))
+    }
+
+    @Test
+    fun errorFooterFitsAPhoneAtDoubleFont() {
+        show(Phone, 2f) { ErrorHost(ErrorHandlers()) { ErrorFooter(Platform.TWITCH, LurkError.Timeout, {}) } }
+        assertErrorSurfaceFits(
+            ErrorTags.FOOTER,
+            listOf("Couldn’t load more from Twitch", text(R.string.error_timeout), "Retry"),
+        )
     }
 
     private fun text(id: Int): String = ApplicationProvider.getApplicationContext<Context>().getString(id)

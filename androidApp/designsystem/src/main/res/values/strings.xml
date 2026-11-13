@@ -70,6 +70,10 @@
     <string name="error_action_open_proxy_settings">Open proxy settings</string>
     <string name="error_action_check_for_update">Check for update</string>
     <string name="error_action_go_back">Go back</string>
+    <string name="error_action_retry_in">Retry in %1$ds</string>
+    <string name="error_retry_cd">Retry loading %1$s</string>
+    <string name="error_load_platform">Couldn’t load %1$s</string>
+    <string name="error_load_more">Couldn’t load more from %1$s</string>
 
     <string name="error_offline">You’re offline. Check your connection.</string>
     <string name="error_timeout">That took too long.</string>
