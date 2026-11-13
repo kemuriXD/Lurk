@@ -114,8 +114,8 @@ fun ExpandedStreamCard(
                         .semantics { contentDescription = openChannel }
                         .clickable(role = Role.Button, onClick = onOpenChannel),
             )
-            // A merge boundary of its own, hidden from screen readers: the card's description says all of this already, and
-            // being a boundary keeps these texts out of the card's merged node.
+            // A merge boundary of its own, hidden from screen readers: the card's description says all of this
+            // already, and being a boundary keeps these texts out of the card's merged node.
             Column(
                 Modifier.weight(1f).semantics(mergeDescendants = true) { hideFromAccessibility() },
                 verticalArrangement = Arrangement.spacedBy(4.dp),

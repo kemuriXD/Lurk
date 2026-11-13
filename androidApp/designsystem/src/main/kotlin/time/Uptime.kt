@@ -57,10 +57,10 @@ fun spokenUptime(
 private fun Long.twoDigits(): String = toString().padStart(2, '0')
 
 /**
- * The time since [startedAt], ticking each second on the second, but only while the app is at least started: in the background it stands still, and
- * on return it shows the right time at once before ticking again. The clock is read here and nowhere else, so a tick
- * recomposes this text alone, never the card around it. The ticking lives as long as this text is composed: a card
- * scrolled off screen leaves the lazy list and stops.
+ * The time since [startedAt], ticking each second on the second, but only while the app is at least started: in the
+ * background it stands still, and on return it shows the right time at once before ticking again.
+ * The clock is read here and nowhere else, so a tick recomposes this text alone, never the card around it. The ticking
+ * lives as long as this text is composed: a card scrolled off screen leaves the lazy list and stops.
  */
 @Composable
 fun UptimeText(
