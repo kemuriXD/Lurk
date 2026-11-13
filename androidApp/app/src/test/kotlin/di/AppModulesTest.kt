@@ -24,6 +24,9 @@ import io.github.kemurixd.lurk.core.storage.SecureStore
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.db.LurkDatabase
 import io.github.kemurixd.lurk.core.storage.storageModule
+import io.github.kemurixd.lurk.feature.accounts.AccountsViewModel
+import io.github.kemurixd.lurk.feature.accounts.LoginViewModel
+import io.github.kemurixd.lurk.feature.accounts.accountsModule
 import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsViewModel
 import io.github.kemurixd.lurk.feature.browse.TopLiveViewModel
@@ -37,6 +40,8 @@ import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.feature.search.SearchViewModel
 import io.github.kemurixd.lurk.feature.search.searchModule
 import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
+import io.github.kemurixd.lurk.login.AndroidCookieJar
+import io.github.kemurixd.lurk.login.CookieJar
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
@@ -162,7 +167,9 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(18, modules.size)
+        assertEquals(20, modules.size)
+        assertTrue(accountsModule in modules)
+        assertTrue(loginModule in modules)
         assertTrue(featureCommonModule in modules)
         assertTrue(followingModule in modules)
         assertTrue(browseModule in modules)
@@ -230,6 +237,28 @@ class AppModulesTest {
         app.modules(channelModule)
         app.koin.get<ChannelViewModel> { parametersOf(Platform.KICK, "streamer1") }
         app.koin.get<ChannelViewModel> { parametersOf(Platform.TWITCH, "streamer1") }
+    }
+
+    @Test
+    fun accountsViewModelResolvesOverTheRealSessions() {
+        val app = platformGraph()
+        app.modules(accountsModule)
+        app.koin.get<AccountsViewModel>()
+    }
+
+    @Test
+    fun loginViewModelTakesThePlatformAsAParameter() {
+        val app = platformGraph()
+        app.modules(accountsModule)
+        app.koin.get<LoginViewModel> { parametersOf(Platform.TWITCH) }
+        app.koin.get<LoginViewModel> { parametersOf(Platform.KICK) }
+    }
+
+    @Test
+    fun loginModuleBindsTheAndroidCookieJar() {
+        val koin = koinApplication { modules(loginModule) }.koin
+        assertTrue(koin.get<CookieJar>() is AndroidCookieJar)
+        assertSame(koin.get<CookieJar>(), koin.get<CookieJar>())
     }
 
     @Test

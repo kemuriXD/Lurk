@@ -10,11 +10,14 @@ import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.storageModule
 import io.github.kemurixd.lurk.emotes.emotesModule
+import io.github.kemurixd.lurk.feature.accounts.accountsModule
 import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.channel.channelModule
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.feature.search.searchModule
+import io.github.kemurixd.lurk.login.AndroidCookieJar
+import io.github.kemurixd.lurk.login.CookieJar
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
@@ -48,6 +51,12 @@ val platformsModule: Module =
         single<List<StreamingPlatform>> { getAll() }
     }
 
+/** The login WebView's cookie store. */
+val loginModule: Module =
+    module {
+        single<CookieJar> { AndroidCookieJar() }
+    }
+
 /** Every Koin module the app starts with. Feature and platform modules join this list as they are built. */
 fun appModules(context: Context): List<Module> =
     listOf(
@@ -69,4 +78,6 @@ fun appModules(context: Context): List<Module> =
         browseModule,
         searchModule,
         channelModule,
+        accountsModule,
+        loginModule,
     )

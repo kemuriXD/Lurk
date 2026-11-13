@@ -29,6 +29,7 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.navigation.LoginRoute
 import io.github.kemurixd.lurk.navigation.LurkNavHost
 import io.github.kemurixd.lurk.navigation.Navigator
 import io.github.kemurixd.lurk.navigation.PlayerRoute
@@ -51,7 +52,8 @@ fun LurkApp(modifier: Modifier = Modifier) {
 
 /**
  * The shell over a given back stack: the navigation bar or rail around the Navigation 3 display. The stack's first key
- * is the start tab's root. The player is full screen, so the navigation suite hides while it is on top.
+ * is the start tab's root. The player and the login are full screen, so the navigation suite hides while either is
+ * on top.
  */
 @Composable
 fun LurkApp(
@@ -62,7 +64,7 @@ fun LurkApp(
         remember(backStack) { Navigator(backStack, start = TopLevel.of(backStack.firstOrNull()) ?: TopLevel.BROWSE) }
     val current = TopLevel.current(backStack)
     val layoutType =
-        if (backStack.lastOrNull() is PlayerRoute) {
+        if (backStack.lastOrNull().isFullScreen()) {
             NavigationSuiteType.None
         } else {
             NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
@@ -94,6 +96,9 @@ fun LurkApp(
         )
     }
 }
+
+/** The player and the login draw edge to edge with their own controls, so the navigation suite hides under them. */
+private fun NavKey?.isFullScreen(): Boolean = this is PlayerRoute || this is LoginRoute
 
 /**
  * Marks the space between this node's bottom edge and the window's bottom edge as consumed insets. That is where the

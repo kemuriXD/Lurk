@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -17,19 +16,19 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.github.kemurixd.lurk.R
-import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
-import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.LurkTopBar
 import io.github.kemurixd.lurk.featureui.browse.BrowseEntry
 import io.github.kemurixd.lurk.featureui.browse.CategoryEntry
 import io.github.kemurixd.lurk.featureui.channel.ChannelEntry
 import io.github.kemurixd.lurk.featureui.following.FollowingEntry
 import io.github.kemurixd.lurk.featureui.search.SearchEntry
+import io.github.kemurixd.lurk.featureui.settings.SettingsEntry
+import io.github.kemurixd.lurk.login.LoginScreen
 import io.github.kemurixd.lurk.player.PlayerPlaceholderScreen
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
-/** The Navigation 3 display. Routes whose screen hasn't landed yet show a placeholder [EmptyState]. */
+/** The Navigation 3 display: one entry per route. */
 @Composable
 fun LurkNavHost(
     backStack: NavBackStack<NavKey>,
@@ -72,25 +71,16 @@ fun LurkNavHost(
                 }
                 entry<SettingsRoute> {
                     PushedPage(stringResource(R.string.title_settings), navigator) {
-                        Placeholder(stringResource(R.string.placeholder_settings))
+                        SettingsEntry(onOpenLogin = { platform -> navigator.push(LoginRoute(platform)) })
                     }
                 }
                 entry<LoginRoute> { route ->
-                    val platform = stringResource(route.platform.label)
-                    PushedPage(stringResource(R.string.title_login, platform), navigator) {
-                        Placeholder(stringResource(R.string.placeholder_login))
-                    }
+                    // Full screen with its own Cancel bar (Figma); the shell hides the navigation suite.
+                    LoginScreen(platform = route.platform, onDone = navigator::back, onCancel = navigator::back)
                 }
             },
     )
 }
-
-private val Platform.label: Int
-    get() =
-        when (this) {
-            Platform.TWITCH -> DesignR.string.platform_twitch
-            Platform.KICK -> DesignR.string.platform_kick
-        }
 
 private fun Navigator.openPlayer(stream: Stream) {
     push(
@@ -191,12 +181,5 @@ private fun PushedPage(
 internal fun BackButton(onBack: () -> Unit) {
     IconButton(onClick = onBack) {
         Icon(painterResource(DesignR.drawable.ic_arrow_back), contentDescription = stringResource(R.string.cd_back))
-    }
-}
-
-@Composable
-private fun Placeholder(body: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        EmptyState(title = stringResource(R.string.placeholder_title), body = body, action = null)
     }
 }

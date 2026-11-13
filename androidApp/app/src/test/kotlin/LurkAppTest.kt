@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
@@ -23,6 +24,7 @@ import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.SearchResults
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
+import io.github.kemurixd.lurk.feature.accounts.accountsModule
 import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.channel.channelModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
@@ -39,11 +41,16 @@ import io.github.kemurixd.lurk.featureui.browse.BrowseTestTags
 import io.github.kemurixd.lurk.featureui.channel.ChannelTestTags
 import io.github.kemurixd.lurk.featureui.following.FollowingTestTags
 import io.github.kemurixd.lurk.featureui.search.SearchTestTags
+import io.github.kemurixd.lurk.featureui.settings.SettingsTestTags
+import io.github.kemurixd.lurk.login.CookieJar
+import io.github.kemurixd.lurk.login.LoginTestTags
 import io.github.kemurixd.lurk.navigation.BrowseRoute
 import io.github.kemurixd.lurk.navigation.CategoryRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
+import io.github.kemurixd.lurk.navigation.FollowingRoute
 import io.github.kemurixd.lurk.navigation.LoginRoute
 import io.github.kemurixd.lurk.navigation.PlayerRoute
+import io.github.kemurixd.lurk.navigation.SettingsRoute
 import io.github.kemurixd.lurk.navigation.TopLevel
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +70,13 @@ import org.robolectric.annotation.Config
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import io.github.kemurixd.lurk.designsystem.R as DesignR
+
+/** Cookies are never there: the login page stays open until the test acts. */
+private object EmptyCookieJar : CookieJar {
+    override fun read(url: String): String? = null
+
+    override suspend fun clearAll() = Unit
+}
 
 // A plain Application keeps LurkApplication's real Koin graph and startup work out of the test.
 @RunWith(RobolectricTestRunner::class)
@@ -90,7 +104,9 @@ class LurkAppTest {
                 browseModule,
                 searchModule,
                 channelModule,
+                accountsModule,
                 module {
+                    single<CookieJar> { EmptyCookieJar }
                     single { inMemorySettingsStore() }
                     single<DispatcherProvider> { TestDispatchers(Dispatchers.Unconfined) }
                     single { sessions }
@@ -184,7 +200,49 @@ class LurkAppTest {
 
         compose.onNodeWithContentDescription(string(DesignR.string.cd_account_and_settings)).performClick()
 
-        compose.onNodeWithText(string(R.string.placeholder_settings)).assertIsDisplayed()
+        compose.onNodeWithTag(SettingsTestTags.ACCOUNTS).assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsSignInOpensTheLoginAndCancelReturns() {
+        val backStack = showShellWithStack()
+        compose.runOnIdle { backStack.add(SettingsRoute) }
+
+        compose.onNodeWithTag(SettingsTestTags.action(Platform.KICK)).performClick()
+        compose.waitUntil(timeoutMillis = 5_000) { backStack.last() == LoginRoute(Platform.KICK) }
+        compose.onNodeWithTag(LoginTestTags.CANCEL).performClick()
+
+        compose.waitUntil(timeoutMillis = 5_000) { backStack.last() == SettingsRoute }
+        compose.onNodeWithTag(SettingsTestTags.ACCOUNTS).assertIsDisplayed()
+    }
+
+    @Test
+    fun loginHidesTheNavigationSuite() {
+        val backStack = showShellWithStack()
+        tab(R.string.tab_search).assertIsDisplayed()
+
+        compose.runOnIdle { backStack.add(LoginRoute(Platform.TWITCH)) }
+
+        compose.onNodeWithTag(LoginTestTags.CANCEL).assertIsDisplayed()
+        TopLevel.entries.forEach { tab(it.label).assertDoesNotExist() }
+        compose.onNodeWithContentDescription(string(DesignR.string.cd_account_and_settings)).assertDoesNotExist()
+    }
+
+    @Test
+    fun followingSignInOpensTheLoginAndBackReturns() {
+        lateinit var backStack: NavBackStack<NavKey>
+        compose.setContent {
+            backStack = rememberNavBackStack(FollowingRoute)
+            LurkTheme { LurkApp(backStack) }
+        }
+        compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
+
+        compose.onNode(hasText("Sign in to Twitch") and hasClickAction()).performScrollTo().performClick()
+        compose.onNodeWithTag(LoginTestTags.CANCEL).assertIsDisplayed()
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+
+        compose.waitUntil(timeoutMillis = 5_000) { backStack.last() == FollowingRoute }
+        compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
     }
 
     @Test

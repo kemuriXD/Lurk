@@ -10,8 +10,6 @@
 
     <string name="player_go_to_channel">Go to channel</string>
 
-    <!-- Shown by routes whose screen hasn't been built yet. -->
-    <string name="placeholder_title">Coming soon</string>
-    <string name="placeholder_settings">Accounts and settings will show here.</string>
-    <string name="placeholder_login">The sign-in page will show here.</string>
+    <string name="login_cancel">Cancel</string>
+    <string name="login_failed">Couldn’t sign in</string>
 </resources>

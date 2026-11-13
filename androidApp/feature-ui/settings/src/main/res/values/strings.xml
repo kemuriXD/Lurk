@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="section_accounts">Accounts</string>
+
+    <string name="status_signed_in">Signed in to %1$s</string>
+    <string name="status_signed_out">Not signed in</string>
+    <string name="status_expired">Session expired</string>
+
+    <string name="sign_in">Sign in</string>
+    <string name="sign_in_again">Sign in again</string>
+    <string name="sign_out">Sign out</string>
+
+    <string name="sign_out_title">Sign out of %1$s?</string>
+    <string name="sign_out_body">Your %1$s follows won’t show in Following until you sign in again.</string>
+    <string name="cancel">Cancel</string>
+</resources>
