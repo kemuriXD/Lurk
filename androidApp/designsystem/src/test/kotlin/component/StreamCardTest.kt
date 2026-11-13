@@ -1,11 +1,26 @@
 package io.github.kemurixd.lurk.designsystem.component
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
+import coil3.ColorImage
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.intercept.Interceptor
+import coil3.request.SuccessResult
+import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
+import kotlinx.coroutines.CompletableDeferred
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -28,6 +43,9 @@ class StreamCardTest {
                 StreamCard(testStream(), onOpenPlayer = { player++ }, onOpenChannel = { channel++ })
             }
         }
+
+    @After
+    fun resetImageLoader() = SingletonImageLoader.reset()
 
     private fun tap(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).performClick()
 
@@ -79,5 +97,74 @@ class StreamCardTest {
     fun placeholderCardNotClickable() {
         rule.setContent { LurkTheme(dynamicColor = false) { StreamCardPlaceholder() } }
         rule.onNodeWithTag("stream_card_placeholder", useUnmergedTree = true).assertHasNoClickAction()
+    }
+
+    @Test
+    fun aPreviewThatLandsDoesNotRecomposeItsThumbnail() {
+        val landed = CompletableDeferred<Unit>()
+        var asked = 0
+        SingletonImageLoader.setUnsafe(
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components {
+                    add(
+                        Interceptor { chain ->
+                            asked++
+                            landed.await()
+                            SuccessResult(ColorImage(), chain.request)
+                        },
+                    )
+                }.build(),
+        )
+        var viewerReads = 0
+        rule.setContent {
+            CountingStrings(onRead = { id -> if (id == R.string.viewers_count) viewerReads++ }) {
+                LurkTheme(dynamicColor = false) {
+                    StreamThumbnail(
+                        testStream().copy(thumbnailUrl = "https://cdn.example/t/1.jpg"),
+                        Modifier.size(160.dp, 90.dp),
+                    )
+                }
+            }
+        }
+        rule.waitUntil { asked > 0 }
+        rule.waitForIdle()
+        viewerReads = 0
+        landed.complete(Unit)
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        // The thumbnail asks for its viewer count each time it recomposes. A preview landing changes nothing it shows.
+        assertEquals("thumbnail recompositions after the preview landed", 0, viewerReads)
+        assertEquals("requests", 1, asked)
+    }
+
+    @Test
+    fun aRefreshedPreviewLoadsOverTheOneShown() {
+        val placeholders = mutableListOf<String?>()
+        SingletonImageLoader.setUnsafe(
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components {
+                    add(
+                        Interceptor { chain ->
+                            placeholders += chain.request.placeholderMemoryCacheKey?.key
+                            SuccessResult(ColorImage(), chain.request)
+                        },
+                    )
+                }.build(),
+        )
+        var stream by mutableStateOf(testStream().copy(thumbnailUrl = "https://cdn.example/t/1.jpg?t=1"))
+        rule.setContent {
+            LurkTheme(dynamicColor = false) { StreamThumbnail(stream, Modifier.size(160.dp, 90.dp)) }
+        }
+        rule.waitUntil { placeholders.size == 1 }
+        stream = stream.copy(viewers = 13_000)
+        rule.waitForIdle()
+        stream = stream.copy(thumbnailUrl = "https://cdn.example/t/1.jpg?t=2")
+        rule.waitForIdle()
+        rule.waitUntil { placeholders.size >= 2 }
+        rule.waitForIdle()
+        // A new viewer count reuses the request; a new URL loads with the preview already shown as its placeholder.
+        assertEquals(listOf(null, "https://cdn.example/t/1.jpg?t=1"), placeholders)
     }
 }

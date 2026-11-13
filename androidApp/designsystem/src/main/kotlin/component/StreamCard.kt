@@ -19,10 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -94,6 +91,11 @@ internal fun thumbnailRequest(
         .placeholderMemoryCacheKey(shown?.takeIf { it != url })
         .build()
 
+/** The preview URL a thumbnail last showed. */
+private class ShownPreview {
+    var url: String? = null
+}
+
 /**
  * A stream's picture with the LIVE badge top left and the viewer count bottom left on a scrim. The size comes from
  * [modifier]. [content] draws on top, for example a play button.
@@ -108,11 +110,15 @@ fun StreamThumbnail(
 ) {
     val context = LocalPlatformContext.current
     // The preview URL changes every few minutes so the image refreshes; the last one shown stays up while it loads.
-    var shown by remember(stream.channel) { mutableStateOf<String?>(null) }
+    // Plain memory, not state: a preview landing changes nothing on screen, so it must not recompose the thumbnail.
+    val shown = remember(stream.channel) { ShownPreview() }
+    val url = stream.thumbnailUrl
+    // One request per URL, so other changes to the stream never rebuild it or restart the load.
+    val request = remember(context, url) { thumbnailRequest(context, url, shown.url) }
     Box(modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
         AsyncImage(
-            model = thumbnailRequest(context, stream.thumbnailUrl, shown),
-            onSuccess = { shown = stream.thumbnailUrl },
+            model = request,
+            onSuccess = { shown.url = url },
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
