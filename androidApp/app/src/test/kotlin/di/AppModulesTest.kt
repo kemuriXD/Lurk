@@ -28,6 +28,8 @@ import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsViewModel
 import io.github.kemurixd.lurk.feature.browse.TopLiveViewModel
 import io.github.kemurixd.lurk.feature.browse.browseModule
+import io.github.kemurixd.lurk.feature.channel.ChannelViewModel
+import io.github.kemurixd.lurk.feature.channel.channelModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.feature.following.FollowingViewModel
@@ -160,11 +162,12 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(17, modules.size)
+        assertEquals(18, modules.size)
         assertTrue(featureCommonModule in modules)
         assertTrue(followingModule in modules)
         assertTrue(browseModule in modules)
         assertTrue(searchModule in modules)
+        assertTrue(channelModule in modules)
         assertTrue(platformsModule in modules)
         assertTrue(playbackModule in modules)
         assertTrue(authModule in modules)
@@ -219,6 +222,14 @@ class AppModulesTest {
         val app = platformGraph()
         app.modules(searchModule)
         app.koin.get<SearchViewModel>()
+    }
+
+    @Test
+    fun channelViewModelTakesPlatformAndLoginAsParameters() {
+        val app = platformGraph()
+        app.modules(channelModule)
+        app.koin.get<ChannelViewModel> { parametersOf(Platform.KICK, "streamer1") }
+        app.koin.get<ChannelViewModel> { parametersOf(Platform.TWITCH, "streamer1") }
     }
 
     @Test

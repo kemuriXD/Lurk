@@ -23,7 +23,7 @@ private val LargeAvatar = 40.dp
 
 /** Round channel picture with an initial as the fallback, and an optional red ring while live. */
 @Composable
-internal fun LurkAvatar(
+fun LurkAvatar(
     imageUrl: String?,
     name: String,
     size: Dp,

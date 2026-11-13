@@ -23,6 +23,7 @@ import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.LurkTopBar
 import io.github.kemurixd.lurk.featureui.browse.BrowseEntry
 import io.github.kemurixd.lurk.featureui.browse.CategoryEntry
+import io.github.kemurixd.lurk.featureui.channel.ChannelEntry
 import io.github.kemurixd.lurk.featureui.following.FollowingEntry
 import io.github.kemurixd.lurk.featureui.search.SearchEntry
 import io.github.kemurixd.lurk.player.PlayerPlaceholderScreen
@@ -59,7 +60,8 @@ fun LurkNavHost(
                     PushedPage(route.name, navigator) { CategoryPage(route, navigator) }
                 }
                 entry<ChannelRoute> { route ->
-                    PushedPage(route.login, navigator) { Placeholder(stringResource(R.string.placeholder_channel)) }
+                    // The channel draws its own banner and back button (Figma), so it skips the shared top bar.
+                    ChannelPage(route, navigator)
                 }
                 entry<PlayerRoute> { route ->
                     PlayerPlaceholderScreen(
@@ -144,6 +146,20 @@ private fun SearchTab(navigator: Navigator) {
 }
 
 @Composable
+private fun ChannelPage(
+    route: ChannelRoute,
+    navigator: Navigator,
+) {
+    ChannelEntry(
+        platform = route.platform,
+        login = route.login,
+        onOpenPlayer = navigator::openPlayer,
+        onSignIn = { platform -> navigator.push(LoginRoute(platform)) },
+        onBack = navigator::back,
+    )
+}
+
+@Composable
 private fun TabPage(
     tab: TopLevel,
     navigator: Navigator,
@@ -174,7 +190,7 @@ private fun PushedPage(
 @Composable
 internal fun BackButton(onBack: () -> Unit) {
     IconButton(onClick = onBack) {
-        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.cd_back))
+        Icon(painterResource(DesignR.drawable.ic_arrow_back), contentDescription = stringResource(R.string.cd_back))
     }
 }
 

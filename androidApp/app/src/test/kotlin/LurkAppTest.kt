@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -23,6 +24,7 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.SearchResults
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.browse.browseModule
+import io.github.kemurixd.lurk.feature.channel.channelModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.feature.search.searchModule
@@ -32,12 +34,15 @@ import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
 import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
 import io.github.kemurixd.lurk.feature.testing.testChannel
+import io.github.kemurixd.lurk.feature.testing.testStream
 import io.github.kemurixd.lurk.featureui.browse.BrowseTestTags
+import io.github.kemurixd.lurk.featureui.channel.ChannelTestTags
 import io.github.kemurixd.lurk.featureui.following.FollowingTestTags
 import io.github.kemurixd.lurk.featureui.search.SearchTestTags
 import io.github.kemurixd.lurk.navigation.BrowseRoute
 import io.github.kemurixd.lurk.navigation.CategoryRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
+import io.github.kemurixd.lurk.navigation.LoginRoute
 import io.github.kemurixd.lurk.navigation.PlayerRoute
 import io.github.kemurixd.lurk.navigation.TopLevel
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
@@ -84,6 +89,7 @@ class LurkAppTest {
                 followingModule,
                 browseModule,
                 searchModule,
+                channelModule,
                 module {
                     single { inMemorySettingsStore() }
                     single<DispatcherProvider> { TestDispatchers(Dispatchers.Unconfined) }
@@ -154,7 +160,7 @@ class LurkAppTest {
         search("pix")
         compose.onNodeWithText("Pixelotter").performClick()
 
-        compose.onNodeWithText(string(R.string.placeholder_channel)).assertIsDisplayed()
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
         compose.runOnIdle { assertEquals(ChannelRoute(Platform.TWITCH, "pixelotter"), backStack.last()) }
     }
 
@@ -186,12 +192,12 @@ class LurkAppTest {
         val backStack = showShellWithStack()
         tab(R.string.tab_search).performClick()
         compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
-        compose.onNodeWithText(string(R.string.placeholder_channel)).assertIsDisplayed()
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
 
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
         compose.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
-        compose.onNodeWithText(string(R.string.placeholder_channel)).assertDoesNotExist()
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertDoesNotExist()
     }
 
     @Test
@@ -204,7 +210,7 @@ class LurkAppTest {
 
         compose.onNodeWithText(string(R.string.player_go_to_channel)).performClick()
 
-        compose.onNodeWithText(string(R.string.placeholder_channel)).assertIsDisplayed()
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
         compose.runOnIdle { assertEquals(ChannelRoute(Platform.KICK, "streamer1"), backStack.last()) }
     }
 
@@ -247,13 +253,63 @@ class LurkAppTest {
     @Test
     fun topBarBackArrowPopsThePushedRoute() {
         val backStack = showShellWithStack()
-        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
-        compose.onNodeWithText(string(R.string.placeholder_channel)).assertIsDisplayed()
+        compose.runOnIdle { backStack.add(CategoryRoute(Platform.TWITCH, "42", "Retro Racers")) }
+        compose.onNodeWithTag(BrowseTestTags.CATEGORY_LIST).assertIsDisplayed()
 
         compose.onNodeWithContentDescription(string(R.string.cd_back)).performClick()
 
         compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
         compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
+    }
+
+    @Test
+    fun channelDrawsItsOwnHeaderInsteadOfTheTopBar() {
+        val backStack = showShellWithStack()
+        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
+        compose.onNodeWithContentDescription(string(DesignR.string.cd_account_and_settings)).assertDoesNotExist()
+    }
+
+    @Test
+    fun channelBackButtonPopsTheRoute() {
+        val backStack = showShellWithStack()
+        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+
+        compose.onNodeWithTag(ChannelTestTags.BACK).performClick()
+
+        compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun channelLivePreviewPushesThePlayer() {
+        val stream = testStream(Platform.TWITCH, login = "streamer1", title = "Speedrun night")
+        twitch.channel = { Outcome.Success(testChannel(Platform.TWITCH, live = stream)) }
+        val backStack = showShellWithStack()
+        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        compose.waitUntilAtLeastOneExists(hasTestTag(ChannelTestTags.LIVE_PREVIEW), timeoutMillis = 5_000)
+
+        compose.onNodeWithTag(ChannelTestTags.LIVE_PREVIEW).performClick()
+
+        compose.waitUntilAtLeastOneExists(hasText("Speedrun night"), timeoutMillis = 5_000)
+        compose.runOnIdle {
+            assertEquals(
+                PlayerRoute(Platform.TWITCH, "streamer1", "Speedrun night", thumbnailUrl = null),
+                backStack.last(),
+            )
+        }
+    }
+
+    @Test
+    fun channelSignInButtonOpensTheLoginRoute() {
+        val backStack = showShellWithStack()
+        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+
+        compose.onNodeWithTag(ChannelTestTags.SIGN_IN).performClick()
+
+        compose.runOnIdle { assertEquals(LoginRoute(Platform.TWITCH), backStack.last()) }
     }
 
     private companion object {
