@@ -16,8 +16,10 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
+import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
+import io.github.kemurixd.lurk.designsystem.time.LocalClock
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.search.SearchIntent
@@ -30,6 +32,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -40,6 +45,11 @@ class SearchScreenTest {
     private val channels = mutableListOf<ChannelRef>()
     private val categories = mutableListOf<Category>()
     private var keyboardHidden = 0
+    private val now = Instant.parse("2026-11-13T12:00:00Z")
+    private val fixedClock =
+        object : Clock {
+            override fun now(): Instant = now
+        }
 
     private val keyboard =
         object : SoftwareKeyboardController {
@@ -52,7 +62,10 @@ class SearchScreenTest {
 
     private fun show(state: SearchUiState) {
         rule.setContent {
-            CompositionLocalProvider(LocalSoftwareKeyboardController provides keyboard) {
+            CompositionLocalProvider(
+                LocalSoftwareKeyboardController provides keyboard,
+                LocalClock provides fixedClock,
+            ) {
                 LurkTheme(dynamicColor = false) {
                     SearchScreen(
                         state = state,
@@ -77,6 +90,13 @@ class SearchScreenTest {
         show(SearchUiState())
         rule.onNodeWithTag(SearchTestTags.FIELD).performTextInput("pix")
         assertEquals(listOf<SearchIntent>(SearchIntent.QueryChanged("pix")), intents)
+    }
+
+    @Test
+    fun offlineResultSaysWhenItWasLastLive() {
+        val otter = channel("pixelotter").copy(lastStream = LastStream(null, null, now - 30.hours))
+        show(results(channels = listOf(otter)))
+        rule.onNodeWithText("Offline · last live yesterday").assertIsDisplayed()
     }
 
     @Test
