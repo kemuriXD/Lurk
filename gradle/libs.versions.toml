@@ -27,6 +27,7 @@ lifecycle = "2.11.0"
 koinComposeViewModel = "4.2.2"
 coil = "3.6.3"
 profileinstaller = "1.4.1"
+tracingPerfetto = "1.0.1"
 splashscreen = "1.2.0"
 webkit = "1.18.0"
 browser = "1.10.0"
@@ -80,6 +81,8 @@ lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewm
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koinComposeViewModel" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+compose-runtime-tracing = { module = "androidx.compose.runtime:runtime-tracing" }
+tracing-perfetto-binary = { module = "androidx.tracing:tracing-perfetto-binary", version.ref = "tracingPerfetto" }
 profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }

@@ -61,6 +61,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.splashscreen)
     implementation(libs.profileinstaller)
+    // Composable names in system traces of the benchmark build, switched on per run with a broadcast.
+    "benchmarkImplementation"(platform(libs.compose.bom))
+    "benchmarkImplementation"(libs.compose.runtime.tracing)
+    "benchmarkImplementation"(libs.tracing.perfetto.binary)
     implementation(libs.kotlinx.serialization.json)
 
     implementation(project(":androidApp:designsystem"))
