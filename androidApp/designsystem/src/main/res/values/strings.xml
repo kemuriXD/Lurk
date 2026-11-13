@@ -43,6 +43,18 @@
         <item quantity="other">%d more tags</item>
     </plurals>
 
+    <string name="cd_card_separator">", "</string>
+    <string name="cd_live_for">live for %1$s</string>
+    <string name="cd_live_for_under_minute">live for less than a minute</string>
+    <plurals name="cd_uptime_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <plurals name="cd_uptime_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+
     <string name="cd_open_channel">Open %1$s</string>
     <string name="cd_account_and_settings">Account and settings</string>
     <string name="error_chip_message">Couldn’t load %1$s</string>

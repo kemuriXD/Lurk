@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -81,6 +82,62 @@ class ExpandedStreamCardTest {
             .getOrElse(SemanticsProperties.Text) { emptyList() }
             .map { it.text }
 
+    /** The chips on screen, in order, "+N" included. */
+    private fun shownTags(): List<String> =
+        rule
+            .onNodeWithTag(ExpandedStreamCardTags.TAGS, useUnmergedTree = true)
+            .onChildren()
+            .fetchSemanticsNodes()
+            .flatMap { it.config.getOrElse(SemanticsProperties.Text) { emptyList() } }
+            .map { it.text }
+
+    private fun cardDescriptions(): List<String> =
+        rule
+            .onNodeWithTag(ExpandedStreamCardTags.CARD)
+            .fetchSemanticsNode()
+            .config
+            .getOrElse(SemanticsProperties.ContentDescription) { emptyList() }
+
+    @Test
+    fun theCardIsReadAsOneSentenceWithTheChannelName() {
+        show(live(tags = listOf("English", "Chill")))
+        assertEquals(
+            listOf(
+                "Streamer One, Speedrunning all night, live for 1 hour 47 minutes, 20,052 viewers, Just Chatting, " +
+                    "English, Chill, Twitch",
+            ),
+            cardDescriptions(),
+        )
+        assertEquals(emptyList<String>(), cardTexts())
+    }
+
+    @Test
+    fun theSpokenUptimeLeavesOutWhatIsZero() {
+        show(live(startedAt = now - 5.minutes))
+        assertTrue(cardDescriptions().toString(), "live for 5 minutes" in cardDescriptions().single())
+    }
+
+    @Test
+    fun aStreamUnderAMinuteOldIsSpokenAsJustStarted() {
+        show(live(startedAt = now - 20.seconds))
+        assertTrue(cardDescriptions().toString(), "live for less than a minute" in cardDescriptions().single())
+    }
+
+    @Test
+    fun anUnknownStartLeavesOutTheLiveFor() {
+        show(live(startedAt = null))
+        assertTrue(cardDescriptions().toString(), "live for" !in cardDescriptions().single())
+    }
+
+    @Test
+    fun theSpokenUptimeKeepsUpEachMinute() {
+        show(live(startedAt = now - 59.minutes))
+        assertTrue("live for 59 minutes" in cardDescriptions().single())
+        now += 2.minutes
+        rule.mainClock.advanceTimeBy(60_100)
+        assertTrue(cardDescriptions().toString(), "live for 1 hour 1 minute," in cardDescriptions().single())
+    }
+
     @Test
     fun avatarOpensChannel() {
         show()
@@ -136,11 +193,10 @@ class ExpandedStreamCardTest {
     }
 
     @Test
-    fun theLiveDotAndViewersAreOneDescription() {
+    fun theViewersAreSaidOnceAndTheCountIsSilent() {
         show()
-        rule.onAllNodesWithContentDescription("Live, 20,052 viewers", useUnmergedTree = true).assertCountEquals(1)
-        // The count itself is silent, so TalkBack doesn't read it twice.
-        assertTrue(cardTexts().toString(), "20,052" !in cardTexts())
+        assertEquals(1, Regex("20,052").findAll(cardDescriptions().single()).count())
+        assertEquals(emptyList<String>(), cardTexts())
     }
 
     @Test
@@ -162,13 +218,13 @@ class ExpandedStreamCardTest {
     fun anUnknownStartHidesTheUptime() {
         show(live(startedAt = null))
         rule.onNodeWithTag(ExpandedStreamCardTags.UPTIME, useUnmergedTree = true).assertDoesNotExist()
-        rule.onNodeWithContentDescription("Live, 20,052 viewers", useUnmergedTree = true).assertExists()
+        assertTrue(cardDescriptions().toString(), "20,052 viewers" in cardDescriptions().single())
     }
 
     @Test
     fun fewTagsAllShowWithNoMoreChip() {
         show(live(tags = listOf("English", "Chill")))
-        assertTrue(cardTexts().toString(), cardTexts().containsAll(listOf("English", "Chill")))
+        assertEquals(listOf("English", "Chill"), shownTags())
         rule.onNodeWithTag(ExpandedStreamCardTags.MORE_TAGS, useUnmergedTree = true).assertDoesNotExist()
     }
 
@@ -176,7 +232,7 @@ class ExpandedStreamCardTest {
     fun tagsThatDontFitEndWithAMoreChip() {
         val tags = (1..10).map { "Quite a long tag number $it" }
         show(live(tags = tags))
-        val shown = tags.count { it in cardTexts() }
+        val shown = tags.count { it in shownTags() }
         assertTrue("some tags show, shown $shown", shown in 1 until tags.size)
         rule
             .onNodeWithTag(ExpandedStreamCardTags.MORE_TAGS, useUnmergedTree = true)
@@ -192,7 +248,7 @@ class ExpandedStreamCardTest {
     @Test
     fun theBadgeNamesThePlatform() {
         show(live().copy(channel = live().channel.copy(platform = Platform.KICK)))
-        rule.onNodeWithContentDescription("Kick", useUnmergedTree = true).assertExists()
+        assertTrue(cardDescriptions().toString(), cardDescriptions().single().endsWith(", Kick"))
     }
 
     @Test

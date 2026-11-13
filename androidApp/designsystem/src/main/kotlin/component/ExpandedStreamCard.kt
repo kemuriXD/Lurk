@@ -29,11 +29,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +46,8 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.time.UptimeText
+import io.github.kemurixd.lurk.designsystem.time.rememberNowState
+import io.github.kemurixd.lurk.designsystem.time.spokenUptime
 
 private const val PREVIEW_RATIO = 16f / 9f
 private const val NAME_SHARE = 0.6f
@@ -81,12 +83,14 @@ fun ExpandedStreamCard(
     modifier: Modifier = Modifier,
 ) {
     val openChannel = stringResource(R.string.cd_open_channel, stream.displayName)
+    val description = rememberCardDescription(stream)
     Column(
         modifier =
             modifier
                 .fillMaxWidth()
                 .testTag(ExpandedStreamCardTags.CARD)
                 .clickable(onClick = onOpenPlayer)
+                .semantics { contentDescription = description() }
                 .padding(CardPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -110,7 +114,12 @@ fun ExpandedStreamCard(
                         .semantics { contentDescription = openChannel }
                         .clickable(role = Role.Button, onClick = onOpenChannel),
             )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            // A merge boundary of its own, hidden from screen readers: the card's description says all of this already, and
+            // being a boundary keeps these texts out of the card's merged node.
+            Column(
+                Modifier.weight(1f).semantics(mergeDescendants = true) { hideFromAccessibility() },
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Headline(stream, onOpenChannel)
                 MetaLine(stream)
                 if (stream.tags.isNotEmpty()) {
@@ -118,6 +127,32 @@ fun ExpandedStreamCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * What a screen reader says for the card, as one sentence: the channel name, the title, how long it has been live,
+ * the viewers, the category, the tags and the platform. The pieces under the avatar say nothing themselves, so nothing
+ * is read twice. The uptime is spoken as a duration at minute resolution; its clock is read only when a screen reader
+ * asks, so a tick never recomposes the card.
+ */
+@Composable
+private fun rememberCardDescription(stream: Stream): () -> String {
+    val resources = LocalContext.current.resources
+    val locale = LocalConfiguration.current.locales[0]
+    val now = rememberNowState()
+    val separator = stringResource(R.string.cd_card_separator)
+    val viewers = stringResource(R.string.viewers_count, formatViewerCount(stream.viewers, locale))
+    val platform = stringResource(stream.channel.platform.labelRes)
+    return {
+        val startedAt = stream.startedAt
+        listOfNotNull(
+            stream.displayName,
+            stream.title.takeIf { it.isNotBlank() },
+            startedAt?.let { spokenUptime(now.value - it, resources) },
+            viewers,
+            stream.category?.name,
+        ).plus(stream.tags).plus(platform).joinToString(separator)
     }
 }
 
@@ -175,14 +210,13 @@ private fun Headline(
 
 /**
  * The live dot and uptime, the viewers and the category. It wraps rather than clips when large text runs out of room.
- * The dot carries "Live, 20,052 viewers" for accessibility and the count stays silent, so it is read once.
+ * Every piece is silent: the card's own description says them all in one go.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MetaLine(stream: Stream) {
     val locale = LocalConfiguration.current.locales[0]
     val viewers = formatViewerCount(stream.viewers, locale)
-    val liveViewers = stringResource(R.string.cd_live_viewers, viewers)
     val style = MaterialTheme.typography.bodyMedium
     val color = MaterialTheme.colorScheme.onSurface
     FlowRow(
@@ -191,12 +225,12 @@ private fun MetaLine(stream: Stream) {
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            LiveDot(Modifier.semantics { contentDescription = liveViewers }, size = 10.dp, describe = false)
+            LiveDot(size = 10.dp, describe = false)
             stream.startedAt?.let {
                 UptimeText(it, Modifier.testTag(ExpandedStreamCardTags.UPTIME), style = style, color = color)
             }
         }
-        WithIcon(R.drawable.ic_visibility, Modifier.clearAndSetSemantics {}) {
+        WithIcon(R.drawable.ic_visibility) {
             Text(viewers, style = style, color = color, maxLines = 1)
         }
         stream.category?.let { category ->
