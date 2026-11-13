@@ -272,7 +272,7 @@ private fun ErrorActionButton(
             stringResource(action.labelRes())
         }
     val description =
-        if (namesPlatform && action is ErrorAction.Retry && platform != null && !waiting) {
+        if (namesPlatform && platform != null && action.isReadyRetry(waiting)) {
             stringResource(R.string.error_retry_cd, stringResource(platform.labelRes))
         } else {
             null
@@ -296,6 +296,8 @@ private fun ErrorActionButton(
         ) { Text(label) }
     }
 }
+
+private fun ErrorAction.isReadyRetry(waiting: Boolean): Boolean = this is ErrorAction.Retry && !waiting
 
 /** Figma Banner tones: Info for being offline or signed out, Warning for a platform change, Error for the rest. */
 private enum class Tone { INFO, WARNING, ERROR }
