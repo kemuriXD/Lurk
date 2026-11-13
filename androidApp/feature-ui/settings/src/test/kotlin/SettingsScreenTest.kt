@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.featureui.settings
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -11,6 +12,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
+import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.accounts.AccountRow
 import io.github.kemurixd.lurk.feature.accounts.AccountStatus
@@ -35,6 +39,7 @@ class SettingsScreenTest {
     private val effects = Channel<AccountsEffect>(Channel.BUFFERED)
     private val intents = mutableListOf<AccountsIntent>()
     private val logins = mutableListOf<Platform>()
+    private val bannerSignIns = mutableListOf<Platform>()
 
     /** Answers intents the way the view model does, so the screen's effect handling runs end to end. */
     private fun onIntent(intent: AccountsIntent) {
@@ -53,12 +58,14 @@ class SettingsScreenTest {
         val state = AccountsUiState(listOf(AccountRow(Platform.TWITCH, twitch), AccountRow(Platform.KICK, kick)))
         rule.setContent {
             LurkTheme(dynamicColor = false) {
-                SettingsScreen(
-                    state = state,
-                    effects = effects.receiveAsFlow(),
-                    onIntent = ::onIntent,
-                    onOpenLogin = { logins += it },
-                )
+                ErrorHost(ErrorHandlers(signIn = { bannerSignIns += it })) {
+                    SettingsScreen(
+                        state = state,
+                        effects = effects.receiveAsFlow(),
+                        onIntent = ::onIntent,
+                        onOpenLogin = { logins += it },
+                    )
+                }
             }
         }
     }
@@ -93,6 +100,26 @@ class SettingsScreenTest {
         rule
             .onNode(hasTestTag(SettingsTestTags.action(Platform.TWITCH)) and hasText(string(R.string.sign_out)))
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun expiredSessionShowsABannerThatSignsInAgain() {
+        show(twitch = AccountStatus.Expired("Streamer One"), kick = AccountStatus.SignedOut)
+
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithText("Twitch session expired").assertIsDisplayed()
+        rule
+            .onNode(hasAnyAncestor(hasTestTag(ErrorTags.BANNER)) and hasText("Sign in again") and hasClickAction())
+            .performClick()
+
+        assertEquals(listOf(Platform.TWITCH), bannerSignIns)
+    }
+
+    @Test
+    fun noBannerWhileNoSessionHasExpired() {
+        show(twitch = AccountStatus.SignedIn("Streamer One", null), kick = AccountStatus.SignedOut)
+
+        rule.onNodeWithTag(ErrorTags.BANNER).assertDoesNotExist()
     }
 
     @Test

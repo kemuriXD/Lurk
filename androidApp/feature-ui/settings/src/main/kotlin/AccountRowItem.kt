@@ -122,7 +122,8 @@ private fun rowContent(row: AccountRow): RowContent {
         }
 
         is AccountStatus.Expired -> {
-            RowContent(status.displayName, stringResource(R.string.status_expired), colors.error)
+            // Said in plain colour here: the banner above the accounts carries the warning.
+            RowContent(status.displayName, stringResource(R.string.status_expired), colors.onSurfaceVariant)
         }
     }
 }

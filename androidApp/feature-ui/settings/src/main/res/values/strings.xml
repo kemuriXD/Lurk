@@ -5,6 +5,8 @@
     <string name="status_signed_in">Signed in to %1$s</string>
     <string name="status_signed_out">Not signed in</string>
     <string name="status_expired">Session expired</string>
+    <string name="expired_banner_title">%1$s session expired</string>
+    <string name="expired_banner_body">Following can’t show your %1$s channels.</string>
 
     <string name="sign_in">Sign in</string>
     <string name="sign_in_again">Sign in again</string>

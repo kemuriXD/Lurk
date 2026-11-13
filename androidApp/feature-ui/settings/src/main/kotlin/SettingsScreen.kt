@@ -30,9 +30,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.labelRes
+import io.github.kemurixd.lurk.feature.accounts.AccountStatus
 import io.github.kemurixd.lurk.feature.accounts.AccountsEffect
 import io.github.kemurixd.lurk.feature.accounts.AccountsIntent
 import io.github.kemurixd.lurk.feature.accounts.AccountsUiState
@@ -84,6 +87,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(ContentPadding),
     ) {
+        state.rows.filter { it.status is AccountStatus.Expired }.forEach { row -> ExpiredBanner(row.platform) }
         Column(Modifier.widthIn(max = BodyMaxWidth).fillMaxWidth().testTag(SettingsTestTags.ACCOUNTS)) {
             SectionHeader(stringResource(R.string.section_accounts), Modifier.padding(bottom = 8.dp))
             Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainer) {
@@ -106,6 +110,20 @@ fun SettingsScreen(
             onDismiss = { confirming = null },
         )
     }
+}
+
+/** An expired session, said once above the accounts, with Sign in again (spec §5.2). */
+@Composable
+private fun ExpiredBanner(platform: Platform) {
+    val name = stringResource(platform.labelRes)
+    ErrorBanner(
+        title = stringResource(R.string.expired_banner_title, name),
+        error = LurkError.AuthExpired,
+        onRetry = {},
+        platform = platform,
+        reason = stringResource(R.string.expired_banner_body, name),
+        modifier = Modifier.widthIn(max = BodyMaxWidth).padding(bottom = 8.dp),
+    )
 }
 
 @Composable
