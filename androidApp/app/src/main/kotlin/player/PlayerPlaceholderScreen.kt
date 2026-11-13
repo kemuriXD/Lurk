@@ -49,7 +49,7 @@ fun PlayerPlaceholderScreen(
                 modifier = Modifier.fillMaxSize(),
             )
             // The player will be live here; the placeholder says so the way the cards do.
-            LiveDot(Modifier.align(Alignment.TopStart).padding(12.dp), size = 10.dp, outlined = true)
+            LiveDot(Modifier.align(Alignment.TopStart).padding(12.dp), size = 10.dp)
         }
         Column(
             Modifier.padding(16.dp),

@@ -135,7 +135,6 @@ fun StreamThumbnail(
                 .semantics { contentDescription = liveViewers },
             size = 10.dp,
             describe = false,
-            outlined = true,
         )
         Text(
             text = stringResource(R.string.viewers_count, viewers),
