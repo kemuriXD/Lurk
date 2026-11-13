@@ -6,12 +6,14 @@ import io.github.kemurixd.lurk.core.model.Account
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.storage.SecureStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Keeps one signed-in session per platform. The token and the account (as JSON) live in [SecureStore] under
@@ -51,7 +53,11 @@ class SessionRepository(
         }
     }
 
-    /** Signs in with the session cookie from the login page. Nothing is stored unless the profile check succeeds. */
+    /**
+     * Signs in with the session cookie from the login page. Nothing is stored unless the profile check succeeds. Once
+     * it has, the token, the account and the state are written together and cancellation waits for them, so a
+     * cancelled sign-in leaves the whole session or none of it.
+     */
     suspend fun signIn(
         platform: Platform,
         cookieValue: String,
@@ -62,9 +68,11 @@ class SessionRepository(
         return session.lock.withLock {
             val result = fetcher.profile(token)
             if (result is Outcome.Success) {
-                vault.putToken(platform, token)
-                vault.putAccount(platform, result.value)
-                session.state.value = AccountState.SignedIn(result.value)
+                withContext(NonCancellable) {
+                    vault.putToken(platform, token)
+                    vault.putAccount(platform, result.value)
+                    session.state.value = AccountState.SignedIn(result.value)
+                }
             }
             result
         }

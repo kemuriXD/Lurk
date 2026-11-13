@@ -10,8 +10,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -24,7 +26,10 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionRepositoryTest {
-    private class FakeSecureStore : SecureStore {
+    /** [putDelayMs] stands in for a slow disk: each value lands at once, then the write takes that long to return. */
+    private class FakeSecureStore(
+        private val putDelayMs: Long = 0,
+    ) : SecureStore {
         val values = mutableMapOf<String, String>()
 
         override suspend fun get(key: String): String? = values[key]
@@ -34,6 +39,7 @@ class SessionRepositoryTest {
             value: String,
         ) {
             values[key] = value
+            if (putDelayMs > 0) delay(putDelayMs)
         }
 
         override suspend fun remove(key: String) {
@@ -99,6 +105,23 @@ class SessionRepositoryTest {
             assertEquals(token, store.values["twitch.token"])
             assertEquals(account, Json.decodeFromString<Account>(store.values.getValue("twitch.account")))
             assertEquals(listOf(token), fetcher.tokens)
+        }
+
+    @Test
+    fun cancelAfterTheProfileStoresTheWholeSessionOrNothing() =
+        runTest {
+            val store = FakeSecureStore(putDelayMs = 100)
+            val repo = repo(store, backgroundScope, FakeFetcher(Platform.TWITCH, Outcome.Success(account)))
+
+            val signIn = launch { repo.signIn(Platform.TWITCH, token) }
+            // The profile has answered and the token write is under way.
+            runCurrent()
+            signIn.cancel()
+            advanceUntilIdle()
+
+            val keys = store.values.keys
+            assertTrue(keys == setOf("twitch.token", "twitch.account") || keys.isEmpty(), "stored: $keys")
+            assertEquals(keys.isNotEmpty(), repo.state(Platform.TWITCH).value is AccountState.SignedIn)
         }
 
     @Test
