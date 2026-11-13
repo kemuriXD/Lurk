@@ -35,6 +35,7 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.formatViewers
 import io.github.kemurixd.lurk.designsystem.messageRes
+import io.github.kemurixd.lurk.designsystem.time.rememberNow
 import io.github.kemurixd.lurk.feature.channel.ChannelIntent
 import io.github.kemurixd.lurk.feature.channel.ChannelUiState
 import io.github.kemurixd.lurk.feature.channel.ChannelViewModel
@@ -42,7 +43,6 @@ import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
-import kotlin.time.Clock
 import kotlin.time.Instant
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
@@ -101,7 +101,7 @@ fun ChannelScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
-    now: Instant = remember { Clock.System.now() },
+    now: Instant = rememberNow(),
 ) {
     val channel = (state.load as? PlatformSlice.Loaded)?.value
     Box(modifier.fillMaxSize()) {

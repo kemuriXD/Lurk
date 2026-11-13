@@ -28,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -50,6 +49,7 @@ import io.github.kemurixd.lurk.designsystem.component.StreamThumbnail
 import io.github.kemurixd.lurk.designsystem.component.formatViewers
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.theme.PlayerColors
+import io.github.kemurixd.lurk.designsystem.time.offlineStatus
 import io.github.kemurixd.lurk.feature.channel.FollowState
 import kotlin.time.Instant
 import io.github.kemurixd.lurk.designsystem.R as DesignR
@@ -142,16 +142,7 @@ private fun statusLine(
     now: Instant,
 ): AnnotatedString {
     val live = channel.live
-    if (live == null) {
-        val last = channel.lastStream?.startedAt
-        return AnnotatedString(
-            if (last == null) {
-                stringResource(R.string.status_offline)
-            } else {
-                stringResource(R.string.status_offline_ago, agoText(agoOf(last, now)))
-            },
-        )
-    }
+    if (live == null) return AnnotatedString(offlineStatus(channel.lastStream?.startedAt, now))
     val viewers = formatViewers(live.viewers)
     val category = live.category?.name
     val text =
@@ -167,15 +158,6 @@ private fun statusLine(
         if (category != null && start >= 0) addStyle(SpanStyle(color = primary), start, start + category.length)
     }
 }
-
-@Composable
-private fun agoText(ago: Ago): String =
-    when (ago) {
-        Ago.JustNow -> stringResource(R.string.ago_now)
-        is Ago.Minutes -> pluralStringResource(R.plurals.ago_minutes, ago.count, ago.count)
-        is Ago.Hours -> pluralStringResource(R.plurals.ago_hours, ago.count, ago.count)
-        is Ago.Days -> pluralStringResource(R.plurals.ago_days, ago.count, ago.count)
-    }
 
 /** The Follow button and the Share button. Signed out, the Follow button becomes "Sign in to follow". */
 @Composable

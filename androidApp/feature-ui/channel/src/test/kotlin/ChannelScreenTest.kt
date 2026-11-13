@@ -100,6 +100,31 @@ class ChannelScreenTest {
     }
 
     @Test
+    fun offlineStatusUsesWeeksNotDays() {
+        show(loaded(channel(lastStream = LastStream(null, null, now - 9.days))))
+        rule.onNodeWithText("Offline · last live 1 week ago").assertIsDisplayed()
+    }
+
+    @Test
+    fun offlineStatusOneDayIsYesterday() {
+        show(loaded(channel(lastStream = LastStream(null, null, now - 1.days))))
+        rule.onNodeWithText("Offline · last live yesterday").assertIsDisplayed()
+    }
+
+    @Test
+    fun offlineStatusLongAgoIsYears() {
+        show(loaded(channel(lastStream = LastStream(null, null, now - 1_000.days))))
+        rule.onNodeWithText("Offline · last live 2 years ago").assertIsDisplayed()
+    }
+
+    @Test
+    fun offlineStatusWithoutATimeIsJustOffline() {
+        show(loaded(channel(lastStream = LastStream("Any% attempts", category, null))))
+        rule.onNodeWithTag(ChannelTestTags.STATUS).assertTextContains("Offline")
+        rule.onNodeWithText("last live", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun livePreviewShowsStreamDetails() {
         show(loaded(channel(live = stream())))
 
