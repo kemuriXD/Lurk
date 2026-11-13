@@ -24,6 +24,7 @@ import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 
+private val TextInset = 4.dp
 private const val ART_WIDTH = 116f
 private const val ART_HEIGHT = 155f
 
@@ -53,21 +54,27 @@ fun CategoryTile(
             )
             PlatformBadge(category.platform, Modifier.align(Alignment.TopStart).padding(LurkRadius.sm))
         }
-        Text(
-            text = category.name,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        category.viewers?.let {
+        // The tile is clipped to rounded corners, so the text keeps off the bottom corners.
+        Column(
+            modifier = Modifier.padding(start = TextInset, end = TextInset, bottom = TextInset),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
-                text = stringResource(R.string.viewers_count, formatViewers(it)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = category.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            category.viewers?.let {
+                Text(
+                    text = stringResource(R.string.viewers_count, formatViewers(it)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

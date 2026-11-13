@@ -65,6 +65,7 @@ private val BadgeTop = 164.dp
 private val BadgeStart = 34.5.dp
 private val ButtonIcon = 20.dp
 private val PlayButton = 56.dp
+private val TextInset = 8.dp
 private const val THUMBNAIL_RATIO = 16f / 9f
 
 /** Banner, back button, avatar with its live ring and badge, name and status line (Figma Channel header). */
@@ -253,21 +254,27 @@ internal fun LivePreview(
                 )
             }
         }
-        Text(
-            text = stream.title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        stream.category?.let {
+        // The card is clipped to rounded corners, so the text keeps off the bottom corners.
+        Column(
+            modifier = Modifier.padding(start = TextInset, end = TextInset, bottom = TextInset),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
-                text = it.name,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
+                text = stream.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            stream.category?.let {
+                Text(
+                    text = it.name,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
