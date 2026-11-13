@@ -255,7 +255,7 @@ class KickDiscoveryTest {
                 ).api
             api.channel(rigSessions(), ChannelRef(Platform.KICK, "a/b?c#d"))
 
-            assertEquals("/api/v2/channels/a%2Fb%3Fc%23d", seen.single().url.encodedPath)
+            assertEquals("/api/v2/channels/a%2Fb%3Fc%23d", seen.first().url.encodedPath)
         }
 
     @Test
@@ -322,7 +322,7 @@ class KickDiscoveryTest {
             assertEquals("1000001", channel.id)
             assertEquals("2000001", channel.chatId)
             assertEquals("streamer1", channel.ref.login)
-            assertEquals("/api/v2/channels/streamer1", seen.single().url.encodedPath)
+            assertEquals("/api/v2/channels/streamer1", seen.first().url.encodedPath)
         }
 
     @Test
@@ -392,6 +392,77 @@ class KickDiscoveryTest {
 
             assertIs<Outcome.Success<*>>(result)
             assertNull((result as Outcome.Success).value.lastStream?.startedAt)
+        }
+
+    @Test
+    fun liveChannelThumbnailComesFromTheLivestreamEndpoint() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        when (it.url.encodedPath) {
+                            "/api/v2/channels/streamer1" -> json(fixture("api/channel-live.json"))
+                            "/api/v2/channels/streamer1/livestream" -> json(fixture("api/livestream-live.json"))
+                            else -> json("{}", HttpStatusCode.NotFound)
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            val live = (result as Outcome.Success).value.live
+            assertEquals("https://cdn.example/t/9.webp", live?.thumbnailUrl)
+            assertEquals("Category 1", live?.category?.name)
+            assertEquals(
+                listOf("/api/v2/channels/streamer1", "/api/v2/channels/streamer1/livestream"),
+                seen.map { it.url.encodedPath },
+            )
+        }
+
+    @Test
+    fun liveChannelWithNullThumbnailStillGetsOne() =
+        runTest {
+            val body =
+                fixture("api/channel-live.json").replace(
+                    """"url": "https://stream.example/thumbnails/livestream/1/thumb0/video_thumbnail/thumb0.jpg"""",
+                    """"url": null""",
+                )
+            val api =
+                Rig(
+                    mockEngine {
+                        if (it.url.encodedPath.endsWith("/livestream")) {
+                            json(fixture("api/livestream-live.json"))
+                        } else {
+                            json(body)
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertEquals("https://cdn.example/t/9.webp", (result as Outcome.Success).value.live?.thumbnailUrl)
+        }
+
+    @Test
+    fun livestreamLookupFailureKeepsTheChannel() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        if (it.url.encodedPath.endsWith("/livestream")) {
+                            json("{}", HttpStatusCode.InternalServerError)
+                        } else {
+                            json(fixture("api/channel-live.json"))
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            val live = (result as Outcome.Success).value.live
+            assertNull(live?.thumbnailUrl)
+            assertEquals("Category 1", live?.category?.name)
         }
 
     @Test

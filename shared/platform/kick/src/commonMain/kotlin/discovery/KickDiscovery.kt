@@ -18,8 +18,10 @@ import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
 import io.github.kemurixd.lurk.platform.kick.channel.KickCategoryJson
 import io.github.kemurixd.lurk.platform.kick.channel.decodeKickChannel
 import io.github.kemurixd.lurk.platform.kick.channel.latestPastStream
+import io.github.kemurixd.lurk.platform.kick.channel.liveDetails
 import io.github.kemurixd.lurk.platform.kick.channel.toCategory
 import io.github.kemurixd.lurk.platform.kick.channel.toChannel
+import io.github.kemurixd.lurk.platform.kick.channel.withDetails
 import io.github.kemurixd.lurk.platform.kick.channel.withLastStream
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -122,14 +124,15 @@ private fun decodeCategories(root: JsonElement): Page<Category> {
 /**
  * A channel's profile, with its stream when it is live. A slug Kick does not know is `NotFound`.
  *
- * The profile doesn't say when an offline channel was last live, so with [lastStream] an offline channel costs a
- * second request for its past broadcasts. If that one fails, the channel still loads, without the time. Callers that
- * only need the IDs, such as chat, pass `lastStream = false`.
+ * With [extras], the channel page's second request follows. A live channel asks `channels/{slug}/livestream` for its
+ * preview, which the profile lacks. An offline channel asks for its past broadcasts, since the profile doesn't say
+ * when it was last live. If the second request fails, the channel still loads without that detail. Callers that only
+ * need the IDs, such as chat, pass `extras = false`.
  */
 internal suspend fun KickApi.channel(
     sessions: SessionRepository,
     ref: ChannelRef,
-    lastStream: Boolean = true,
+    extras: Boolean = true,
 ): Outcome<Channel> =
     sessions.authed(Platform.KICK, anonymousFallback = true) { token ->
         val path = "v2/channels/${ref.login.asPathSegment()}"
@@ -138,10 +141,20 @@ internal suspend fun KickApi.channel(
                 decodeKickChannel(it).toChannel() ?: throw LurkException(LurkError.SchemaChanged)
             }
         val channel = (result as? Outcome.Success)?.value
-        if (!lastStream || channel == null || channel.live != null) {
-            result
-        } else {
-            val past = (get(KickBase.API, "$path/videos", token).decode(::latestPastStream) as? Outcome.Success)?.value
-            Outcome.Success(past?.let(channel::withLastStream) ?: channel)
+        val live = channel?.live
+        when {
+            !extras || channel == null -> {
+                result
+            }
+
+            live != null -> {
+                Outcome.Success(channel.copy(live = live.withDetails(liveDetails(token, ref.login))))
+            }
+
+            else -> {
+                val videos = get(KickBase.API, "$path/videos", token).decode(::latestPastStream)
+                val past = (videos as? Outcome.Success)?.value
+                Outcome.Success(past?.let(channel::withLastStream) ?: channel)
+            }
         }
     }

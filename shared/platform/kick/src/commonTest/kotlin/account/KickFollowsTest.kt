@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.platform.kick.account
 
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -14,16 +15,21 @@ import io.github.kemurixd.lurk.platform.kick.api.mockEngine
 import io.github.kemurixd.lurk.platform.kick.fixture
 import io.github.kemurixd.lurk.platform.kick.queryOf
 import io.github.kemurixd.lurk.platform.kick.rigSessions
+import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class KickFollowsTest {
     private val ref = ChannelRef(Platform.KICK, "streamer1")
@@ -72,6 +78,7 @@ class KickFollowsTest {
                     },
                 ).api
             val followed = api.followed(rigSessions(signedIn = true)).value()
+            seen.removeAll { it.url.encodedPath != "/api/v2/channels/followed" }
 
             assertEquals(2, seen.size)
             assertEquals("/api/v2/channels/followed", seen[0].url.encodedPath)
@@ -141,6 +148,116 @@ class KickFollowsTest {
             )
         }
 
+    /** Serves the two follows pages, and [livestream] for each live channel's livestream lookup. */
+    private fun MockRequestHandleScope.follows(
+        request: HttpRequestData,
+        livestream: MockRequestHandleScope.(slug: String) -> HttpResponseData,
+    ): HttpResponseData {
+        val path = request.url.encodedPath
+        return when {
+            path.endsWith("/livestream") -> livestream(path.removeSuffix("/livestream").substringAfterLast('/'))
+            request.queryOf("cursor") == null -> json(fixture("account/followed-page1.json"))
+            else -> json(fixture("account/followed-page2.json"))
+        }
+    }
+
+    @Test
+    fun liveFollowedStreamsGetTheirThumbnailCategoryAndStartFromTheLivestream() =
+        runTest {
+            val api = Rig(mockEngine { follows(it) { json(fixture("api/livestream-live.json")) } }).api
+            val followed = api.followed(rigSessions(signedIn = true)).value()
+
+            assertEquals(2, followed.live.size)
+            for (stream in followed.live) {
+                assertEquals("https://cdn.example/t/9.webp", stream.thumbnailUrl)
+                assertEquals("Category 1", stream.category?.name)
+                assertEquals(Category(Platform.KICK, "15", "Category 1", null), stream.category)
+                assertEquals(Instant.parse("2026-01-01T09:00:00Z"), stream.startedAt)
+            }
+        }
+
+    @Test
+    fun aFailedLivestreamLookupLeavesThatCardBareButKeepsTheList() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        follows(it) { slug ->
+                            when (slug) {
+                                "streamer2" -> json("{}", HttpStatusCode.InternalServerError)
+                                else -> json(fixture("api/livestream-live.json"))
+                            }
+                        }
+                    },
+                ).api
+            val followed = api.followed(rigSessions(signedIn = true)).value()
+
+            val byLogin = followed.live.associateBy { it.channel.login }
+            assertNull(byLogin.getValue("streamer2").thumbnailUrl)
+            assertNull(byLogin.getValue("streamer2").category)
+            assertEquals("https://cdn.example/t/9.webp", byLogin.getValue("streamer3").thumbnailUrl)
+            assertEquals(3, followed.offline.size)
+        }
+
+    @Test
+    fun aStreamThatEndedBeforeTheLookupKeepsNoThumbnail() =
+        runTest {
+            val api = Rig(mockEngine { follows(it) { json(fixture("api/livestream-offline.json")) } }).api
+            val followed = api.followed(rigSessions(signedIn = true)).value()
+
+            assertEquals(2, followed.live.size)
+            assertTrue(followed.live.all { it.thumbnailUrl == null && it.category == null })
+        }
+
+    @Test
+    fun onlyLiveFollowsCostALivestreamRequest() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        follows(it) { json(fixture("api/livestream-live.json")) }
+                    },
+                ).api
+            api.followed(rigSessions(signedIn = true)).value()
+
+            val lookups = seen.map { it.url.encodedPath }.filter { it.endsWith("/livestream") }
+            assertEquals(
+                listOf("/api/v2/channels/streamer2/livestream", "/api/v2/channels/streamer3/livestream"),
+                lookups.sorted(),
+            )
+        }
+
+    @Test
+    fun livestreamLookupsRunAtMostFourAtATime() =
+        runTest {
+            val many =
+                (1..10).joinToString(",", prefix = """{"channels":[""", postfix = "]}") {
+                    """{"is_live":true,"channel_slug":"live$it","viewer_count":$it,"user_username":"Live $it"}"""
+                }
+            var running = 0
+            var peak = 0
+            val api =
+                Rig(
+                    mockEngine {
+                        if (it.url.encodedPath.endsWith("/livestream")) {
+                            running++
+                            peak = maxOf(peak, running)
+                            delay(100)
+                            running--
+                            json(fixture("api/livestream-live.json"))
+                        } else {
+                            json(many)
+                        }
+                    },
+                ).api
+            val followed = api.followed(rigSessions(signedIn = true)).value()
+
+            assertEquals(10, followed.live.count { it.thumbnailUrl != null })
+            assertEquals(4, peak)
+        }
+
     @Test
     fun followedStopsAtTwentyPages() =
         runTest {
@@ -158,7 +275,7 @@ class KickFollowsTest {
                 ).api
             api.followed(rigSessions(signedIn = true)).value()
 
-            assertEquals(20, seen.size)
+            assertEquals(20, seen.count { it.url.encodedPath == "/api/v2/channels/followed" })
         }
 
     @Test
@@ -174,7 +291,7 @@ class KickFollowsTest {
                 ).api
             api.followed(rigSessions(signedIn = true)).value()
 
-            assertEquals(2, seen.size)
+            assertEquals(2, seen.count { it.url.encodedPath == "/api/v2/channels/followed" })
         }
 
     @Test

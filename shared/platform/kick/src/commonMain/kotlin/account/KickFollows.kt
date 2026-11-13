@@ -13,19 +13,32 @@ import io.github.kemurixd.lurk.platform.api.authed
 import io.github.kemurixd.lurk.platform.kick.api.KickApi
 import io.github.kemurixd.lurk.platform.kick.api.KickBase
 import io.github.kemurixd.lurk.platform.kick.api.asPathSegment
+import io.github.kemurixd.lurk.platform.kick.channel.liveDetails
+import io.github.kemurixd.lurk.platform.kick.channel.withDetails
 import io.github.kemurixd.lurk.platform.kick.discovery.asObject
 import io.github.kemurixd.lurk.platform.kick.discovery.decode
 import io.github.kemurixd.lurk.platform.kick.discovery.decodeOrNull
 import io.github.kemurixd.lurk.platform.kick.discovery.requireArray
 import io.github.kemurixd.lurk.platform.kick.discovery.text
 import io.ktor.http.HttpMethod
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 internal const val FOLLOWED_MAX_PAGES = 20
 
-/** One followed channel as the follows list gives it. It names no IDs, no thumbnail and no start time. */
+/** How many live follows have their `livestream` details read at once. */
+internal const val LIVE_DETAILS_PARALLEL = 4
+
+/**
+ * One followed channel as the follows list gives it. It names no IDs, no thumbnail, no category ID and no start time;
+ * live ones get those from [liveDetails].
+ */
 @Serializable
 private data class FollowedItemJson(
     @SerialName("is_live") val isLive: Boolean? = null,
@@ -46,8 +59,10 @@ private class FollowedPage(
  * Everything the signed-in user follows: live ones as streams by viewers, the rest as channels A to Z. Reads at
  * most [FOLLOWED_MAX_PAGES] pages. Signed out is `NotSignedIn`; there is no anonymous answer.
  *
- * Kick's list has no channel IDs, so `Stream.channelId`, `Channel.id` and `chatId` are empty here, and a live
- * stream's `category` is null (the list has only a name). `channel` has the real values.
+ * Kick's list has no channel IDs, so `Stream.channelId`, `Channel.id` and `chatId` are empty here; `channel` has the
+ * real values. It has no preview, category ID or start time either, so each live stream costs one
+ * `channels/{slug}/livestream` request, at most [LIVE_DETAILS_PARALLEL] at a time. A stream whose request fails keeps
+ * no preview and no category, and the list still loads.
  */
 internal suspend fun KickApi.followed(sessions: SessionRepository): Outcome<Followed> =
     sessions.authed(Platform.KICK, anonymousFallback = false) { token ->
@@ -70,8 +85,22 @@ internal suspend fun KickApi.followed(sessions: SessionRepository): Outcome<Foll
             }
             pages++
         } while (cursor != null && pages < FOLLOWED_MAX_PAGES)
-        Outcome.Success(split(items))
+        val followed = split(items)
+        Outcome.Success(followed.copy(live = withLiveDetails(followed.live, token)))
     }
+
+private suspend fun KickApi.withLiveDetails(
+    live: List<Stream>,
+    token: String,
+): List<Stream> {
+    val permits = Semaphore(LIVE_DETAILS_PARALLEL)
+    return coroutineScope {
+        live
+            .map { stream ->
+                async { permits.withPermit { stream.withDetails(liveDetails(token, stream.channel.login)) } }
+            }.awaitAll()
+    }
+}
 
 private fun decodeFollowed(root: JsonElement): FollowedPage {
     val reply = root.asObject()

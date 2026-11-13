@@ -136,6 +136,14 @@ class KickPlatformTest {
         }
 
     @Test
+    fun resolvingALiveChannelForChatSkipsTheLivestreamLookup() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            platform(seen).chat(channel("", ""))
+            assertEquals(0, seen.count { it.url.encodedPath.endsWith("/livestream") })
+        }
+
+    @Test
     fun channelPageForAnOfflineChannelLooksUpPastStreams() =
         runTest {
             val seen = mutableListOf<HttpRequestData>()

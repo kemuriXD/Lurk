@@ -26,7 +26,7 @@ class KickChannelJsonTest {
             category = Category(Platform.KICK, "1", "Category 1", null, 1000),
             viewers = 1000,
             startedAt = Instant.parse("2026-01-01T00:00:00Z"),
-            thumbnailUrl = "https://cdn.example/a/1.png",
+            thumbnailUrl = null,
             avatarUrl = "https://cdn.example/a/1.png",
         )
 
