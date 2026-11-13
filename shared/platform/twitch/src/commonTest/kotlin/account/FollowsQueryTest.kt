@@ -44,6 +44,10 @@ class FollowsQueryTest {
 
             assertEquals(listOf("streamer3", "streamer1"), followed.live.map { it.channel.login })
             assertEquals(listOf(5000L, 100L), followed.live.map { it.viewers })
+            assertEquals(
+                listOf("https://cdn.example/t/streamer3-440x248.jpg", "https://cdn.example/t/streamer1-440x248.jpg"),
+                followed.live.map { it.thumbnailUrl },
+            )
             assertEquals(listOf("streamer2"), followed.offline.map { it.ref.login })
             val offline = followed.offline.single()
             assertEquals("1000002", offline.id)
