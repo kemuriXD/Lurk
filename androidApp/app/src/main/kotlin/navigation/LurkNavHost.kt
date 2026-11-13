@@ -49,13 +49,13 @@ fun LurkNavHost(
             ),
         entryProvider =
             entryProvider {
-                entry<FollowingRoute> {
+                entry<FollowingRoute>(metadata = { routeMetadata(it) }) {
                     TabPage(TopLevel.FOLLOWING, navigator) { FollowingTab(navigator) }
                 }
-                entry<BrowseRoute> {
+                entry<BrowseRoute>(metadata = { routeMetadata(it) }) {
                     TabPage(TopLevel.BROWSE, navigator) { BrowseTab(navigator) }
                 }
-                entry<SearchRoute> {
+                entry<SearchRoute>(metadata = { routeMetadata(it) }) {
                     TabPage(TopLevel.SEARCH, navigator) { SearchTab(navigator) }
                 }
                 entry<CategoryRoute> { route ->

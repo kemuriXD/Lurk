@@ -1,8 +1,11 @@
 package io.github.kemurixd.lurk.navigation
 
+import androidx.compose.runtime.Composable
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.scene.Scene
 import io.github.kemurixd.lurk.core.model.Platform
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PageTransitionTest {
@@ -63,17 +66,42 @@ class PageTransitionTest {
     }
 
     @Test
-    fun everyKindIsAPlainSlideOfAboutThreeHundredMilliseconds() {
-        for (kind in NavigationKind.entries) {
-            val transition = pageTransition(kind, FollowingRoute, channel)
-            assertEquals(300, transition.durationMillis)
+    fun everyKindSharesOneDurationAndEasing() {
+        val all =
+            NavigationKind.entries.map { kind ->
+                pageTransition(kind, FollowingRoute, channel).let { it.durationMillis to it.easing }
+            }
+        assertEquals(1, all.toSet().size)
+        assertEquals(300, all.first().first)
+        // Tab switches use the same spec as pushes and pops.
+        val tab = pageTransition(NavigationKind.PUSH, FollowingRoute, BrowseRoute)
+        assertEquals(all.first(), tab.durationMillis to tab.easing)
+    }
+
+    private fun scene(key: NavKey): Scene<NavKey> {
+        val entry = NavEntry(key, metadata = routeMetadata(key)) {}
+        return object : Scene<NavKey> {
+            override val key: Any = entry.contentKey
+            override val entries = listOf(entry)
+            override val previousEntries = emptyList<NavEntry<NavKey>>()
+            override val content: @Composable () -> Unit = {}
         }
     }
 
     @Test
-    fun theBackSwipeFollowsTheFingerLinearly() {
-        assertTrue(pageTransition(NavigationKind.PREDICTIVE_POP, channel, FollowingRoute).linear)
-        assertTrue(!pageTransition(NavigationKind.PUSH, FollowingRoute, channel).linear)
-        assertTrue(!pageTransition(NavigationKind.POP, channel, FollowingRoute).linear)
+    fun scenesFromTheNavDisplayStillGoTheTabsWay() {
+        // What slide() receives: real entries, whose contentKey is not the NavKey.
+        assertEquals(
+            SlideDirection.BACKWARD,
+            pageTransition(NavigationKind.PUSH, scene(SearchRoute), scene(FollowingRoute)).direction,
+        )
+        assertEquals(
+            SlideDirection.FORWARD,
+            pageTransition(NavigationKind.POP, scene(FollowingRoute), scene(BrowseRoute)).direction,
+        )
+        assertEquals(
+            SlideDirection.FORWARD,
+            pageTransition(NavigationKind.PUSH, scene(FollowingRoute), scene(channel)).direction,
+        )
     }
 }
