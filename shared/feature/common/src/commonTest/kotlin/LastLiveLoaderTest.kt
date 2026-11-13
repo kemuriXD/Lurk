@@ -25,6 +25,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -121,6 +122,68 @@ class LastLiveLoaderTest {
 
             assertEquals(3, peak)
             assertEquals(10, loader.times.first().size)
+        }
+
+    /** Fills every permit with a slow lookup, so the next request waits its turn. */
+    private fun TestScope.busy(loader: LastLiveLoader) {
+        kick.lastLive = {
+            delay(1_000)
+            Outcome.Success(then)
+        }
+        repeat(3) { loader.request(ref("busy$it"), screen()) }
+        runCurrent()
+    }
+
+    @Test
+    fun aRowHiddenBeforeItsTurnIsNeverFetched() =
+        runTest {
+            val loader = loader()
+            busy(loader)
+
+            loader.request(ref("streamer1"), screen())
+            runCurrent()
+            loader.release(ref("streamer1"))
+            advanceUntilIdle()
+
+            assertTrue(ref("streamer1") !in kick.lastLiveRequests, "fetched: ${kick.lastLiveRequests}")
+            assertTrue(ref("streamer1") !in loader.times.first())
+
+            loader.request(ref("streamer1"), screen())
+            advanceUntilIdle()
+            assertEquals(then, loader.times.first()[ref("streamer1")])
+        }
+
+    @Test
+    fun aRowHiddenAndShownAgainBeforeItsTurnIsFetchedOnce() =
+        runTest {
+            val loader = loader()
+            busy(loader)
+
+            loader.request(ref("streamer1"), screen())
+            loader.release(ref("streamer1"))
+            loader.request(ref("streamer1"), screen())
+            advanceUntilIdle()
+
+            assertEquals(1, kick.lastLiveRequests.count { it == ref("streamer1") })
+        }
+
+    @Test
+    fun aFailureIsRetriedAfterAMinute() =
+        runTest {
+            kick.lastLive = { Outcome.Failure(LurkError.Timeout) }
+            val loader = loader()
+
+            loader.request(ref("streamer1"), screen())
+            advanceUntilIdle()
+            advanceTimeBy(59.seconds)
+            loader.request(ref("streamer1"), screen())
+            advanceUntilIdle()
+            assertEquals(1, kick.lastLiveRequests.size)
+
+            advanceTimeBy(2.seconds)
+            loader.request(ref("streamer1"), screen())
+            advanceUntilIdle()
+            assertEquals(2, kick.lastLiveRequests.size)
         }
 
     @Test
