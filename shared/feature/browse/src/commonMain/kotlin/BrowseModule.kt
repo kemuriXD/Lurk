@@ -12,5 +12,5 @@ val browseModule: Module =
     module {
         viewModel { TopLiveViewModel(get(), get()) }
         viewModel { CategoriesViewModel(get(), get()) }
-        viewModel { params -> CategoryStreamsViewModel(params.get(), params.get(), get(), get()) }
+        viewModel { params -> CategoryStreamsViewModel(params.get(), params.get(), get(), get(), get()) }
     }

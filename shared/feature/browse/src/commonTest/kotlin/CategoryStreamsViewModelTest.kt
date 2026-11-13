@@ -1,14 +1,23 @@
 package io.github.kemurixd.lurk.feature.browse
 
+import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.CategorySort
+import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
+import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
 import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
+import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
 import io.github.kemurixd.lurk.feature.testing.testStream
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -17,6 +26,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -36,13 +46,26 @@ class CategoryStreamsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(
+    private val fetchers = Platform.entries.map { FakeProfileFetcher(it) }
+    private var sessions: SessionRepository? = null
+
+    private fun TestScope.sessions(): SessionRepository =
+        sessions ?: SessionRepository(InMemorySecureStore(), fetchers, backgroundScope).also { sessions = it }
+
+    private fun TestScope.viewModel(
         platform: Platform = Platform.KICK,
         id: String = "42",
-    ): CategoryStreamsViewModel =
-        harness.create(CategoryStreamsViewModel::class) {
-            CategoryStreamsViewModel(platform, id, listOf(twitch, kick), TestDispatchers(harness.dispatcher))
+    ): CategoryStreamsViewModel {
+        val accounts = AccountsState(sessions())
+        return harness.create(CategoryStreamsViewModel::class) {
+            CategoryStreamsViewModel(platform, id, listOf(twitch, kick), accounts, TestDispatchers(harness.dispatcher))
         }
+    }
+
+    private fun t(
+        login: String,
+        viewers: Long,
+    ) = testStream(Platform.TWITCH, login = login, viewers = viewers, displayName = login)
 
     private fun k(
         login: String,
@@ -52,7 +75,7 @@ class CategoryStreamsViewModelTest {
     @Test
     fun loadsThePlatformsCategorySortedByViewers() =
         runTest {
-            kick.liveInCategory = { id, _ -> if (id == "42") pageOf(k("a", 10), k("b", 30)) else pageOf() }
+            kick.liveInCategory = { id, _, _ -> if (id == "42") pageOf(k("a", 10), k("b", 30)) else pageOf() }
             val state = watch(viewModel().state)
 
             assertEquals(listOf(30L, 10L), state.value.streams.map { it.viewers })
@@ -62,7 +85,7 @@ class CategoryStreamsViewModelTest {
     @Test
     fun loadMoreAppendsASortedBatchBelow() =
         runTest {
-            kick.liveInCategory = { _, cursor ->
+            kick.liveInCategory = { _, cursor, _ ->
                 if (cursor == null) pageOf(k("a", 50), k("b", 40), next = "p2") else pageOf(k("c", 20), k("d", 60))
             }
             val vm = viewModel()
@@ -78,7 +101,7 @@ class CategoryStreamsViewModelTest {
     @Test
     fun categoryWithBlankIdShowsNotFound() =
         runTest {
-            kick.liveInCategory = { _, _ -> Outcome.Failure(LurkError.NotFound) }
+            kick.liveInCategory = { _, _, _ -> Outcome.Failure(LurkError.NotFound) }
             val state = watch(viewModel(id = "").state)
 
             assertEquals(PlatformSlice.Failed(LurkError.NotFound), state.value.slice)
@@ -87,7 +110,7 @@ class CategoryStreamsViewModelTest {
     @Test
     fun notFoundFromThePlatformShowsNotFound() =
         runTest {
-            kick.liveInCategory = { _, _ -> Outcome.Failure(LurkError.NotFound) }
+            kick.liveInCategory = { _, _, _ -> Outcome.Failure(LurkError.NotFound) }
             val state = watch(viewModel().state)
 
             assertEquals(PlatformSlice.Failed(LurkError.NotFound), state.value.slice)
@@ -97,14 +120,229 @@ class CategoryStreamsViewModelTest {
     @Test
     fun retryReloadsAfterAFailure() =
         runTest {
-            kick.liveInCategory = { _, _ -> Outcome.Failure(LurkError.Offline) }
+            kick.liveInCategory = { _, _, _ -> Outcome.Failure(LurkError.Offline) }
             val vm = viewModel()
             val state = watch(vm.state)
 
-            kick.liveInCategory = { _, _ -> pageOf(k("a", 10)) }
+            kick.liveInCategory = { _, _, _ -> pageOf(k("a", 10)) }
             vm.onIntent(CategoryStreamsIntent.Retry)
             runCurrent()
 
             assertEquals(listOf(10L), state.value.streams.map { it.viewers })
         }
+
+    @Test
+    fun twitchOffersItsSortsAndStartsOnRecommended() =
+        runTest {
+            val asked = mutableListOf<CategorySort>()
+            twitch.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val state = watch(viewModel(Platform.TWITCH).state)
+
+            assertEquals(
+                listOf(
+                    CategorySort.RECOMMENDED,
+                    CategorySort.VIEWERS_HIGH,
+                    CategorySort.VIEWERS_LOW,
+                    CategorySort.RECENT,
+                ),
+                state.value.sorts,
+            )
+            assertEquals(CategorySort.RECOMMENDED, state.value.sort)
+            assertEquals(listOf(CategorySort.RECOMMENDED), asked)
+        }
+
+    @Test
+    fun kickSignedOutHidesRecommendedAndStartsOnViewers() =
+        runTest {
+            val asked = mutableListOf<CategorySort>()
+            kick.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val state = watch(viewModel().state)
+
+            assertEquals(listOf(CategorySort.FEATURED, CategorySort.VIEWERS_HIGH), state.value.sorts)
+            assertEquals(CategorySort.VIEWERS_HIGH, state.value.sort)
+            assertEquals(listOf(CategorySort.VIEWERS_HIGH), asked)
+        }
+
+    @Test
+    fun kickSignedInStartsOnRecommended() =
+        runTest {
+            sessions().signIn(Platform.KICK, TOKEN)
+            val asked = mutableListOf<CategorySort>()
+            kick.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val state = watch(viewModel().state)
+
+            assertEquals(
+                listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+                state.value.sorts,
+            )
+            assertEquals(CategorySort.RECOMMENDED, state.value.sort)
+            assertEquals(listOf(CategorySort.RECOMMENDED), asked)
+        }
+
+    @Test
+    fun switchingTheSortRefetchesTheFirstPageWithIt() =
+        runTest {
+            val asked = mutableListOf<Pair<String?, CategorySort>>()
+            twitch.liveInCategory = { _, cursor, sort ->
+                asked += cursor to sort
+                if (sort == CategorySort.RECENT) pageOf(t("new", 1)) else pageOf(t("a", 10), next = "p2")
+            }
+            val vm = viewModel(Platform.TWITCH)
+            val state = watch(vm.state)
+
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.RECENT))
+            runCurrent()
+
+            assertEquals(
+                listOf<Pair<String?, CategorySort>>(
+                    null to CategorySort.RECOMMENDED,
+                    null to CategorySort.RECENT,
+                ),
+                asked,
+            )
+            assertEquals(CategorySort.RECENT, state.value.sort)
+            assertEquals(listOf("new"), state.value.streams.map { it.channel.login })
+            assertFalse(state.value.canLoadMore)
+        }
+
+    @Test
+    fun loadMoreKeepsTheSort() =
+        runTest {
+            val asked = mutableListOf<Pair<String?, CategorySort>>()
+            twitch.liveInCategory = { _, cursor, sort ->
+                asked += cursor to sort
+                if (cursor == null) pageOf(t("a", 1), next = "p2") else pageOf(t("b", 2))
+            }
+            val vm = viewModel(Platform.TWITCH)
+            watch(vm.state)
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.VIEWERS_LOW))
+            runCurrent()
+
+            vm.onIntent(CategoryStreamsIntent.LoadMore)
+            runCurrent()
+
+            assertEquals("p2" to CategorySort.VIEWERS_LOW, asked.last())
+        }
+
+    @Test
+    fun switchingTheSortDropsAPageStillLoading() =
+        runTest {
+            val slowPage = CompletableDeferred<Outcome<Page<Stream>>>()
+            twitch.liveInCategory = { _, cursor, sort ->
+                when {
+                    sort == CategorySort.RECENT -> pageOf(t("new", 1))
+                    cursor == null -> pageOf(t("a", 10), next = "p2")
+                    else -> slowPage.await()
+                }
+            }
+            val vm = viewModel(Platform.TWITCH)
+            val state = watch(vm.state)
+            vm.onIntent(CategoryStreamsIntent.LoadMore)
+            runCurrent()
+
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.RECENT))
+            runCurrent()
+            slowPage.complete(pageOf(t("old", 5)))
+            runCurrent()
+
+            assertEquals(listOf("new"), state.value.streams.map { it.channel.login })
+            assertFalse(state.value.loadingMore)
+        }
+
+    @Test
+    fun selectingTheCurrentSortDoesNotReload() =
+        runTest {
+            val vm = viewModel(Platform.TWITCH)
+            watch(vm.state)
+
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.RECOMMENDED))
+            runCurrent()
+
+            assertEquals(1, twitch.liveInCategoryCalls)
+        }
+
+    @Test
+    fun sortsThePlatformLacksAreIgnored() =
+        runTest {
+            val vm = viewModel(Platform.TWITCH)
+            val state = watch(vm.state)
+
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.FEATURED))
+            runCurrent()
+
+            assertEquals(CategorySort.RECOMMENDED, state.value.sort)
+            assertEquals(1, twitch.liveInCategoryCalls)
+        }
+
+    @Test
+    fun onlyViewerSortsReorderAPage() =
+        runTest {
+            twitch.liveInCategory = { _, _, _ -> pageOf(t("a", 10), t("b", 30)) }
+            val vm = viewModel(Platform.TWITCH)
+            val state = watch(vm.state)
+            assertEquals(listOf(10L, 30L), state.value.streams.map { it.viewers })
+
+            twitch.liveInCategory = { _, _, _ -> pageOf(t("a", 30), t("b", 10)) }
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.VIEWERS_LOW))
+            runCurrent()
+            assertEquals(listOf(10L, 30L), state.value.streams.map { it.viewers })
+
+            twitch.liveInCategory = { _, _, _ -> pageOf(t("a", 10), t("b", 30)) }
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.VIEWERS_HIGH))
+            runCurrent()
+            assertEquals(listOf(30L, 10L), state.value.streams.map { it.viewers })
+        }
+
+    @Test
+    fun signingOutOnRecommendedFallsBackToTheDefault() =
+        runTest {
+            sessions().signIn(Platform.KICK, TOKEN)
+            val asked = mutableListOf<CategorySort>()
+            kick.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val state = watch(viewModel().state)
+
+            sessions().signOut(Platform.KICK)
+            runCurrent()
+
+            assertEquals(CategorySort.VIEWERS_HIGH, state.value.sort)
+            assertEquals(listOf(CategorySort.FEATURED, CategorySort.VIEWERS_HIGH), state.value.sorts)
+            assertEquals(listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH), asked)
+        }
+
+    @Test
+    fun aPickedSortSurvivesSigningIn() =
+        runTest {
+            val asked = mutableListOf<CategorySort>()
+            kick.liveInCategory = { _, _, sort ->
+                asked += sort
+                pageOf()
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(CategoryStreamsIntent.SelectSort(CategorySort.FEATURED))
+            runCurrent()
+
+            sessions().signIn(Platform.KICK, TOKEN)
+            runCurrent()
+
+            assertEquals(CategorySort.FEATURED, state.value.sort)
+            assertTrue(CategorySort.RECOMMENDED in state.value.sorts)
+            assertEquals(listOf(CategorySort.VIEWERS_HIGH, CategorySort.FEATURED), asked)
+        }
+
+    private companion object {
+        const val TOKEN = "stand-in-token"
+    }
 }
