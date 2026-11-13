@@ -19,6 +19,7 @@ Compose:
       - LocalSpacing
       - LocalPlatformColors
       - LocalHighlightColors
+      - LocalClock
   ModifierMissing:
     active: true
   ModifierNaming:

@@ -17,12 +17,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.designsystem.R
+import io.github.kemurixd.lurk.designsystem.time.offlineStatus
+import io.github.kemurixd.lurk.designsystem.time.rememberNow
+import kotlin.time.Instant
 
 private val RowPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 24.dp, bottom = 12.dp)
 
 /**
  * One channel in a list (Figma ChannelRow). Shows the LIVE badge and viewers while live, and a ring on the avatar
- * unless [showLiveRing] is off.
+ * unless [showLiveRing] is off. Offline, it says when the channel was last live, counted from [now].
  */
 @Composable
 fun ChannelRow(
@@ -30,13 +33,14 @@ fun ChannelRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showLiveRing: Boolean = true,
+    now: Instant = rememberNow(),
 ) {
     val live = channel.live
     val category = live?.category
     val supporting =
         when {
             live == null -> {
-                stringResource(R.string.offline)
+                offlineStatus(channel.lastStream?.startedAt, now)
             }
 
             category != null -> {
