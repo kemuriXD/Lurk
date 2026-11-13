@@ -20,6 +20,7 @@ import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.playback.AdPolicy
 import io.github.kemurixd.lurk.playback.PlaybackGrant
 import io.github.kemurixd.lurk.playback.PlaybackSource
+import kotlin.time.Instant
 
 /**
  * A [StreamingPlatform] whose calls are plain lambdas that tests swap out. Each call defaults to an empty success
@@ -41,6 +42,7 @@ class FakeStreamingPlatform(
         { Outcome.Success(testChannel(it.platform, login = it.login)) }
     var followed: suspend () -> Outcome<Followed> = { Outcome.Success(Followed(emptyList(), emptyList())) }
     var setFollow: suspend (channel: Channel, follow: Boolean) -> Outcome<Unit> = { _, _ -> Outcome.Success(Unit) }
+    var lastLive: suspend (ref: ChannelRef) -> Outcome<Instant?> = { Outcome.Success(null) }
 
     var topLiveCalls = 0
         private set
@@ -56,6 +58,9 @@ class FakeStreamingPlatform(
         private set
     var setFollowCalls = 0
         private set
+
+    /** Every [lastLive] request, in order. */
+    val lastLiveRequests = mutableListOf<ChannelRef>()
 
     override val playback: PlaybackSource = NoPlayback(id)
     override val nativeEmotes: NativeEmoteSource = NativeEmoteSource { emptyList() }
@@ -104,6 +109,11 @@ class FakeStreamingPlatform(
         return setFollow.invoke(channel, follow)
     }
 
+    override suspend fun lastLive(ref: ChannelRef): Outcome<Instant?> {
+        lastLiveRequests += ref
+        return lastLive.invoke(ref)
+    }
+
     override suspend fun chat(channel: Channel): ChatEndpoints =
         throw UnsupportedOperationException("chat is not faked")
 
@@ -118,7 +128,7 @@ class FakeStreamingPlatform(
     companion object {
         /**
          * What the real platforms report: Twitch can't follow through the API, Kick has no cheermotes, and each has its
-         * own category sorts. Kick's Recommended needs sign-in.
+         * own category sorts. Kick's Recommended needs sign-in, and only Kick looks up last-live times per row.
          */
         fun capabilitiesOf(platform: Platform): Capabilities =
             Capabilities(
@@ -150,6 +160,7 @@ class FakeStreamingPlatform(
                     } else {
                         listOf(CategorySort.RECOMMENDED)
                     },
+                lastLiveLookup = platform == Platform.KICK,
             )
     }
 }
