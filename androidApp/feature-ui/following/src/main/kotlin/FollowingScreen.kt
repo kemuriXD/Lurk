@@ -38,6 +38,7 @@ import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
+import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.following.FollowingIntent
@@ -213,7 +214,7 @@ private fun SignedOut(
         )
         platforms.forEach { platform ->
             Button(onClick = { onSignIn(platform) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.sign_in_to, platform.displayName()))
+                Text(stringResource(R.string.sign_in_to, stringResource(platform.labelRes)))
             }
         }
     }
@@ -228,7 +229,7 @@ private fun SignInPrompt(
         onClick = { onSignIn(platform) },
         modifier = Modifier.padding(horizontal = 8.dp).heightIn(min = 48.dp),
     ) {
-        Text(stringResource(R.string.sign_in_to, platform.displayName()))
+        Text(stringResource(R.string.sign_in_to, stringResource(platform.labelRes)))
     }
 }
 
@@ -241,12 +242,3 @@ private fun NobodyLive(onOpenBrowse: () -> Unit) {
         modifier = Modifier.padding(vertical = 16.dp),
     )
 }
-
-@Composable
-private fun Platform.displayName(): String =
-    stringResource(
-        when (this) {
-            Platform.TWITCH -> DesignR.string.platform_twitch
-            Platform.KICK -> DesignR.string.platform_kick
-        },
-    )

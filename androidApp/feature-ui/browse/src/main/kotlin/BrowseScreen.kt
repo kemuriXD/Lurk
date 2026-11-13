@@ -42,6 +42,7 @@ import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
+import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.messageRes
 import io.github.kemurixd.lurk.feature.browse.CategoriesIntent
 import io.github.kemurixd.lurk.feature.browse.CategoriesUiState
@@ -193,15 +194,7 @@ private fun PlatformSwitch(
                         ).heightIn(min = 48.dp),
             ) {
                 Text(
-                    stringResource(
-                        if (platform ==
-                            Platform.TWITCH
-                        ) {
-                            DesignR.string.platform_twitch
-                        } else {
-                            DesignR.string.platform_kick
-                        },
-                    ),
+                    stringResource(platform.labelRes),
                 )
             }
         }

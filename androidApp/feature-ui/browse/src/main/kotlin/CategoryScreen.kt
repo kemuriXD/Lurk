@@ -38,6 +38,7 @@ import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
+import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsIntent
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsUiState
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsViewModel
@@ -203,15 +204,7 @@ private fun CategoryHeader(
                 PlatformBadge(platform)
                 Text(
                     text =
-                        stringResource(
-                            if (platform ==
-                                Platform.TWITCH
-                            ) {
-                                DesignR.string.platform_twitch
-                            } else {
-                                DesignR.string.platform_kick
-                            },
-                        ),
+                        stringResource(platform.labelRes),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
