@@ -39,6 +39,9 @@ fun LurkNavHost(
         backStack = backStack,
         modifier = modifier,
         onBack = navigator::back,
+        transitionSpec = { slide(NavigationKind.PUSH) },
+        popTransitionSpec = { slide(NavigationKind.POP) },
+        predictivePopTransitionSpec = { slide(NavigationKind.PREDICTIVE_POP) },
         entryDecorators =
             listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
