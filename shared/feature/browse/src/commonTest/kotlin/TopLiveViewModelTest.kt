@@ -300,4 +300,34 @@ class TopLiveViewModelTest {
 
             assertEquals(listOf(900L, 800L), state.value.streams.viewers())
         }
+
+    @Test
+    fun refreshAllowsPagingAgainAfterANonRetryableStop() =
+        runTest {
+            var fail = true
+            val cursors = mutableListOf<String?>()
+            twitch.topLive = { cursor ->
+                cursors += cursor
+                when {
+                    cursor == null -> pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+                    fail -> Outcome.Failure(LurkError.IntegrityRequired)
+                    else -> pageOf(s(Platform.TWITCH, "t2", 800))
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertEquals(listOf<String?>(null, "t2"), cursors)
+
+            fail = false
+            vm.onIntent(TopLiveIntent.Refresh)
+            runCurrent()
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(listOf(900L, 800L), state.value.streams.viewers())
+        }
 }

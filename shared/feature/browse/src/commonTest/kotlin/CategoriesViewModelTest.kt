@@ -185,4 +185,30 @@ class CategoriesViewModelTest {
             assertEquals(listOf(null, "p2", "p2"), cursors)
             assertEquals(listOf("1", "2"), state.value.categories.map { it.id })
         }
+
+    @Test
+    fun notSignedInLoadMoreFailureStopsPaging() =
+        runTest {
+            var requests = 0
+            twitch.categories = { cursor ->
+                requests++
+                if (cursor ==
+                    null
+                ) {
+                    pageOf(c(Platform.TWITCH, "1"), next = "p2")
+                } else {
+                    Outcome.Failure(LurkError.NotSignedIn)
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            vm.onIntent(CategoriesIntent.LoadMore)
+            runCurrent()
+            vm.onIntent(CategoriesIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(2, requests)
+            assertEquals(listOf("1"), state.value.categories.map { it.id })
+        }
 }

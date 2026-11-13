@@ -38,19 +38,21 @@ sealed interface LurkError {
 
 /**
  * Whether asking again can plausibly succeed. False for failures that repeat until something outside the call changes:
- * a platform check the app can't pass, a changed schema, a block, a lapsed session, a missing item or a client error.
+ * a platform check the app can't pass, a changed schema, a lapsed session, a missing item or a client error.
  */
 val LurkError.isRetryable: Boolean
     get() =
         when (this) {
             LurkError.Offline, LurkError.Timeout, LurkError.ProxyFailed, LurkError.Unexpected -> true
 
+            // A Cloudflare challenge is transient, and the proxy chain and the gate already retry it.
+            LurkError.Blocked -> true
+
             is LurkError.RateLimited -> true
 
-            is LurkError.Http -> code >= 500
+            is LurkError.Http -> code >= 500 || code == 408 || code == 425 || code == 429
 
             LurkError.AuthExpired,
-            LurkError.Blocked,
             LurkError.IntegrityRequired,
             LurkError.SchemaChanged,
             LurkError.NotFound,

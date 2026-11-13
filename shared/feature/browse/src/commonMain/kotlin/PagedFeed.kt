@@ -156,11 +156,9 @@ internal class PagedFeed<T>(
 
             PlatformSlice.NotSignedIn -> {
                 if (first) {
-                    before.copy(
-                        slice = PlatformSlice.NotSignedIn,
-                    )
+                    before.copy(slice = PlatformSlice.NotSignedIn)
                 } else {
-                    before.copy(moreError = LurkError.NotSignedIn)
+                    before.copy(moreError = LurkError.NotSignedIn, cursor = null)
                 }
             }
 

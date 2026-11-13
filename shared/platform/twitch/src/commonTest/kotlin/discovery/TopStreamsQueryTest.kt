@@ -125,7 +125,7 @@ class TopStreamsQueryTest {
         }
 
     @Test
-    fun asksForThirtyAfterTheCursor() =
+    fun asksForAFullPageAfterTheCursor() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/top-streams.json")) }
             r.gql.topLive(r.sessions, "cursor-9")

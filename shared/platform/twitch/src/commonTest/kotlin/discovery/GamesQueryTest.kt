@@ -80,7 +80,7 @@ class GamesQueryTest {
         }
 
     @Test
-    fun asksForThirtyAfterTheCursor() =
+    fun asksForAFullPageAfterTheCursor() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/games.json")) }
             r.gql.categories(r.sessions, "cursor-9")
