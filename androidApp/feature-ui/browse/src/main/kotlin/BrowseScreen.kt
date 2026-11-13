@@ -37,12 +37,12 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
-import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
+import io.github.kemurixd.lurk.designsystem.component.platformErrors
 import io.github.kemurixd.lurk.feature.browse.CategoriesIntent
 import io.github.kemurixd.lurk.feature.browse.CategoriesUiState
 import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
@@ -226,31 +226,12 @@ private fun TopLiveGrid(
                         it.error
                 }
             }
-        val allFailed = failures.isNotEmpty() && failures.size == state.slices.size && state.streams.isEmpty()
-        if (allFailed) {
-            // Every platform failed: one full-screen state, whose Retry asks each of them again.
-            val (platform, error) = failures.first()
-            fullWidth("failed") {
-                ErrorState(
-                    title = stringResource(R.string.top_live_error_title),
-                    error = error,
-                    onRetry = { failures.forEach { (failed, _) -> onIntent(TopLiveIntent.Retry(failed)) } },
-                    platform = platform,
-                )
-            }
-        } else {
-            failures.forEach { (platform, error) ->
-                fullWidth("error:${platform.name}") {
-                    ErrorBanner(
-                        title = stringResource(DesignR.string.error_load_platform, stringResource(platform.labelRes)),
-                        error = error,
-                        onRetry = { onIntent(TopLiveIntent.Retry(platform)) },
-                        platform = platform,
-                        modifier = Modifier.padding(BannerPadding),
-                    )
-                }
-            }
-        }
+        platformErrors(
+            failures = failures,
+            nothingElse = failures.size == state.slices.size && state.streams.isEmpty(),
+            allFailedTitle = R.string.top_live_error_title,
+            onRetry = { onIntent(TopLiveIntent.Retry(it)) },
+        )
         val loading = state.slices.values.any { it == PlatformSlice.Loading }
         when {
             state.streams.isNotEmpty() -> {
