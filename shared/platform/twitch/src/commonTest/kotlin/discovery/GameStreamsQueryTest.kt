@@ -26,7 +26,7 @@ class GameStreamsQueryTest {
     fun mapsTheFixture() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/game-streams.json")) }
-            val page = r.gql.liveInCategory(r.sessions, "100001", null, CategorySort.RECOMMENDED).page()
+            val page = r.gql.liveInCategory("100001", null, CategorySort.RECOMMENDED).page()
 
             assertEquals(listOf("streamer1", "streamer2", "streamer3"), page.items.map { it.channel.login })
             assertEquals(listOf(12345L, 6789L, 100L), page.items.map { it.viewers })
@@ -41,7 +41,7 @@ class GameStreamsQueryTest {
 
             assertNull(
                 r.gql
-                    .liveInCategory(r.sessions, "100001", null, CategorySort.RECOMMENDED)
+                    .liveInCategory("100001", null, CategorySort.RECOMMENDED)
                     .page()
                     .nextCursor,
             )
@@ -56,7 +56,7 @@ class GameStreamsQueryTest {
             assertEquals(
                 "cursor-3",
                 r.gql
-                    .liveInCategory(r.sessions, "100001", null, CategorySort.RECOMMENDED)
+                    .liveInCategory("100001", null, CategorySort.RECOMMENDED)
                     .page()
                     .nextCursor,
             )
@@ -69,7 +69,7 @@ class GameStreamsQueryTest {
             val r = discoveryRig { reply(body) }
             val logins =
                 r.gql
-                    .liveInCategory(r.sessions, "100001", null, CategorySort.RECOMMENDED)
+                    .liveInCategory("100001", null, CategorySort.RECOMMENDED)
                     .page()
                     .items
                     .map { it.channel.login }
@@ -81,7 +81,7 @@ class GameStreamsQueryTest {
     fun sendsTheIdAndCursor() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/game-streams.json")) }
-            r.gql.liveInCategory(r.sessions, "100001", "cursor-9", CategorySort.RECOMMENDED)
+            r.gql.liveInCategory("100001", "cursor-9", CategorySort.RECOMMENDED)
 
             val variables = r.operation()["variables"]!!.jsonObject
             assertEquals("100001", variables["id"]!!.jsonPrimitive.content)
@@ -96,7 +96,7 @@ class GameStreamsQueryTest {
 
             assertEquals(
                 Outcome.Failure(LurkError.NotFound),
-                r.gql.liveInCategory(r.sessions, "0", null, CategorySort.RECOMMENDED),
+                r.gql.liveInCategory("0", null, CategorySort.RECOMMENDED),
             )
         }
 
@@ -112,7 +112,7 @@ class GameStreamsQueryTest {
                 )
             expected.forEach { (sort, wire) ->
                 val r = discoveryRig { reply(fixture("gql/game-streams.json")) }
-                r.gql.liveInCategory(r.sessions, "100001", null, sort).page()
+                r.gql.liveInCategory("100001", null, sort).page()
 
                 val options = r.operation()["variables"]!!.jsonObject["options"]!!.jsonObject
                 assertEquals(wire, options["sort"]!!.jsonPrimitive.content, "for $sort")
@@ -123,7 +123,7 @@ class GameStreamsQueryTest {
     fun queryDeclaresTheOptionsVariable() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/game-streams.json")) }
-            r.gql.liveInCategory(r.sessions, "100001", null, CategorySort.RECENT)
+            r.gql.liveInCategory("100001", null, CategorySort.RECENT)
 
             val query = r.operation()["query"]!!.jsonPrimitive.content
             assertTrue("\$options: GameStreamOptions" in query)
@@ -137,7 +137,7 @@ class GameStreamsQueryTest {
 
             assertEquals(
                 Outcome.Failure(LurkError.Unsupported),
-                r.gql.liveInCategory(r.sessions, "100001", null, CategorySort.FEATURED),
+                r.gql.liveInCategory("100001", null, CategorySort.FEATURED),
             )
             assertEquals(0, r.seen.size)
         }

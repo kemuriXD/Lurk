@@ -1,6 +1,5 @@
 package io.github.kemurixd.lurk.platform.twitch.discovery
 
-import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
@@ -38,21 +37,18 @@ internal fun CategorySort.streamSort(): String? =
  * Twitch doesn't have is `Unsupported` without a request.
  */
 internal suspend fun GqlClient.liveInCategory(
-    sessions: SessionRepository,
     id: String,
     cursor: String?,
     sort: CategorySort,
 ): Outcome<Page<Stream>> {
     val streamSort = sort.streamSort() ?: return Outcome.Failure(LurkError.Unsupported)
-    return sessions.twitchCall { token ->
-        val variables =
-            buildJsonObject {
-                put("id", id)
-                pageVariables(cursor).forEach { (key, value) -> put(key, value) }
-                put("options", buildJsonObject { put("sort", streamSort) })
-            }
-        query(GAME_STREAMS_OPERATION, GAME_STREAMS_QUERY, variables, token, ::decodeGameStreams)
-    }
+    val variables =
+        buildJsonObject {
+            put("id", id)
+            pageVariables(cursor, GAME_STREAMS_PAGE_SIZE).forEach { (key, value) -> put(key, value) }
+            put("options", buildJsonObject { put("sort", streamSort) })
+        }
+    return discoveryQuery(GAME_STREAMS_OPERATION, GAME_STREAMS_QUERY, variables, ::decodeGameStreams)
 }
 
 internal fun decodeGameStreams(data: JsonObject): Page<Stream> {

@@ -25,7 +25,7 @@ class GamesQueryTest {
     fun mapsTheFixtureInTheOrderTwitchGivesIt() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/games.json")) }
-            val page = r.gql.categories(r.sessions, null).page()
+            val page = r.gql.categories(null).page()
 
             assertEquals(3, page.items.size)
             assertEquals(
@@ -44,7 +44,7 @@ class GamesQueryTest {
             assertEquals(
                 listOf("100001", "100003"),
                 r.gql
-                    .categories(r.sessions, null)
+                    .categories(null)
                     .page()
                     .items
                     .map { it.id },
@@ -59,7 +59,7 @@ class GamesQueryTest {
             assertEquals(
                 "cursor-3",
                 r.gql
-                    .categories(r.sessions, null)
+                    .categories(null)
                     .page()
                     .nextCursor,
             )
@@ -73,7 +73,7 @@ class GamesQueryTest {
 
             assertNull(
                 r.gql
-                    .categories(r.sessions, null)
+                    .categories(null)
                     .page()
                     .nextCursor,
             )
@@ -83,7 +83,7 @@ class GamesQueryTest {
     fun asksForAFullPageAfterTheCursor() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/games.json")) }
-            r.gql.categories(r.sessions, "cursor-9")
+            r.gql.categories("cursor-9")
 
             val variables = r.operation()["variables"]!!.jsonObject
             assertEquals(100, variables["first"]!!.jsonPrimitive.int)

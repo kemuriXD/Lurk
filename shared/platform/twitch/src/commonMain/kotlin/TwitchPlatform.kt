@@ -80,16 +80,15 @@ class TwitchPlatform(
     override val cheermotes: CheermoteSource = TwitchCheermoteSource(gql)
 
     override suspend fun topLive(cursor: String?): Outcome<Page<Stream>> =
-        gql.topLive(sessions, cursor).map { it.withPreviewKeys(clock.now()) }
+        gql.topLive(cursor).map { it.withPreviewKeys(clock.now()) }
 
-    override suspend fun categories(cursor: String?): Outcome<Page<Category>> = gql.categories(sessions, cursor)
+    override suspend fun categories(cursor: String?): Outcome<Page<Category>> = gql.categories(cursor)
 
     override suspend fun liveInCategory(
         categoryId: String,
         cursor: String?,
         sort: CategorySort,
-    ): Outcome<Page<Stream>> =
-        gql.liveInCategory(sessions, categoryId, cursor, sort).map { it.withPreviewKeys(clock.now()) }
+    ): Outcome<Page<Stream>> = gql.liveInCategory(categoryId, cursor, sort).map { it.withPreviewKeys(clock.now()) }
 
     override suspend fun search(query: String): Outcome<SearchResults> =
         gql.search(sessions, query).map { it.withPreviewKeys(clock.now()) }

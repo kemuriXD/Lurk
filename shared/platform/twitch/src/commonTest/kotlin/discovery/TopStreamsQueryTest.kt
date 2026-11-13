@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.platform.twitch.discovery
 
+import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -46,7 +47,7 @@ class TopStreamsQueryTest {
     fun mapsTheFixture() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/top-streams.json")) }
-            val page = r.gql.topLive(r.sessions, null).page()
+            val page = r.gql.topLive(null).page()
 
             assertEquals(2, page.items.size)
             assertEquals(first, page.items[0])
@@ -58,7 +59,7 @@ class TopStreamsQueryTest {
             val r = discoveryRig { reply(fixture("gql/top-streams.json")) }
             val logins =
                 r.gql
-                    .topLive(r.sessions, null)
+                    .topLive(null)
                     .page()
                     .items
                     .map { it.channel.login }
@@ -72,7 +73,7 @@ class TopStreamsQueryTest {
             val r = discoveryRig { reply(fixture("gql/top-streams.json")) }
             val third =
                 r.gql
-                    .topLive(r.sessions, null)
+                    .topLive(null)
                     .page()
                     .items[1]
 
@@ -89,7 +90,7 @@ class TopStreamsQueryTest {
             assertEquals(
                 0,
                 r.gql
-                    .topLive(r.sessions, null)
+                    .topLive(null)
                     .page()
                     .items[0]
                     .viewers,
@@ -104,7 +105,7 @@ class TopStreamsQueryTest {
             assertEquals(
                 "cursor-3",
                 r.gql
-                    .topLive(r.sessions, null)
+                    .topLive(null)
                     .page()
                     .nextCursor,
             )
@@ -118,7 +119,7 @@ class TopStreamsQueryTest {
 
             assertNull(
                 r.gql
-                    .topLive(r.sessions, null)
+                    .topLive(null)
                     .page()
                     .nextCursor,
             )
@@ -128,8 +129,8 @@ class TopStreamsQueryTest {
     fun asksForThirtyPerPageTheMostTopLiveAllows() =
         runTest {
             val r = discoveryRig { reply(fixture("gql/top-streams.json")) }
-            r.gql.topLive(r.sessions, "cursor-9")
-            r.gql.topLive(r.sessions, null)
+            r.gql.topLive("cursor-9")
+            r.gql.topLive(null)
 
             val variables = r.operation(0)["variables"]!!.jsonObject
             assertEquals(30, variables["first"]!!.jsonPrimitive.int)
@@ -140,24 +141,43 @@ class TopStreamsQueryTest {
         }
 
     @Test
-    fun integrityFailureWhileSignedInRetriesAnonymously() =
+    fun signedInStillSendsTheAndroidIdAndNoToken() =
         runTest {
-            var calls = 0
+            val r = discoveryRig(signedIn = true) { reply(fixture("gql/top-streams.json")) }
+            r.gql.topLive(null).page()
+
+            assertEquals("kd1unb4b3q4t58fwlpcbzcbnm76a8fp", r.seen.single().headers["Client-Id"])
+            assertNull(r.seen.single().headers["Authorization"])
+        }
+
+    @Test
+    fun anIntegrityFailureOnTheAndroidIdFallsBackToTheTvId() =
+        runTest {
             val r =
-                discoveryRig(signedIn = true) {
-                    if (calls++ ==
-                        0
-                    ) {
+                discoveryRig(signedIn = true) { request ->
+                    if (request.headers["Client-Id"] == "kd1unb4b3q4t58fwlpcbzcbnm76a8fp") {
                         reply(fixture("gql/error-integrity.json"))
                     } else {
                         reply(fixture("gql/top-streams.json"))
                     }
                 }
-            val page = r.gql.topLive(r.sessions, null).page()
+            val page = r.gql.topLive(null).page()
 
-            assertEquals(2, r.seen.size)
-            assertNotNull(r.seen[0].headers["Authorization"])
-            assertNull(r.seen[1].headers["Authorization"])
+            assertEquals(
+                listOf("kd1unb4b3q4t58fwlpcbzcbnm76a8fp", "ue6666qo983tsx6so1t0vnawi233wa"),
+                r.seen.map {
+                    it.headers["Client-Id"]
+                },
+            )
+            assertTrue(r.seen.all { it.headers["Authorization"] == null })
             assertEquals(2, page.items.size)
+        }
+
+    @Test
+    fun bothIdsFailingIsIntegrityRequired() =
+        runTest {
+            val r = discoveryRig { reply(fixture("gql/error-integrity.json")) }
+
+            assertEquals(Outcome.Failure(LurkError.IntegrityRequired), r.gql.topLive(null))
         }
 }

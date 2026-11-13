@@ -1,6 +1,5 @@
 package io.github.kemurixd.lurk.platform.twitch.discovery
 
-import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.core.model.Stream
@@ -17,14 +16,13 @@ internal const val TOP_STREAMS_QUERY =
         "edges { cursor node { $STREAM_FIELDS } } pageInfo { hasNextPage } } }"
 
 /** One page of the live streams with the most viewers. [cursor] is the previous page's `nextCursor`. */
-internal suspend fun GqlClient.topLive(
-    sessions: SessionRepository,
-    cursor: String?,
-): Outcome<Page<Stream>> =
-    sessions.twitchCall { token ->
-        val variables = pageVariables(cursor, TOP_STREAMS_PAGE_SIZE)
-        query(TOP_STREAMS_OPERATION, TOP_STREAMS_QUERY, variables, token, ::decodeTopStreams)
-    }
+internal suspend fun GqlClient.topLive(cursor: String?): Outcome<Page<Stream>> =
+    discoveryQuery(
+        TOP_STREAMS_OPERATION,
+        TOP_STREAMS_QUERY,
+        pageVariables(cursor, TOP_STREAMS_PAGE_SIZE),
+        ::decodeTopStreams,
+    )
 
 /** `first` and, past the first page, `after`. */
 internal fun pageVariables(
