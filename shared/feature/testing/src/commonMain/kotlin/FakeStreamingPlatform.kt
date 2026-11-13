@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.feature.testing
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -32,8 +33,8 @@ class FakeStreamingPlatform(
 ) : StreamingPlatform {
     var topLive: suspend (cursor: String?) -> Outcome<Page<Stream>> = { Outcome.Success(Page(emptyList(), null)) }
     var categories: suspend (cursor: String?) -> Outcome<Page<Category>> = { Outcome.Success(Page(emptyList(), null)) }
-    var liveInCategory: suspend (categoryId: String, cursor: String?) -> Outcome<Page<Stream>> =
-        { _, _ -> Outcome.Success(Page(emptyList(), null)) }
+    var liveInCategory: suspend (categoryId: String, cursor: String?, sort: CategorySort) -> Outcome<Page<Stream>> =
+        { _, _, _ -> Outcome.Success(Page(emptyList(), null)) }
     var search: suspend (query: String) -> Outcome<SearchResults> =
         { Outcome.Success(SearchResults(emptyList(), emptyList())) }
     var channel: suspend (ref: ChannelRef) -> Outcome<Channel> =
@@ -74,9 +75,10 @@ class FakeStreamingPlatform(
     override suspend fun liveInCategory(
         categoryId: String,
         cursor: String?,
+        sort: CategorySort,
     ): Outcome<Page<Stream>> {
         liveInCategoryCalls++
-        return liveInCategory.invoke(categoryId, cursor)
+        return liveInCategory.invoke(categoryId, cursor, sort)
     }
 
     override suspend fun search(query: String): Outcome<SearchResults> {
@@ -114,7 +116,10 @@ class FakeStreamingPlatform(
     }
 
     companion object {
-        /** What the real platforms report: Twitch can't follow through the API, and Kick has no cheermotes. */
+        /**
+         * What the real platforms report: Twitch can't follow through the API, Kick has no cheermotes, and each has its
+         * own category sorts. Kick's Recommended needs sign-in.
+         */
         fun capabilitiesOf(platform: Platform): Capabilities =
             Capabilities(
                 follows = true,
@@ -122,6 +127,29 @@ class FakeStreamingPlatform(
                 chatSend = true,
                 chatHistory = true,
                 cheermotes = platform == Platform.TWITCH,
+                categorySorts =
+                    when (platform) {
+                        Platform.TWITCH -> {
+                            listOf(
+                                CategorySort.RECOMMENDED,
+                                CategorySort.VIEWERS_HIGH,
+                                CategorySort.VIEWERS_LOW,
+                                CategorySort.RECENT,
+                            )
+                        }
+
+                        Platform.KICK -> {
+                            listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH)
+                        }
+                    },
+                categorySortsNeedingSignIn =
+                    if (platform == Platform.KICK) setOf(CategorySort.RECOMMENDED) else emptySet(),
+                categorySortDefaults =
+                    if (platform == Platform.KICK) {
+                        listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH)
+                    } else {
+                        listOf(CategorySort.RECOMMENDED)
+                    },
             )
     }
 }

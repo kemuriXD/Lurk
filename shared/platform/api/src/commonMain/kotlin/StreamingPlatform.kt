@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.platform.api
 
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -25,9 +26,14 @@ interface StreamingPlatform {
 
     suspend fun categories(cursor: String?): Outcome<Page<Category>>
 
+    /**
+     * One page of the live streams in a category, in [sort] order. A [sort] missing from `capabilities.categorySorts`
+     * is `Failure(Unsupported)`, and one that needs sign-in is `Failure(NotSignedIn)` when signed out.
+     */
     suspend fun liveInCategory(
         categoryId: String,
         cursor: String?,
+        sort: CategorySort,
     ): Outcome<Page<Stream>>
 
     suspend fun search(query: String): Outcome<SearchResults>
