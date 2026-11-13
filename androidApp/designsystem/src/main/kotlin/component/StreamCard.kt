@@ -32,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -187,7 +188,9 @@ private fun StreamInfo(
                     Modifier
                         .weight(1f)
                         .testTag("stream_card_name")
-                        .clickable(role = Role.Button, onClick = onOpenChannel),
+                        .clickable(role = Role.Button, onClick = onOpenChannel)
+                        // The avatar is the channel's one labelled stop for accessibility; this is the same action.
+                        .semantics { hideFromAccessibility() },
             )
             PlatformBadge(stream.channel.platform)
         }

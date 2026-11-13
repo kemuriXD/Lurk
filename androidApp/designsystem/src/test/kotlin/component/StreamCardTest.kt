@@ -6,8 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
@@ -91,6 +96,17 @@ class StreamCardTest {
         assertTrue("avatar ${avatar.width}x${avatar.height}", avatar.width >= min && avatar.height >= min)
         val name = rule.onNodeWithTag("stream_card_name", useUnmergedTree = true).fetchSemanticsNode().touchBoundsInRoot
         assertTrue("name height ${name.height}", name.height >= min)
+    }
+
+    @Test
+    fun theCardOffersOneAccessibilityStopPerAction() {
+        show()
+        // TalkBack sees the merged tree: the card opens the player and the labelled avatar opens the channel.
+        // The name opens the channel for touch, but gives accessibility no second stop for it.
+        val seenByAccessibility =
+            hasClickAction() and !SemanticsMatcher.keyIsDefined(SemanticsProperties.HideFromAccessibility)
+        rule.onAllNodes(seenByAccessibility).assertCountEquals(2)
+        rule.onAllNodesWithContentDescription("Open Streamer One").assertCountEquals(1)
     }
 
     @Test
