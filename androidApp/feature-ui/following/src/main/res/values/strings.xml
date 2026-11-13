@@ -14,4 +14,5 @@
     <string name="nobody_live_title">Nothing live right now</string>
     <string name="nobody_live_body">Channels you follow on Twitch and Kick show up here as soon as they go live.</string>
     <string name="browse_live_channels">Browse live channels</string>
+    <string name="cd_sort_live">Sort live channels, currently by %1$s</string>
 </resources>

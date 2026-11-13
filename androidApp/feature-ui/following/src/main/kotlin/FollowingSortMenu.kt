@@ -26,6 +26,7 @@ internal fun FollowingSortMenu(
         selected = selected,
         options = FollowingSort.entries,
         label = { stringResource(it.label()) },
+        description = { stringResource(R.string.cd_sort_live, it) },
         onSelect = onSelect,
         modifier = modifier,
     )

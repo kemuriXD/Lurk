@@ -119,6 +119,7 @@ fun CategoryScreen(
                         selected = sort,
                         options = state.sorts,
                         label = { stringResource(it.labelRes(platform)) },
+                        description = { stringResource(R.string.cd_sort_live, it) },
                         onSelect = { onIntent(CategoryStreamsIntent.SelectSort(it)) },
                     )
                 }
