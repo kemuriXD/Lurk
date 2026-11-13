@@ -19,6 +19,7 @@ import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.SectionHeaderTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
@@ -83,8 +84,10 @@ class FollowingScreenTest {
                 offline = listOf(channel("sleeper1")),
             ),
         )
-        rule.onNodeWithTag(FollowingTestTags.LIVE_COUNT, useUnmergedTree = true).assertTextEquals("2")
-        rule.onNodeWithTag(FollowingTestTags.OFFLINE_COUNT, useUnmergedTree = true).assertTextEquals("1")
+        val counts = rule.onAllNodesWithTag(SectionHeaderTags.COUNT)
+        counts.assertCountEquals(2)
+        counts[0].assertTextEquals("2")
+        counts[1].assertTextEquals("1")
     }
 
     @Test

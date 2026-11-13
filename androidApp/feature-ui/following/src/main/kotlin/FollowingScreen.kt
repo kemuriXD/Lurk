@@ -149,8 +149,7 @@ private fun LazyGridScope.content(
     }
     if (state.live.isNotEmpty()) {
         fullWidth("live_header") {
-            SectionHeader(stringResource(R.string.section_live)) {
-                Count(state.live.size, FollowingTestTags.LIVE_COUNT)
+            SectionHeader(stringResource(R.string.section_live), count = state.live.size) {
                 FollowingSortMenu(state.sort, onSelect = { onIntent(FollowingIntent.SelectSort(it)) })
             }
         }
@@ -167,9 +166,7 @@ private fun LazyGridScope.content(
     }
     if (state.offline.isNotEmpty()) {
         fullWidth("offline_header") {
-            SectionHeader(
-                stringResource(R.string.section_offline),
-            ) { Count(state.offline.size, FollowingTestTags.OFFLINE_COUNT) }
+            SectionHeader(stringResource(R.string.section_offline), count = state.offline.size)
         }
         items(state.offline, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
             ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) })
@@ -182,19 +179,6 @@ private fun LazyGridScope.fullWidth(
     content: @Composable () -> Unit,
 ) {
     item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
-}
-
-@Composable
-private fun Count(
-    count: Int,
-    tag: String,
-) {
-    Text(
-        text = count.toString(),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.testTag(tag),
-    )
 }
 
 @Composable
