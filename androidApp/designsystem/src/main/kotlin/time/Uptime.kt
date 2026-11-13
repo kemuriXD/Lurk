@@ -64,7 +64,7 @@ fun spokenUptime(
 /**
  * The whole minutes since [startedAt], as a state that changes on the stream's own minute boundary, and only while the
  * app is at least started. A screen reader's "N minutes" reads this, so it keeps in step with the visible clock and
- * a card in the background wakes nothing. Null when the start is unknown.
+ * a card in the background wakes nothing. It reads 0 when the start is unknown.
  */
 @Composable
 fun rememberUptimeMinutes(startedAt: Instant?): State<Long> {

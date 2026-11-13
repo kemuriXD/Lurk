@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.featureui.following
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -120,16 +121,10 @@ fun FollowingScreen(
     // the offline rows read it, so a tick redraws their text and leaves the screen and the live cards alone.
     val now = rememberNowState()
     val grid = rememberLazyGridState()
-    // One transition for every offline row: they grow in and shrink out together, and the rows stay in the list until
-    // the shrinking is over. Only the rows on screen are composed, so only those animate.
-    val offlineShown = remember { MutableTransitionState(!state.offlineCollapsed) }
-    SideEffect { offlineShown.targetState = !state.offlineCollapsed }
-    RevealOfflineRowsOnUnfold(
-        grid,
-        state.offlineCollapsed,
-        offlineShown,
-        firstRowKey = state.offline.firstOrNull()?.key,
-    )
+    // One fold state for every offline row: they grow in and shrink out together, and stay in the list until the
+    // shrinking is over. Only the rows on screen are composed, so only those animate.
+    val offlineFold =
+        rememberOfflineFold(grid, state.offlineCollapsed, firstRowKey = state.offline.firstOrNull()?.key)
     Column(modifier.fillMaxSize()) {
         PlatformFilterChips(
             selected = state.filter,
@@ -158,7 +153,7 @@ fun FollowingScreen(
                 modifier = Modifier.fillMaxSize().testTag(FollowingTestTags.LIST),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
-                content(state, now, offlineShown, onIntent, onOpenPlayer, onOpenChannel, onSignIn, onOpenBrowse)
+                content(state, now, offlineFold, onIntent, onOpenPlayer, onOpenChannel, onSignIn, onOpenBrowse)
             }
         }
     }
@@ -167,7 +162,7 @@ fun FollowingScreen(
 private fun LazyGridScope.content(
     state: FollowingUiState,
     now: State<Instant>,
-    offlineShown: MutableTransitionState<Boolean>,
+    offlineFold: OfflineFold,
     onIntent: (FollowingIntent) -> Unit,
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
@@ -217,26 +212,26 @@ private fun LazyGridScope.content(
     } else if (loaded && !loading) {
         fullWidth("nobody_live") { NobodyLive(onOpenBrowse) }
     }
-    offlineSection(state, now, offlineShown, onIntent, onOpenChannel)
+    offlineSection(state, now, offlineFold, onIntent, onOpenChannel)
 }
 
 private fun LazyGridScope.offlineSection(
     state: FollowingUiState,
     now: State<Instant>,
-    shown: MutableTransitionState<Boolean>,
+    fold: OfflineFold,
     onIntent: (FollowingIntent) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
 ) {
     if (state.offline.isEmpty()) return
     fullWidth(OFFLINE_HEADER_KEY) { OfflineHeader(state.offline.size, state.offlineCollapsed, onIntent) }
     // Folded and finished shrinking, no offline row is composed at all, so none asks for a last-live lookup.
-    if (!state.offlineCollapsed || shown.currentState) offlineRows(state, now, shown, onIntent, onOpenChannel)
+    if (!state.offlineCollapsed || fold.rowsInList) offlineRows(state, now, fold, onIntent, onOpenChannel)
 }
 
 private fun LazyGridScope.offlineRows(
     state: FollowingUiState,
     now: State<Instant>,
-    shown: MutableTransitionState<Boolean>,
+    fold: OfflineFold,
     onIntent: (FollowingIntent) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
 ) {
@@ -251,10 +246,13 @@ private fun LazyGridScope.offlineRows(
                 onDispose { if (expanded) onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
             }
         }
+        // Created closed while the section is still unfolding, so the row grows in; open once it has settled.
+        val shown = remember { MutableTransitionState(fold.settledExpanded) }
+        SideEffect { shown.targetState = expanded }
         AnimatedVisibility(
             visibleState = shown,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
+            enter = expandVertically(tween(OFFLINE_FOLD_MILLIS)) + fadeIn(tween(OFFLINE_FOLD_MILLIS)),
+            exit = shrinkVertically(tween(OFFLINE_FOLD_MILLIS)) + fadeOut(tween(OFFLINE_FOLD_MILLIS)),
         ) {
             ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = { now.value })
         }

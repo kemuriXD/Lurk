@@ -1,10 +1,15 @@
 package io.github.kemurixd.lurk.featureui.following
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -12,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.Dp
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -45,18 +51,31 @@ class OfflineFoldMotionTest {
             override fun now(): Instant = Instant.parse("2026-11-13T12:00:00Z")
         }
 
+    private var viewport by mutableStateOf<Dp?>(null)
+    private var density = 1f
+
+    /** Cuts the screen so that its bottom edge is exactly the Offline header's bottom: no offline row is in reach. */
+    private fun putTheHeaderOnTheBottomEdge() {
+        val bottom = header().fetchSemanticsNode().boundsInRoot.bottom
+        rule.runOnIdle { viewport = Dp(bottom / density) }
+        rule.waitForIdle()
+    }
+
     private fun show() {
         rule.setContent {
             CompositionLocalProvider(LocalClock provides clock) {
                 LurkTheme(dynamicColor = false) {
-                    FollowingScreen(
-                        state = state,
-                        onIntent = {},
-                        onOpenPlayer = {},
-                        onOpenChannel = {},
-                        onSignIn = {},
-                        onOpenBrowse = {},
-                    )
+                    density = LocalDensity.current.density
+                    Box(viewport?.let { Modifier.height(it) } ?: Modifier.fillMaxSize()) {
+                        FollowingScreen(
+                            state = state,
+                            onIntent = {},
+                            onOpenPlayer = {},
+                            onOpenChannel = {},
+                            onSignIn = {},
+                            onOpenBrowse = {},
+                        )
+                    }
                 }
             }
         }
@@ -227,4 +246,22 @@ class OfflineFoldMotionTest {
             live = null,
             lastStream = null,
         )
+
+    /** The first offline row is not composed at all, yet the reveal must still happen and finish. */
+    @Test
+    fun unfoldingWithTheHeaderOnTheBottomEdgeStillRevealsARow() {
+        state = loaded(live = listOf(stream("streamer1")), collapsed = true)
+        show()
+        rule.waitForIdle()
+        putTheHeaderOnTheBottomEdge()
+        rule.onNodeWithText("Sleeper1").assertDoesNotExist()
+        fold(false)
+        rule.mainClock.advanceTimeBy(3_000)
+        rule.waitForIdle()
+        val list = rule.onNodeWithTag(FollowingTestTags.LIST).fetchSemanticsNode().boundsInRoot
+        val row = rule.onNodeWithText("Sleeper1").fetchSemanticsNode()
+        val shown = row.boundsInRoot.height
+        assertTrue("the row shows $shown of ${row.size.height} px", shown >= row.size.height - 1)
+        assertEquals(list.bottom - 16f, row.boundsInRoot.bottom, 2f)
+    }
 }
