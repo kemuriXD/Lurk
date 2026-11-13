@@ -18,22 +18,40 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.content.TextContent
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 private const val CHALLENGE_URL = "https://www.twitch.tv/"
 private const val INTEGRITY_COOKIE = "client-integrity"
+private const val SERVER_ERROR_FLOOR = 500
+private const val MAX_RETRIES = 3
+
+/** The least time between two load-more requests of one browse list. */
+private val LOAD_MORE_INTERVAL = 500.milliseconds
+private val BACKOFF_BASE = 1.seconds
 
 /**
  * Posts raw GraphQL operations to Twitch's web endpoint and returns the `data` object, decoded by the caller.
  *
  * A failed integrity check on a signed-in request asks the [solver] once and replays the request with the token
  * it returns. The anonymous fallback is the caller's decision.
+ *
+ * The browse lists use [discoveryQuery] instead: anonymous, under the discovery client IDs, which page without an
+ * integrity token.
  */
 class GqlClient(
     private val http: HttpClient,
@@ -41,7 +59,12 @@ class GqlClient(
     private val deviceId: DeviceId,
     private val dispatchers: DispatcherProvider,
     private val solver: ChallengeSolver?,
+    private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
+    private val workingDiscoveryId = MutableStateFlow<String?>(null)
+    private val pacing = Mutex()
+    private val lastRequest = mutableMapOf<String, TimeMark>()
+
     suspend fun <T> query(
         operation: String,
         query: String,
@@ -60,17 +83,89 @@ class GqlClient(
             withContext(dispatchers.default) { decodeOrSchemaChanged(data, decode) }
         }
 
+    /**
+     * Runs a browse-list operation without the user's token, under the first discovery client ID that Twitch's
+     * integrity check lets through. An ID that fails it hands over to the next, and the one that works is used first
+     * from then on. Load-more requests (those with an `after`) wait [LOAD_MORE_INTERVAL] after the previous one of
+     * the same operation, and a rate limit or server error is retried with a 1, 2 and 4 second backoff.
+     */
+    suspend fun <T> discoveryQuery(
+        operation: String,
+        query: String,
+        variables: JsonObject,
+        decode: (JsonObject) -> T,
+    ): Outcome<T> =
+        outcomeOf {
+            val body = requestBody(operation, query, variables)
+            if ("after" in variables) awaitLoadMoreSlot(operation)
+            markRequest(operation)
+            val twitch = config.value.twitch
+            val ids = twitch.gqlDiscoveryClientIds.ifEmpty { listOf(twitch.gqlClientId) }
+            val start = ids.indexOf(workingDiscoveryId.value).coerceAtLeast(0)
+            var reply: GqlReply = GqlReply.IntegrityFailed
+            for (offset in ids.indices) {
+                val id = ids[(start + offset) % ids.size]
+                reply = sendWithBackoff(body, id)
+                if (reply !is GqlReply.IntegrityFailed) {
+                    workingDiscoveryId.value = id
+                    break
+                }
+            }
+            val data = dataOf(reply)
+            withContext(dispatchers.default) { decodeOrSchemaChanged(data, decode) }
+        }
+
+    private suspend fun awaitLoadMoreSlot(operation: String) {
+        val last = pacing.withLock { lastRequest[operation] } ?: return
+        val wait = LOAD_MORE_INTERVAL - last.elapsedNow()
+        if (wait.isPositive()) delay(wait)
+    }
+
+    private suspend fun markRequest(operation: String) {
+        pacing.withLock { lastRequest[operation] = timeSource.markNow() }
+    }
+
+    private suspend fun sendWithBackoff(
+        body: String,
+        clientId: String,
+    ): GqlReply {
+        var attempt = 0
+        while (true) {
+            try {
+                return send(body, token = null, integrity = null, clientId = clientId)
+            } catch (e: LurkException) {
+                val wait = retryDelay(e.error, attempt) ?: throw e
+                delay(wait)
+                attempt++
+            }
+        }
+    }
+
+    private fun retryDelay(
+        error: LurkError,
+        attempt: Int,
+    ): Duration? {
+        if (attempt >= MAX_RETRIES) return null
+        val backoff = BACKOFF_BASE * (1 shl attempt)
+        return when {
+            error is LurkError.RateLimited -> maxOf(backoff, error.retryAfter ?: Duration.ZERO)
+            error is LurkError.Http && error.code >= SERVER_ERROR_FLOOR -> backoff
+            else -> null
+        }
+    }
+
     private suspend fun send(
         body: String,
         token: String?,
         integrity: String?,
+        clientId: String? = null,
     ): GqlReply {
         val twitch = config.value.twitch
         val id = deviceId.get()
         val text =
             http
                 .post(twitch.gqlUrl) {
-                    header("Client-Id", twitch.gqlClientId)
+                    header("Client-Id", clientId ?: twitch.gqlClientId)
                     header("X-Device-Id", id)
                     if (token != null) header(HttpHeaders.Authorization, "OAuth $token")
                     if (integrity != null) header("Client-Integrity", integrity)
