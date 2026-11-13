@@ -10,7 +10,7 @@ import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.platform.api.authed
-import io.github.kemurixd.lurk.platform.twitch.discovery.STREAM_FIELDS
+import io.github.kemurixd.lurk.platform.twitch.discovery.STREAM_FIELDS_WITH_TAGS
 import io.github.kemurixd.lurk.platform.twitch.discovery.channelOf
 import io.github.kemurixd.lurk.platform.twitch.discovery.obj
 import io.github.kemurixd.lurk.platform.twitch.discovery.pageOf
@@ -27,7 +27,7 @@ internal const val FOLLOWS_OPERATION = "Follows"
 internal const val FOLLOWS_QUERY =
     "query Follows(\$first: Int!, \$after: Cursor) { currentUser { " +
         "follows(first: \$first, after: \$after) { " +
-        "edges { cursor node { id login displayName profileImageURL(width: 70) stream { $STREAM_FIELDS } " +
+        "edges { cursor node { id login displayName profileImageURL(width: 70) stream { $STREAM_FIELDS_WITH_TAGS } " +
         "lastBroadcast { startedAt } } } " +
         "pageInfo { hasNextPage } } } }"
 

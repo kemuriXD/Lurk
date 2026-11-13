@@ -76,6 +76,22 @@ class FollowsQueryTest {
         }
 
     @Test
+    fun liveFollowCarriesItsTagsAndLanguage() =
+        runTest {
+            val r = discoveryRig(signedIn = true) { reply(fixture("gql/follows.json")) }
+            val followed = r.gql.followed(r.sessions).value()
+
+            val query = r.operation()["query"]!!.jsonPrimitive.content
+            assertTrue("freeformTags { name }" in query, query)
+            assertTrue(" language " in query, query)
+            val byLogin = followed.live.associateBy { it.channel.login }
+            assertEquals(listOf("English", "Tag One"), byLogin.getValue("streamer1").tags)
+            assertEquals("en", byLogin.getValue("streamer1").language)
+            assertEquals(emptyList(), byLogin.getValue("streamer3").tags)
+            assertNull(byLogin.getValue("streamer3").language)
+        }
+
+    @Test
     fun followedPagesUntilEnd() =
         runTest {
             val r =

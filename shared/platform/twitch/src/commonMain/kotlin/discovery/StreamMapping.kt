@@ -18,6 +18,12 @@ internal const val STREAM_FIELDS =
         "broadcaster { id login displayName profileImageURL(width: 70) } " +
         "game { id name boxArtURL }"
 
+/**
+ * [STREAM_FIELDS] plus the broadcaster's tags and the stream language. Only the Following list shows them, so only its
+ * query pays for them.
+ */
+internal const val STREAM_FIELDS_WITH_TAGS = "$STREAM_FIELDS language freeformTags { name }"
+
 private const val THUMBNAIL_SIZE = "440x248"
 private const val BOX_ART_SIZE = "285x380"
 private const val SIZE_TEMPLATE = "{width}x{height}"
@@ -60,9 +66,17 @@ internal fun streamOf(
             startedAt = instantOrNull(node.text("createdAt")),
             thumbnailUrl = node.text("previewImageURL")?.sized(THUMBNAIL_SIZE),
             avatarUrl = broadcaster.text("profileImageURL"),
+            tags = tagsOf(node),
+            language = node.nonBlank("language")?.lowercase(),
         )
     }
 }
+
+/** The non-blank `freeformTags` names, in order. Empty when the query didn't ask for them. */
+private fun tagsOf(node: JsonObject): List<String> =
+    (node["freeformTags"] as? JsonArray)
+        .orEmpty()
+        .mapNotNull { (it as? JsonObject)?.nonBlank("name") }
 
 /**
  * Reads a connection's edges into a page. Items [map] cannot read are dropped. The cursor is the last edge's
