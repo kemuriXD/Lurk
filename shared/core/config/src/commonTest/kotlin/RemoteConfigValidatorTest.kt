@@ -20,6 +20,15 @@ class RemoteConfigValidatorTest {
     }
 
     @Test
+    fun emptyOrBlankDiscoveryClientIdsAreErrors() {
+        val base = validConfig()
+        val empty = base.copy(twitch = base.twitch.copy(gqlDiscoveryClientIds = emptyList()))
+        val blank = base.copy(twitch = base.twitch.copy(gqlDiscoveryClientIds = listOf("kd1", " ")))
+        assertEquals(1, RemoteConfigValidator.errors(empty).size)
+        assertEquals(1, RemoteConfigValidator.errors(blank).size)
+    }
+
+    @Test
     fun newerSchemaIsAnError() {
         assertEquals(1, RemoteConfigValidator.errors(validConfig().copy(schemaVersion = 3)).size)
     }

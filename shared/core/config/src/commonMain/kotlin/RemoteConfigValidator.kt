@@ -12,6 +12,9 @@ object RemoteConfigValidator {
                 add("schemaVersion ${c.schemaVersion} is not the supported $SUPPORTED_SCHEMA")
             }
             if (c.twitch.gqlClientId.isBlank()) add("twitch.gqlClientId is blank")
+            if (c.twitch.gqlDiscoveryClientIds.isEmpty() || c.twitch.gqlDiscoveryClientIds.any { it.isBlank() }) {
+                add("twitch.gqlDiscoveryClientIds is empty or has a blank entry")
+            }
             c.twitch.persistedQueries.forEach { (name, hash) ->
                 if (!sha256Hex.matches(hash)) add("twitch.persistedQueries.$name is not a 64-character hex hash")
             }
