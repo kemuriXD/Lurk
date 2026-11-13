@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -24,10 +25,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation3.runtime.NavKey
+import io.github.kemurixd.lurk.designsystem.RELEASES_URL
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.navigation.LoginRoute
 import io.github.kemurixd.lurk.navigation.LurkNavHost
@@ -85,15 +91,38 @@ fun LurkApp(
         // Pads the top and the sides (status bar, landscape, cutouts) and then marks the strip under the content, where
         // the bar sits, as consumed. A screen's own imePadding() then adds only the part of the keyboard that rises
         // above the bar. The bottom edge is not padded here: the scaffold already ends the content above the bar.
-        LurkNavHost(
-            navigator,
-            Modifier
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-                ).consumeBarInsets(),
-        )
+        // The one error host wraps every page, so its snackbar sits above the bar (or above the gesture area on the
+        // full-screen pages, where the bar is hidden).
+        val uriHandler = LocalUriHandler.current
+        ErrorHost(
+            handlers = remember(navigator, uriHandler) { errorHandlers(navigator, uriHandler) },
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                    ).consumeBarInsets(),
+            snackbarModifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+        ) {
+            LurkNavHost(navigator, Modifier.fillMaxSize())
+        }
     }
 }
+
+/**
+ * What the error surfaces' actions do, over the app's navigator: Sign in opens that platform's login, Open proxy
+ * settings opens Settings, Go back pops the page, and Check for update opens the GitHub Releases page.
+ */
+internal fun errorHandlers(
+    navigator: Navigator,
+    uriHandler: UriHandler,
+): ErrorHandlers =
+    ErrorHandlers(
+        signIn = { platform -> navigator.push(LoginRoute(platform)) },
+        openProxySettings = navigator::openSettings,
+        checkForUpdate = { uriHandler.openUri(RELEASES_URL) },
+        goBack = navigator::back,
+    )
 
 /** The player and the login draw edge to edge with their own controls, so the navigation suite hides under them. */
 private fun NavKey?.isFullScreen(): Boolean = this is PlayerRoute || this is LoginRoute

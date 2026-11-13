@@ -2,6 +2,9 @@ package io.github.kemurixd.lurk
 
 import android.app.Application
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
@@ -19,10 +22,13 @@ import androidx.compose.ui.test.performTextInput
 import androidx.navigation3.runtime.NavKey
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
+import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.SearchResults
+import io.github.kemurixd.lurk.designsystem.RELEASES_URL
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.accounts.accountsModule
 import io.github.kemurixd.lurk.feature.browse.browseModule
@@ -93,6 +99,7 @@ class LurkAppTest {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     private val twitch = FakeStreamingPlatform(Platform.TWITCH)
+    private val kick = FakeStreamingPlatform(Platform.KICK)
 
     private val sessions =
         SessionRepository(
@@ -118,7 +125,7 @@ class LurkAppTest {
                     single { sessions }
                     single { AccountsState(get()) }
                     single { LastLiveLoader(get(), get()) }
-                    single<List<StreamingPlatform>> { listOf(twitch, FakeStreamingPlatform(Platform.KICK)) }
+                    single<List<StreamingPlatform>> { listOf(twitch, kick) }
                 },
             )
         }
@@ -142,9 +149,81 @@ class LurkAppTest {
         lateinit var navigator: Navigator
         compose.setContent {
             navigator = rememberNavigator(start)
-            LurkTheme { LurkApp(navigator) }
+            CompositionLocalProvider(LocalUriHandler provides uris) { LurkTheme { LurkApp(navigator) } }
         }
         return navigator
+    }
+
+    private val opened = mutableListOf<String>()
+
+    private val uris =
+        object : UriHandler {
+            override fun openUri(uri: String) {
+                opened += uri
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun clickErrorAction(label: String) {
+        compose.waitUntilAtLeastOneExists(hasText(label) and hasClickAction(), timeoutMillis = 5_000)
+        compose.onNode(hasText(label) and hasClickAction()).performScrollTo().performClick()
+    }
+
+    @Test
+    fun expiredSessionSignInAgainOpensThatPlatformsLogin() {
+        twitch.topLive = { Outcome.Failure(LurkError.AuthExpired) }
+        val navigator = showShell()
+
+        clickErrorAction("Sign in again")
+
+        compose.runOnIdle { assertEquals(LoginRoute(Platform.TWITCH), navigator.currentStack.last()) }
+    }
+
+    @Test
+    fun signedOutLoadMoreSignInOpensThatPlatformsLogin() {
+        kick.topLive = { cursor ->
+            if (cursor == null) {
+                Outcome.Success(Page(listOf(testStream(Platform.KICK, login = "streamer2")), "next"))
+            } else {
+                Outcome.Failure(LurkError.NotSignedIn)
+            }
+        }
+        val navigator = showShell()
+
+        clickErrorAction("Sign in")
+
+        compose.runOnIdle { assertEquals(LoginRoute(Platform.KICK), navigator.currentStack.last()) }
+    }
+
+    @Test
+    fun proxyFailureOpensSettings() {
+        twitch.topLive = { Outcome.Failure(LurkError.ProxyFailed) }
+        val navigator = showShell()
+
+        clickErrorAction("Open proxy settings")
+
+        compose.runOnIdle { assertEquals(SettingsRoute, navigator.currentStack.last()) }
+    }
+
+    @Test
+    fun schemaChangeOpensTheReleasesPage() {
+        twitch.topLive = { Outcome.Failure(LurkError.SchemaChanged) }
+        showShell()
+
+        clickErrorAction("Check for update")
+
+        compose.runOnIdle { assertEquals(listOf(RELEASES_URL), opened) }
+    }
+
+    @Test
+    fun missingChannelGoesBack() {
+        twitch.channel = { Outcome.Failure(LurkError.NotFound) }
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(ChannelRoute(Platform.TWITCH, "streamer1")) }
+
+        clickErrorAction("Go back")
+
+        compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), navigator.currentStack.toList()) }
     }
 
     @Test
