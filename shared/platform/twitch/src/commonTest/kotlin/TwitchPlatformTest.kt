@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.platform.twitch
 
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
@@ -68,6 +69,15 @@ class TwitchPlatformTest {
                     chatSend = true,
                     chatHistory = true,
                     cheermotes = true,
+                    categorySorts =
+                        listOf(
+                            CategorySort.RECOMMENDED,
+                            CategorySort.VIEWERS_HIGH,
+                            CategorySort.VIEWERS_LOW,
+                            CategorySort.RECENT,
+                        ),
+                    categorySortsNeedingSignIn = emptySet(),
+                    categorySortDefaults = listOf(CategorySort.RECOMMENDED),
                 )
             val platform = platform(signedIn = false)
             assertEquals(expected, platform.capabilities)

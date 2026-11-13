@@ -7,6 +7,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.config.RemoteConfig
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -59,6 +60,15 @@ class TwitchPlatform(
             chatSend = true,
             chatHistory = true,
             cheermotes = true,
+            categorySorts =
+                listOf(
+                    CategorySort.RECOMMENDED,
+                    CategorySort.VIEWERS_HIGH,
+                    CategorySort.VIEWERS_LOW,
+                    CategorySort.RECENT,
+                ),
+            categorySortsNeedingSignIn = emptySet(),
+            categorySortDefaults = listOf(CategorySort.RECOMMENDED),
         )
     override val nativeEmotes: NativeEmoteSource = TwitchEmoteSource(gql)
     override val badges: BadgeSource = TwitchBadgeSource(gql)
@@ -71,7 +81,8 @@ class TwitchPlatform(
     override suspend fun liveInCategory(
         categoryId: String,
         cursor: String?,
-    ): Outcome<Page<Stream>> = gql.liveInCategory(sessions, categoryId, cursor)
+        sort: CategorySort,
+    ): Outcome<Page<Stream>> = gql.liveInCategory(sessions, categoryId, cursor, sort)
 
     override suspend fun search(query: String): Outcome<SearchResults> = gql.search(sessions, query)
 
