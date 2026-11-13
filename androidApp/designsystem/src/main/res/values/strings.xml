@@ -42,6 +42,7 @@
     <string name="cd_open_channel">Open %1$s</string>
     <string name="cd_account_and_settings">Account and settings</string>
     <string name="error_chip_message">Couldn’t load %1$s</string>
+    <string name="error_chip_more_message">Couldn’t load more from %1$s</string>
     <string name="error_chip_retry">Retry</string>
     <string name="error_chip_retry_cd">Retry loading %1$s</string>
 
@@ -49,7 +50,7 @@
     <string name="error_timeout">That took too long. Try again.</string>
     <string name="error_auth_expired">Your session expired. Sign in again.</string>
     <string name="error_blocked">Kick blocked the request. Try again in a moment.</string>
-    <string name="error_integrity_required">The platform asked for a check this app can’t pass yet.</string>
+    <string name="error_integrity_required">The platform is running a check Lurk can’t pass yet.</string>
     <string name="error_proxy_failed">The proxy didn’t respond. Check your proxy settings.</string>
     <string name="error_schema_changed">The platform changed something. An update may be needed.</string>
     <string name="error_not_found">Nothing found here.</string>

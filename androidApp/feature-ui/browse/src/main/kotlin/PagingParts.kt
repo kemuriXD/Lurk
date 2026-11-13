@@ -73,6 +73,7 @@ internal fun LazyGridScope.pagingFooter(
                 platform = platform,
                 error = error,
                 onRetry = { onRetry(platform) },
+                title = DesignR.string.error_chip_more_message,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }

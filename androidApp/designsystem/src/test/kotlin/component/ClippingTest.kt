@@ -1,16 +1,21 @@
 package io.github.kemurixd.lurk.designsystem.component
 
+import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
@@ -20,6 +25,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+
+private const val CHIP = "error_chip"
 
 /** Text and controls stay inside their containers, at the normal font size and at 200%, on a 360 dp phone. */
 @RunWith(RobolectricTestRunner::class)
@@ -98,6 +105,33 @@ class ClippingTest {
             assertTrue("$text $box leaves $host", box.right <= host.right && box.left >= host.left)
         }
     }
+
+    @Test
+    fun inlineErrorChipReasonAndRetryStayInsideTheChipAtDoubleFont() {
+        show(Phone, 2f) {
+            InlineErrorChip(
+                Platform.TWITCH,
+                LurkError.Offline,
+                onRetry = {},
+                title = R.string.error_chip_more_message,
+                modifier = Modifier.testTag(CHIP),
+            )
+        }
+        val host = rule.onNodeWithTag(HOST).bounds()
+        val chip = rule.onNodeWithTag(CHIP).bounds()
+        assertTrue("chip $chip leaves $host", chip.left >= host.left && chip.right <= host.right)
+        val reason = text(R.string.error_offline)
+        val title = "Couldn’t load more from Twitch"
+        for (label in listOf(title, reason, "Retry")) {
+            val box = rule.onNodeWithText(label, useUnmergedTree = true).bounds()
+            assertTrue(
+                "$label $box leaves $chip",
+                box.left >= chip.left && box.right <= chip.right && box.top >= chip.top && box.bottom <= chip.bottom,
+            )
+        }
+    }
+
+    private fun text(id: Int): String = ApplicationProvider.getApplicationContext<Context>().getString(id)
 
     @Test
     fun filterChipsCanAllBeReachedAtDoubleFont() {
