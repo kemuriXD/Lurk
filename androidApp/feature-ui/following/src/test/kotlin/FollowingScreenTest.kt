@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.following
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -17,10 +18,12 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
+import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.SectionHeaderTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
+import io.github.kemurixd.lurk.designsystem.time.LocalClock
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.following.FollowingIntent
@@ -33,6 +36,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -44,18 +50,25 @@ class FollowingScreenTest {
     private val channels = mutableListOf<ChannelRef>()
     private val signIns = mutableListOf<Platform>()
     private var browseTaps = 0
+    private val now = Instant.parse("2026-11-13T12:00:00Z")
+    private val fixedClock =
+        object : Clock {
+            override fun now(): Instant = now
+        }
 
     private fun show(state: FollowingUiState) {
         rule.setContent {
-            LurkTheme(dynamicColor = false) {
-                FollowingScreen(
-                    state = state,
-                    onIntent = { intents += it },
-                    onOpenPlayer = { players += it },
-                    onOpenChannel = { channels += it },
-                    onSignIn = { signIns += it },
-                    onOpenBrowse = { browseTaps++ },
-                )
+            CompositionLocalProvider(LocalClock provides fixedClock) {
+                LurkTheme(dynamicColor = false) {
+                    FollowingScreen(
+                        state = state,
+                        onIntent = { intents += it },
+                        onOpenPlayer = { players += it },
+                        onOpenChannel = { channels += it },
+                        onSignIn = { signIns += it },
+                        onOpenBrowse = { browseTaps++ },
+                    )
+                }
             }
         }
     }
@@ -74,6 +87,13 @@ class FollowingScreenTest {
                 .fetchSemanticsNode()
                 .boundsInRoot.top
         assertTrue("Live ($live) should sit above Offline ($offline)", live < offline)
+    }
+
+    @Test
+    fun offlineRowSaysWhenItWasLastLive() {
+        val sleeper = channel("sleeper1").copy(lastStream = LastStream(null, null, now - 3.days))
+        show(loaded(live = emptyList(), offline = listOf(sleeper, channel("sleeper2"))))
+        rule.onNodeWithText("Offline · last live 3 days ago").assertIsDisplayed()
     }
 
     @Test
