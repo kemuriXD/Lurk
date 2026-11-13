@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -27,21 +28,24 @@ import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.designsystem.R
 
 private val DotSize = 8.dp
+private val OUTLINE = 1.dp
 private const val PULSE_MILLIS = 1_400
 private const val HALO_GROWTH = 1.2f
-private const val HALO_ALPHA = 0.55f
+private const val HALO_ALPHA = 0.4f
 
 /**
  * The red dot that marks something live. A soft halo grows and fades around it, about every 1.4 s. The halo's
  * animation is read only inside a layer block, so each frame redraws the halo and recomposes nothing, not the dot
  * and not the card or row around it. With animations turned off the dot stands still. [describe] gives it the
- * "Live" description; turn it off where a parent already says it.
+ * "Live" description; turn it off where a parent already says it. [outlined] adds a thin ring in a light tone of the
+ * dot's red, for sitting on a picture.
  */
 @Composable
 fun LiveDot(
     modifier: Modifier = Modifier,
     size: Dp = DotSize,
     describe: Boolean = true,
+    outlined: Boolean = false,
 ) {
     val color = MaterialTheme.colorScheme.error
     val phase = if (rememberLivePulses()) rememberPulsePhase() else StillPhase
@@ -58,7 +62,8 @@ fun LiveDot(
                     alpha = (1f - p) * HALO_ALPHA
                 }.background(color, CircleShape),
         )
-        Box(Modifier.size(size).background(color, CircleShape))
+        val core = Modifier.size(size).background(color, CircleShape)
+        Box(if (outlined) core.border(OUTLINE, MaterialTheme.colorScheme.errorContainer, CircleShape) else core)
     }
 }
 

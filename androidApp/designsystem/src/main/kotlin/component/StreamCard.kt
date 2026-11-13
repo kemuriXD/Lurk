@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -129,16 +128,15 @@ fun StreamThumbnail(
         // One accessibility node for both overlays: the dot carries "Live, 12.4K viewers" and the count stays silent.
         val viewers = formatViewers(stream.viewers)
         val liveViewers = stringResource(R.string.cd_live_viewers, viewers)
-        Box(
+        LiveDot(
             Modifier
                 .align(Alignment.TopStart)
                 .padding(overlayInset)
-                .semantics { contentDescription = liveViewers }
-                .background(PlayerColors.scrim, CircleShape)
-                .padding(6.dp),
-        ) {
-            LiveDot(describe = false)
-        }
+                .semantics { contentDescription = liveViewers },
+            size = 10.dp,
+            describe = false,
+            outlined = true,
+        )
         Text(
             text = stringResource(R.string.viewers_count, viewers),
             style = MaterialTheme.typography.labelSmall,
