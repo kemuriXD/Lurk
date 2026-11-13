@@ -34,6 +34,7 @@ class CategoryScreenTest {
     private val intents = mutableListOf<CategoryStreamsIntent>()
     private val players = mutableListOf<Stream>()
     private var backs = 0
+    private val signIns = mutableListOf<Platform>()
 
     /** Bumping it recomposes the screen with fresh callbacks, without changing the state. */
     private val recomposeTick = mutableIntStateOf(0)
@@ -45,7 +46,7 @@ class CategoryScreenTest {
         rule.setContent {
             val tick = recomposeTick.intValue
             LurkTheme(dynamicColor = false) {
-                ErrorHost(ErrorHandlers(goBack = { backs++ })) {
+                ErrorHost(ErrorHandlers(goBack = { backs++ }, signIn = { signIns += it })) {
                     CategoryScreen(
                         platform = platform,
                         name = "Cozy Builder",
@@ -92,6 +93,15 @@ class CategoryScreenTest {
         rule.onNodeWithText("Nothing found here.").assertIsDisplayed()
         rule.onNodeWithText("Go back").performClick()
         assertEquals(1, backs)
+    }
+
+    @Test
+    fun signedOutCategoryOffersSignInInsteadOfLookingEmpty() {
+        show(state(slice = PlatformSlice.NotSignedIn))
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("No one is live in this category").assertDoesNotExist()
+        rule.onNodeWithText("Sign in").performClick()
+        assertEquals(listOf(Platform.KICK), signIns)
     }
 
     @Test

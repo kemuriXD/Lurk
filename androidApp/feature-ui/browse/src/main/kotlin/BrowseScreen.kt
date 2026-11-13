@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
@@ -307,6 +308,18 @@ private fun LazyGridScope.categoryContent(
                 ErrorState(
                     title = stringResource(R.string.categories_error_title),
                     error = slice.error,
+                    onRetry = { onIntent(CategoriesIntent.Retry) },
+                    platform = state.platform,
+                )
+            }
+        }
+
+        slice == PlatformSlice.NotSignedIn -> {
+            // Never shown as empty or loading: say so, with Sign in for this platform.
+            fullWidth("signed_out") {
+                ErrorState(
+                    title = stringResource(R.string.categories_error_title),
+                    error = LurkError.NotSignedIn,
                     onRetry = { onIntent(CategoriesIntent.Retry) },
                     platform = state.platform,
                 )

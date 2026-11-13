@@ -12,6 +12,8 @@ import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
+import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
@@ -38,6 +40,7 @@ class BrowseScreenTest {
     private val players = mutableListOf<Stream>()
     private val channels = mutableListOf<ChannelRef>()
     private val opened = mutableListOf<Category>()
+    private val signIns = mutableListOf<Platform>()
 
     /** Bumping it recomposes the screen with fresh callbacks, without changing the state. */
     private val recomposeTick = mutableIntStateOf(0)
@@ -49,15 +52,17 @@ class BrowseScreenTest {
         rule.setContent {
             val tick = recomposeTick.intValue
             LurkTheme(dynamicColor = false) {
-                BrowseScreen(
-                    topLive = topLive,
-                    onTopLiveIntent = { if (tick >= 0) topLiveIntents += it },
-                    categories = categories,
-                    onCategoriesIntent = { categoryIntents += it },
-                    onOpenPlayer = { players += it },
-                    onOpenChannel = { channels += it },
-                    onOpenCategory = { opened += it },
-                )
+                ErrorHost(ErrorHandlers(signIn = { signIns += it })) {
+                    BrowseScreen(
+                        topLive = topLive,
+                        onTopLiveIntent = { if (tick >= 0) topLiveIntents += it },
+                        categories = categories,
+                        onCategoriesIntent = { categoryIntents += it },
+                        onOpenPlayer = { players += it },
+                        onOpenChannel = { channels += it },
+                        onOpenCategory = { opened += it },
+                    )
+                }
             }
         }
     }
@@ -217,6 +222,16 @@ class BrowseScreenTest {
         rule.onNodeWithText("Couldn’t load categories").assertIsDisplayed()
         rule.onNodeWithText("Retry").performClick()
         assertEquals(listOf<CategoriesIntent>(CategoriesIntent.Retry), categoryIntents)
+    }
+
+    @Test
+    fun signedOutCategoriesOfferSignInInsteadOfLookingEmpty() {
+        show(categories = categoriesState(slice = PlatformSlice.NotSignedIn))
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("No categories yet").assertDoesNotExist()
+        rule.onNodeWithText("Sign in").performClick()
+        assertEquals(listOf(Platform.TWITCH), signIns)
     }
 
     @Test

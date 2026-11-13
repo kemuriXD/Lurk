@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
@@ -180,6 +181,18 @@ private fun LazyGridScope.streamContent(
                 ErrorState(
                     title = stringResource(R.string.category_error_title),
                     error = slice.error,
+                    onRetry = { onIntent(CategoryStreamsIntent.Retry) },
+                    platform = platform,
+                )
+            }
+        }
+
+        slice == PlatformSlice.NotSignedIn -> {
+            // Never shown as empty or loading: say so, with Sign in for this platform.
+            fullWidth("signed_out") {
+                ErrorState(
+                    title = stringResource(R.string.category_error_title),
+                    error = LurkError.NotSignedIn,
                     onRetry = { onIntent(CategoryStreamsIntent.Retry) },
                     platform = platform,
                 )
