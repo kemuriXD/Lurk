@@ -6,7 +6,6 @@
     <string name="sort_viewers">Viewers</string>
     <string name="sort_recent">Recently started</string>
     <string name="sort_name">A–Z</string>
-    <string name="cd_sort">Sort live channels, currently by %1$s</string>
 
     <string name="signed_out_title">Sign in to see who’s live</string>
     <string name="signed_out_body">Your Following list comes from your Twitch and Kick accounts. Browse, Search and watching work without signing in.</string>

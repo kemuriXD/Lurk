@@ -39,6 +39,7 @@
     <string name="loading">Loading</string>
 
     <string name="cd_open_channel">Open %1$s</string>
+    <string name="cd_sort">Sort live channels, currently by %1$s</string>
     <string name="cd_account_and_settings">Account and settings</string>
     <string name="error_chip_message">Couldn’t load %1$s</string>
     <string name="error_chip_retry">Retry</string>
