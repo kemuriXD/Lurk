@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,9 +44,9 @@ internal fun FollowingSortMenu(
         onClick = { open = true },
         modifier = modifier.semantics { contentDescription = description },
     ) {
-        Icon(painterResource(R.drawable.ic_sort), contentDescription = null, modifier = Modifier.size(20.dp))
+        Icon(painterResource(DesignR.drawable.ic_sort), contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.size(8.dp))
-        Text(currentLabel, style = MaterialTheme.typography.labelLarge)
+        Text(currentLabel)
     }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
         FollowingSort.entries.forEach { sort ->

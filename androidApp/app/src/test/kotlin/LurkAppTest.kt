@@ -24,6 +24,7 @@ import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
 import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
 import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
+import io.github.kemurixd.lurk.featureui.following.FollowingTestTags
 import io.github.kemurixd.lurk.navigation.BrowseRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
 import io.github.kemurixd.lurk.navigation.PlayerRoute
@@ -110,11 +111,11 @@ class LurkAppTest {
         compose.onNodeWithText(string(R.string.placeholder_browse)).assertIsDisplayed()
 
         tab(R.string.tab_following).performClick()
-        compose.onNodeWithTag(FOLLOWING_LIST).assertIsDisplayed()
+        compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
 
         tab(R.string.tab_search).performClick()
         compose.onNodeWithText(string(R.string.placeholder_search)).assertIsDisplayed()
-        compose.onNodeWithTag(FOLLOWING_LIST).assertDoesNotExist()
+        compose.onNodeWithTag(FollowingTestTags.LIST).assertDoesNotExist()
     }
 
     @Test
@@ -159,7 +160,7 @@ class LurkAppTest {
 
         compose.setContent { LurkTheme { LurkApp() } }
 
-        compose.onNodeWithTag(FOLLOWING_LIST).assertIsDisplayed()
+        compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
     }
 
     @Test
@@ -171,7 +172,7 @@ class LurkAppTest {
 
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
-        compose.onNodeWithTag(FOLLOWING_LIST).assertIsDisplayed()
+        compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
         compose.onNodeWithText(string(R.string.placeholder_search)).assertDoesNotExist()
     }
 
@@ -203,6 +204,5 @@ class LurkAppTest {
 
     private companion object {
         const val STAND_IN_COOKIE = "stand-in-cookie"
-        const val FOLLOWING_LIST = "following_list"
     }
 }

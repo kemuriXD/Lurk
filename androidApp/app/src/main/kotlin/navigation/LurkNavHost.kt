@@ -101,6 +101,7 @@ private fun FollowingTab(navigator: Navigator) {
         },
         onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
         onSignIn = { platform -> navigator.push(LoginRoute(platform)) },
+        onOpenBrowse = { navigator.select(TopLevel.BROWSE) },
     )
 }
 

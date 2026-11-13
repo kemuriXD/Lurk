@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -54,6 +55,7 @@ fun FollowingEntry(
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
     onSignIn: (Platform) -> Unit,
+    onOpenBrowse: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: FollowingViewModel = koinViewModel(),
 ) {
@@ -68,6 +70,7 @@ fun FollowingEntry(
         onOpenPlayer = onOpenPlayer,
         onOpenChannel = onOpenChannel,
         onSignIn = onSignIn,
+        onOpenBrowse = onOpenBrowse,
         modifier = modifier,
     )
 }
@@ -84,6 +87,7 @@ fun FollowingScreen(
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
     onSignIn: (Platform) -> Unit,
+    onOpenBrowse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
@@ -99,10 +103,10 @@ fun FollowingScreen(
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 300.dp),
-                modifier = Modifier.fillMaxSize().testTag("following_list"),
+                modifier = Modifier.fillMaxSize().testTag(FollowingTestTags.LIST),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
-                content(state, onIntent, onOpenPlayer, onOpenChannel, onSignIn)
+                content(state, onIntent, onOpenPlayer, onOpenChannel, onSignIn, onOpenBrowse)
             }
         }
     }
@@ -114,6 +118,7 @@ private fun LazyGridScope.content(
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
     onSignIn: (Platform) -> Unit,
+    onOpenBrowse: () -> Unit,
 ) {
     val slices = state.slices
     val signedOut = slices.filterValues { it == PlatformSlice.NotSignedIn }.keys.toList()
@@ -145,6 +150,7 @@ private fun LazyGridScope.content(
     if (state.live.isNotEmpty()) {
         fullWidth("live_header") {
             SectionHeader(stringResource(R.string.section_live)) {
+                Count(state.live.size, FollowingTestTags.LIVE_COUNT)
                 FollowingSortMenu(state.sort, onSelect = { onIntent(FollowingIntent.SelectSort(it)) })
             }
         }
@@ -157,10 +163,14 @@ private fun LazyGridScope.content(
             )
         }
     } else if (loaded && !loading) {
-        fullWidth("nobody_live") { NobodyLive() }
+        fullWidth("nobody_live") { NobodyLive(onOpenBrowse) }
     }
     if (state.offline.isNotEmpty()) {
-        fullWidth("offline_header") { SectionHeader(stringResource(R.string.section_offline)) }
+        fullWidth("offline_header") {
+            SectionHeader(
+                stringResource(R.string.section_offline),
+            ) { Count(state.offline.size, FollowingTestTags.OFFLINE_COUNT) }
+        }
         items(state.offline, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
             ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) })
         }
@@ -172,6 +182,19 @@ private fun LazyGridScope.fullWidth(
     content: @Composable () -> Unit,
 ) {
     item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
+}
+
+@Composable
+private fun Count(
+    count: Int,
+    tag: String,
+) {
+    Text(
+        text = count.toString(),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(tag),
+    )
 }
 
 @Composable
@@ -202,7 +225,7 @@ private fun SignedOut(
             title = stringResource(R.string.signed_out_title),
             body = stringResource(R.string.signed_out_body),
             action = null,
-            icon = R.drawable.ic_login,
+            icon = DesignR.drawable.ic_login,
         )
         platforms.forEach { platform ->
             Button(onClick = { onSignIn(platform) }, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -226,11 +249,11 @@ private fun SignInPrompt(
 }
 
 @Composable
-private fun NobodyLive() {
+private fun NobodyLive(onOpenBrowse: () -> Unit) {
     EmptyState(
         title = stringResource(R.string.nobody_live_title),
         body = stringResource(R.string.nobody_live_body),
-        action = null,
+        action = stringResource(R.string.browse_live_channels) to onOpenBrowse,
         modifier = Modifier.padding(vertical = 16.dp),
     )
 }

@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.featureui.following
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -41,6 +42,7 @@ class FollowingScreenTest {
     private val players = mutableListOf<Stream>()
     private val channels = mutableListOf<ChannelRef>()
     private val signIns = mutableListOf<Platform>()
+    private var browseTaps = 0
 
     private fun show(state: FollowingUiState) {
         rule.setContent {
@@ -51,6 +53,7 @@ class FollowingScreenTest {
                     onOpenPlayer = { players += it },
                     onOpenChannel = { channels += it },
                     onSignIn = { signIns += it },
+                    onOpenBrowse = { browseTaps++ },
                 )
             }
         }
@@ -70,6 +73,25 @@ class FollowingScreenTest {
                 .fetchSemanticsNode()
                 .boundsInRoot.top
         assertTrue("Live ($live) should sit above Offline ($offline)", live < offline)
+    }
+
+    @Test
+    fun sectionHeadersShowCounts() {
+        show(
+            loaded(
+                live = listOf(stream("streamer1"), stream("streamer2")),
+                offline = listOf(channel("sleeper1")),
+            ),
+        )
+        rule.onNodeWithTag(FollowingTestTags.LIVE_COUNT, useUnmergedTree = true).assertTextEquals("2")
+        rule.onNodeWithTag(FollowingTestTags.OFFLINE_COUNT, useUnmergedTree = true).assertTextEquals("1")
+    }
+
+    @Test
+    fun nobodyLiveOffersBrowse() {
+        show(loaded(live = emptyList(), offline = listOf(channel("sleeper1"))))
+        rule.onNodeWithText("Browse live channels").performClick()
+        assertEquals(1, browseTaps)
     }
 
     @Test
@@ -133,6 +155,7 @@ class FollowingScreenTest {
             ),
         )
         rule.onAllNodesWithTag("stream_card_placeholder")[0].assertIsDisplayed()
+        rule.onAllNodesWithTag("stream_card").assertCountEquals(0)
     }
 
     @Test
@@ -146,7 +169,7 @@ class FollowingScreenTest {
     @Test
     fun pullToRefreshSendsRefresh() {
         show(loaded(live = listOf(stream("streamer1")), offline = emptyList()))
-        rule.onNodeWithTag("following_list").performTouchInput { swipeDown() }
+        rule.onNodeWithTag(FollowingTestTags.LIST).performTouchInput { swipeDown() }
         rule.waitForIdle()
         assertEquals(listOf<FollowingIntent>(FollowingIntent.Refresh), intents)
     }
