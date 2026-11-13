@@ -13,6 +13,13 @@
     <string name="category_empty_title">No one is live in this category</string>
     <string name="category_empty_body">Check back later, or browse another category.</string>
 
+    <string name="sort_featured">Featured</string>
+    <string name="sort_recommended">Recommended</string>
+    <string name="sort_recommended_for_you">Recommended for you</string>
+    <string name="sort_viewers_high">Viewers (high to low)</string>
+    <string name="sort_viewers_low">Viewers (low to high)</string>
+    <string name="sort_recent">Recently started</string>
+
     <string name="try_again">Try again</string>
     <string name="go_back">Go back</string>
 </resources>

@@ -3,10 +3,12 @@ package io.github.kemurixd.lurk.featureui.browse
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.kemurixd.lurk.core.common.LurkError
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
@@ -33,12 +35,15 @@ class CategoryScreenTest {
     /** Bumping it recomposes the screen with fresh callbacks, without changing the state. */
     private val recomposeTick = mutableIntStateOf(0)
 
-    private fun show(state: CategoryStreamsUiState) {
+    private fun show(
+        state: CategoryStreamsUiState,
+        platform: Platform = Platform.KICK,
+    ) {
         rule.setContent {
             val tick = recomposeTick.intValue
             LurkTheme(dynamicColor = false) {
                 CategoryScreen(
-                    platform = Platform.KICK,
+                    platform = platform,
                     name = "Cozy Builder",
                     state = state,
                     onIntent = { if (tick >= 0) intents += it },
@@ -91,11 +96,80 @@ class CategoryScreenTest {
         assertEquals(listOf<CategoryStreamsIntent>(CategoryStreamsIntent.Retry), intents)
     }
 
+    @Test
+    fun sortMenuShowsTheSortInUseAndSendsTheNewOne() {
+        show(
+            state(
+                streams = listOf(stream()),
+                sorts = listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+                sort = CategorySort.VIEWERS_HIGH,
+            ),
+        )
+        rule.onNodeWithContentDescription("Sort live channels, currently by Viewers (high to low)").performClick()
+        rule.onNodeWithText("Recommended").assertIsDisplayed()
+        rule.onNodeWithText("Featured").performClick()
+
+        assertEquals(listOf<CategoryStreamsIntent>(CategoryStreamsIntent.SelectSort(CategorySort.FEATURED)), intents)
+    }
+
+    @Test
+    fun twitchSortsUseTwitchsNames() {
+        show(
+            state(
+                sorts =
+                    listOf(
+                        CategorySort.RECOMMENDED,
+                        CategorySort.VIEWERS_HIGH,
+                        CategorySort.VIEWERS_LOW,
+                        CategorySort.RECENT,
+                    ),
+                sort = CategorySort.RECOMMENDED,
+            ),
+            platform = Platform.TWITCH,
+        )
+        rule.onNodeWithContentDescription("Sort live channels, currently by Recommended for you").performClick()
+        rule.onNodeWithText("Viewers (low to high)").assertIsDisplayed()
+        rule.onNodeWithText("Recently started").assertIsDisplayed()
+    }
+
+    @Test
+    fun sortMenuShowsWhileTheFirstPageLoads() {
+        show(
+            state(
+                slice = PlatformSlice.Loading,
+                sorts = listOf(CategorySort.FEATURED, CategorySort.VIEWERS_HIGH),
+                sort = CategorySort.FEATURED,
+            ),
+        )
+        rule.onNodeWithContentDescription("Sort live channels, currently by Featured").assertIsDisplayed()
+    }
+
+    @Test
+    fun noSortMenuWithoutAChoice() {
+        show(
+            state(
+                streams = listOf(stream()),
+                sorts = listOf(CategorySort.VIEWERS_HIGH),
+                sort = CategorySort.VIEWERS_HIGH,
+            ),
+        )
+        rule.onNodeWithText("Viewers (high to low)").assertDoesNotExist()
+    }
+
     private fun state(
         streams: List<Stream> = emptyList(),
         slice: PlatformSlice<Unit> = PlatformSlice.Loaded(Unit),
         canLoadMore: Boolean = false,
-    ) = CategoryStreamsUiState(streams = streams, slice = slice, canLoadMore = canLoadMore, loadingMore = false)
+        sorts: List<CategorySort> = emptyList(),
+        sort: CategorySort? = null,
+    ) = CategoryStreamsUiState(
+        streams = streams,
+        slice = slice,
+        canLoadMore = canLoadMore,
+        loadingMore = false,
+        sorts = sorts,
+        sort = sort,
+    )
 
     private fun stream() =
         Stream(

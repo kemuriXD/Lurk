@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.browse
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,12 +31,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import io.github.kemurixd.lurk.core.common.LurkError
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
+import io.github.kemurixd.lurk.designsystem.component.SortMenu
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
@@ -78,7 +81,8 @@ fun CategoryEntry(
 }
 
 /**
- * One category: its box art, name and platform, then the live channels in it, most viewers first. The top bar and its
+ * One category: its box art, name and platform, then the live channels in it, in the sort picked from the menu at the
+ * right of the section header. The top bar and its
  * back arrow belong to the app. [onBack] is for the not-found state, which has nothing to retry.
  */
 @Composable
@@ -107,7 +111,19 @@ fun CategoryScreen(
         fullWidth("header") {
             CategoryHeader(platform, name, boxArtUrl = state.streams.firstNotNullOfOrNull { it.category?.boxArtUrl })
         }
-        fullWidth("section") { SectionHeader(stringResource(R.string.category_live_channels)) }
+        fullWidth("section") {
+            SectionHeader(stringResource(R.string.category_live_channels)) {
+                val sort = state.sort
+                if (sort != null && state.sorts.size > 1) {
+                    SortMenu(
+                        selected = sort,
+                        options = state.sorts,
+                        label = { stringResource(it.labelRes(platform)) },
+                        onSelect = { onIntent(CategoryStreamsIntent.SelectSort(it)) },
+                    )
+                }
+            }
+        }
         streamContent(state, onIntent, onOpenPlayer, onOpenChannel, onBack)
         val error = state.loadMoreError
         pagingFooter(state.loadingMore, if (error == null) emptyMap() else mapOf(platform to error)) {
@@ -115,6 +131,31 @@ fun CategoryScreen(
         }
     }
 }
+
+/** The platform's own name for a sort. Twitch calls its recommendation "Recommended for you". */
+@StringRes
+private fun CategorySort.labelRes(platform: Platform): Int =
+    when (this) {
+        CategorySort.FEATURED -> {
+            R.string.sort_featured
+        }
+
+        CategorySort.RECOMMENDED -> {
+            if (platform == Platform.TWITCH) R.string.sort_recommended_for_you else R.string.sort_recommended
+        }
+
+        CategorySort.VIEWERS_HIGH -> {
+            R.string.sort_viewers_high
+        }
+
+        CategorySort.VIEWERS_LOW -> {
+            R.string.sort_viewers_low
+        }
+
+        CategorySort.RECENT -> {
+            R.string.sort_recent
+        }
+    }
 
 private fun LazyGridScope.streamContent(
     state: CategoryStreamsUiState,
