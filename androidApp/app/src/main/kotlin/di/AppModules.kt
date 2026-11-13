@@ -10,6 +10,7 @@ import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.storageModule
 import io.github.kemurixd.lurk.emotes.emotesModule
+import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
 import io.github.kemurixd.lurk.playback.playbackModule
@@ -51,4 +52,5 @@ fun appModules(context: Context): List<Module> =
         authModule,
         twitchModule,
         kickModule,
+        featureCommonModule,
     )

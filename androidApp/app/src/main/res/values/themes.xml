@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Lurk" parent="android:Theme.Material.NoActionBar" />
+
+    <!-- Shown until the stored sessions are restored. The animated icon comes later. -->
+    <style name="Theme.Lurk.Starting" parent="Theme.SplashScreen">
+        <item name="postSplashScreenTheme">@style/Theme.Lurk</item>
+    </style>
+</resources>

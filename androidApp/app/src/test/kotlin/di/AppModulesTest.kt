@@ -24,6 +24,8 @@ import io.github.kemurixd.lurk.core.storage.SecureStore
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.db.LurkDatabase
 import io.github.kemurixd.lurk.core.storage.storageModule
+import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
@@ -102,6 +104,7 @@ class AppModulesTest {
                 authModule,
                 twitchModule,
                 kickModule,
+                featureCommonModule,
                 module {
                     single<SecureStore> { MemorySecureStore() }
                     single {
@@ -146,7 +149,8 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(12, modules.size)
+        assertEquals(13, modules.size)
+        assertTrue(featureCommonModule in modules)
         assertTrue(playbackModule in modules)
         assertTrue(authModule in modules)
         assertTrue(twitchModule in modules)
@@ -165,6 +169,23 @@ class AppModulesTest {
     @Test
     fun kickModuleIsComplete() {
         kickModule.verify(extraTypes = platformExtraTypes + CookiesStorage::class)
+    }
+
+    @Test
+    fun featureCommonModuleIsComplete() {
+        featureCommonModule.verify(extraTypes = listOf(SessionRepository::class))
+    }
+
+    @Test
+    fun accountsStateResolvesOverTheRealSessions() {
+        val koin = platformGraph().koin
+        assertSame(koin.get<SessionRepository>(), koin.get<SessionRepository>())
+        assertEquals(
+            Platform.entries.toSet(),
+            koin
+                .get<AccountsState>()
+                .states.value.keys,
+        )
     }
 
     @Test

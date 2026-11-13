@@ -3,6 +3,7 @@ import java.time.ZoneOffset
 
 plugins {
     id("lurk.android.application")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 val gitSha: Provider<String> =
@@ -35,8 +36,32 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
+    implementation(libs.compose.material3.adaptive.navigation.suite)
+    implementation(libs.navigation3.runtime)
+    implementation(libs.navigation3.ui)
+    implementation(libs.lifecycle.viewmodel.navigation3)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.koin.compose.viewmodel)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.splashscreen)
+    implementation(libs.kotlinx.serialization.json)
+
+    implementation(project(":androidApp:designsystem"))
+    implementation(project(":androidApp:feature-ui:following"))
+    implementation(project(":androidApp:feature-ui:browse"))
+    implementation(project(":androidApp:feature-ui:search"))
+    implementation(project(":androidApp:feature-ui:channel"))
+    implementation(project(":androidApp:feature-ui:settings"))
+    implementation(project(":shared:feature:common"))
+    implementation(project(":shared:feature:following"))
+    implementation(project(":shared:feature:browse"))
+    implementation(project(":shared:feature:search"))
+    implementation(project(":shared:feature:channel"))
+    implementation(project(":shared:feature:accounts"))
 
     implementation(project(":shared:core:common"))
+    implementation(project(":shared:core:model"))
     implementation(project(":shared:core:network"))
     implementation(project(":shared:core:storage"))
     implementation(project(":shared:core:config"))
@@ -52,7 +77,7 @@ dependencies {
     runtimeOnly(libs.kotlinx.coroutines.android)
 
     testImplementation(kotlin("test-junit"))
-    testImplementation(libs.junit)
+    testImplementation(project(":shared:feature:testing"))
     testImplementation(libs.koin.test)
     testImplementation(libs.sqldelight.sqlite.driver)
     testImplementation(libs.kotlinx.coroutines.test)
