@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -110,6 +111,8 @@ fun FollowingScreen(
     // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in. Only
     // the offline rows read it, so a tick redraws their text and leaves the screen and the live cards alone.
     val now = rememberNowState()
+    val grid = rememberLazyGridState()
+    RevealOfflineRowsOnUnfold(grid, state.offlineCollapsed, firstRowKey = state.offline.firstOrNull()?.key)
     Column(modifier.fillMaxSize()) {
         PlatformFilterChips(
             selected = state.filter,
@@ -134,6 +137,7 @@ fun FollowingScreen(
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = LiveCardMinWidth),
+                state = grid,
                 modifier = Modifier.fillMaxSize().testTag(FollowingTestTags.LIST),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
@@ -196,7 +200,7 @@ private fun LazyGridScope.content(
         fullWidth("nobody_live") { NobodyLive(onOpenBrowse) }
     }
     if (state.offline.isNotEmpty()) {
-        fullWidth("offline_header") { OfflineHeader(state.offline.size, state.offlineCollapsed, onIntent) }
+        fullWidth(OFFLINE_HEADER_KEY) { OfflineHeader(state.offline.size, state.offlineCollapsed, onIntent) }
         // Folded, no offline row is composed at all, so none of them asks for a last-live lookup.
         if (!state.offlineCollapsed) offlineRows(state, now, onIntent, onOpenChannel)
     }
@@ -217,7 +221,13 @@ private fun LazyGridScope.offlineRows(
                 onDispose { onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
             }
         }
-        ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = { now.value })
+        ChannelRow(
+            channel = channel,
+            onClick = { onOpenChannel(channel.ref) },
+            // Rows fade in as the section unfolds and fade out as it folds.
+            modifier = Modifier.animateItem(),
+            now = { now.value },
+        )
     }
 }
 
