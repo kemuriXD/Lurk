@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.koin.compose.viewmodel)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.okhttp)
     implementation(libs.splashscreen)
     implementation(libs.kotlinx.serialization.json)
 
@@ -81,4 +82,5 @@ dependencies {
     testImplementation(libs.koin.test)
     testImplementation(libs.sqldelight.sqlite.driver)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver3)
 }

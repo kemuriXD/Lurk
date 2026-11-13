@@ -3,10 +3,14 @@ package io.github.kemurixd.lurk
 import android.app.Application
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.platformLogWriter
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.ScrubbingLogWriter
 import io.github.kemurixd.lurk.core.config.RemoteConfigRepository
 import io.github.kemurixd.lurk.di.appModules
+import io.github.kemurixd.lurk.image.lurkImageLoader
 import io.github.kemurixd.lurk.login.CookieJar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,12 +23,16 @@ import kotlin.time.Duration.Companion.seconds
 
 private val RESTORE_TIMEOUT = 5.seconds
 
-class LurkApplication : Application() {
+class LurkApplication :
+    Application(),
+    SingletonImageLoader.Factory {
     private val scope = startupScope()
     private val restored = MutableStateFlow(false)
 
     /** True once the stored sessions have been read, so the start destination can be picked. The splash waits on it. */
     val sessionsRestored: StateFlow<Boolean> = restored.asStateFlow()
+
+    override fun newImageLoader(context: PlatformContext): ImageLoader = lurkImageLoader(context)
 
     override fun onCreate() {
         super.onCreate()
