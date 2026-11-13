@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -64,7 +65,7 @@ import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
-import io.github.kemurixd.lurk.designsystem.time.rememberNow
+import io.github.kemurixd.lurk.designsystem.time.rememberNowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.search.SearchIntent
@@ -126,8 +127,9 @@ fun SearchScreen(
     // A new search starts at the top, whatever the previous list was scrolled to.
     val query = state.query.trim()
     LaunchedEffect(query) { gridState.scrollToItem(0) }
-    // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in.
-    val now = rememberNow()
+    // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in. Only
+    // the offline rows read it, so a tick redraws their text and leaves the screen and the live rows alone.
+    val now = rememberNowState()
     Column(modifier.fillMaxSize().imePadding()) {
         SearchField(initial = state.query, onIntent = onIntent)
         if (state.phase == SearchPhase.EMPTY) {
@@ -283,7 +285,7 @@ private fun Progress(searching: Boolean) {
 
 private fun LazyGridScope.results(
     state: SearchUiState,
-    now: Instant,
+    now: State<Instant>,
     onIntent: (SearchIntent) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
     onOpenCategory: (Category) -> Unit,
@@ -315,7 +317,12 @@ private fun LazyGridScope.results(
                     onDispose { onIntent(SearchIntent.OfflineRowHidden(channel.ref)) }
                 }
             }
-            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, showLiveRing = false, now = now)
+            ChannelRow(
+                channel = channel,
+                onClick = { onOpenChannel(channel.ref) },
+                showLiveRing = false,
+                now = { now.value },
+            )
         }
     }
     if (state.categories.isNotEmpty()) {

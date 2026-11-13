@@ -26,7 +26,7 @@ private val RowPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 24.dp, 
 /**
  * One channel in a list (Figma ChannelRow). Shows the LIVE badge and viewers while live, and a ring on the avatar
  * unless [showLiveRing] is off. Offline, it says when the channel was last live, counted from [now]; without one,
- * only offline rows read the ticking clock.
+ * it starts its own ticking clock. [now] is read only while offline, so a tick never recomposes a live row.
  */
 @Composable
 fun ChannelRow(
@@ -34,14 +34,14 @@ fun ChannelRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showLiveRing: Boolean = true,
-    now: Instant? = null,
+    now: (() -> Instant)? = null,
 ) {
     val live = channel.live
     val category = live?.category
     val supporting =
         when {
             live == null -> {
-                offlineStatus(channel.lastStream?.startedAt, now ?: rememberNow())
+                offlineStatus(channel.lastStream?.startedAt, now?.invoke() ?: rememberNow())
             }
 
             category != null -> {

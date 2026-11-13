@@ -1,6 +1,10 @@
 package io.github.kemurixd.lurk.featureui.following
 
+import android.content.res.Resources
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -40,6 +44,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
@@ -308,6 +313,46 @@ class FollowingScreenTest {
     }
 
     @Test
+    fun aClockTickRedrawsOnlyTheOfflineRows() {
+        var current = now
+        var clockReads = 0
+        val ticking =
+            object : Clock {
+                override fun now(): Instant {
+                    clockReads++
+                    return current
+                }
+            }
+        var headerReads = 0
+        val state = loaded(live = listOf(stream("streamer1")), offline = listOf(channel("sleeper1")))
+        rule.setContent {
+            CompositionLocalProvider(LocalClock provides ticking) {
+                CountingStrings(onRead = { id -> if (id == R.string.section_live) headerReads++ }) {
+                    LurkTheme(dynamicColor = false) {
+                        FollowingScreen(
+                            state = state,
+                            onIntent = { intents += it },
+                            onOpenPlayer = { players += it },
+                            onOpenChannel = { channels += it },
+                            onSignIn = { signIns += it },
+                            onOpenBrowse = { browseTaps++ },
+                        )
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        headerReads = 0
+        clockReads = 0
+        current = now + 1.minutes
+        rule.mainClock.advanceTimeBy(1.minutes.inWholeMilliseconds + 100)
+        rule.waitForIdle()
+        assertTrue("the clock never ticked", clockReads > 0)
+        // The header sits in the list's content; reading it again means the tick recomposed the whole screen.
+        assertEquals("the tick recomposed the screen", 0, headerReads)
+    }
+
+    @Test
     fun duplicateLoginAcrossPlatformsRendersBoth() {
         val twitch = stream("streamer1", Platform.TWITCH)
         val kick = stream("streamer1", Platform.KICK)
@@ -369,4 +414,34 @@ class FollowingScreenTest {
             live = null,
             lastStream = null,
         )
+}
+
+/** Counts which strings the content asks for. A composable asks for its strings again each time it recomposes. */
+@Composable
+private fun CountingStrings(
+    onRead: (Int) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val base = LocalResources.current
+    val counting = remember(base) { CountingResources(base, onRead) }
+    CompositionLocalProvider(LocalResources provides counting, content = content)
+}
+
+@Suppress("DEPRECATION")
+private class CountingResources(
+    base: Resources,
+    private val onRead: (Int) -> Unit,
+) : Resources(base.assets, base.displayMetrics, base.configuration) {
+    override fun getString(id: Int): String {
+        onRead(id)
+        return super.getString(id)
+    }
+
+    override fun getString(
+        id: Int,
+        vararg formatArgs: Any?,
+    ): String {
+        onRead(id)
+        return super.getString(id, *formatArgs)
+    }
 }

@@ -1,9 +1,13 @@
 package io.github.kemurixd.lurk.featureui.search
 
+import android.content.res.Resources
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.assertIsDisplayed
@@ -27,6 +31,7 @@ import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.designsystem.time.LocalClock
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
@@ -44,7 +49,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -364,6 +371,47 @@ class SearchScreenTest {
         assertTrue("rows read the clock $clockReads times while $entered entered", clockReads <= 2)
     }
 
+    @Test
+    fun aClockTickRecomposesNoLiveRow() {
+        var current = now
+        var clockReads = 0
+        val ticking =
+            object : Clock {
+                override fun now(): Instant {
+                    clockReads++
+                    return current
+                }
+            }
+        var liveRowReads = 0
+        val live = (1..3).map { liveChannel("pixel$it") }
+        rule.setContent {
+            CompositionLocalProvider(
+                LocalSoftwareKeyboardController provides keyboard,
+                LocalClock provides ticking,
+            ) {
+                CountingStrings(onRead = { id -> if (id == DesignR.string.viewers_count) liveRowReads++ }) {
+                    LurkTheme(dynamicColor = false) {
+                        SearchScreen(
+                            state = results(channels = live + channel("sleeper1")),
+                            onIntent = { allIntents += it },
+                            onOpenChannel = { channels += it },
+                            onOpenCategory = { categories += it },
+                        )
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        liveRowReads = 0
+        clockReads = 0
+        current = now + 1.minutes
+        rule.mainClock.advanceTimeBy(1.minutes.inWholeMilliseconds + 100)
+        rule.waitForIdle()
+        assertTrue("the clock never ticked", clockReads > 0)
+        // A live row asks for its viewer count each time it recomposes; nothing in it depends on the clock.
+        assertEquals("live rows recomposed on the tick", 0, liveRowReads)
+    }
+
     private fun results(
         query: String = "pix",
         channels: List<Channel> = emptyList(),
@@ -393,4 +441,50 @@ class SearchScreenTest {
         live = null,
         lastStream = null,
     )
+
+    private fun liveChannel(login: String) =
+        channel(login).copy(
+            live =
+                Stream(
+                    channel = ChannelRef(Platform.TWITCH, login),
+                    channelId = "1000001",
+                    displayName = login.replaceFirstChar { it.uppercase() },
+                    title = "Speedrunning all night",
+                    category = null,
+                    viewers = 1_200,
+                    startedAt = null,
+                    thumbnailUrl = null,
+                    avatarUrl = null,
+                ),
+        )
+}
+
+/** Counts which strings the content asks for. A composable asks for its strings again each time it recomposes. */
+@Composable
+private fun CountingStrings(
+    onRead: (Int) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val base = LocalResources.current
+    val counting = remember(base) { CountingResources(base, onRead) }
+    CompositionLocalProvider(LocalResources provides counting, content = content)
+}
+
+@Suppress("DEPRECATION")
+private class CountingResources(
+    base: Resources,
+    private val onRead: (Int) -> Unit,
+) : Resources(base.assets, base.displayMetrics, base.configuration) {
+    override fun getString(id: Int): String {
+        onRead(id)
+        return super.getString(id)
+    }
+
+    override fun getString(
+        id: Int,
+        vararg formatArgs: Any?,
+    ): String {
+        onRead(id)
+        return super.getString(id, *formatArgs)
+    }
 }

@@ -2,10 +2,9 @@ package io.github.kemurixd.lurk.designsystem.time
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -21,13 +20,20 @@ val LocalClock = staticCompositionLocalOf<Clock> { Clock.System }
 
 /** The current time from [LocalClock], read again every [every] so "5 minutes ago" keeps up while on screen. */
 @Composable
-fun rememberNow(every: Duration = 1.minutes): Instant {
+fun rememberNow(every: Duration = 1.minutes): Instant = rememberNowState(every).value
+
+/**
+ * The ticking time of [rememberNow], as a state. Whoever reads its value recomposes on each tick, so a screen hands it
+ * down and only the text that shows a relative time reads it; the screen and its other rows stay put.
+ */
+@Composable
+fun rememberNowState(every: Duration = 1.minutes): State<Instant> {
     val clock = LocalClock.current
-    var now by remember(clock) { mutableStateOf(clock.now()) }
+    val now = remember(clock) { mutableStateOf(clock.now()) }
     LaunchedEffect(clock, every) {
         while (true) {
             delay(every)
-            now = clock.now()
+            now.value = clock.now()
         }
     }
     return now

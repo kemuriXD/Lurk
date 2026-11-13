@@ -58,7 +58,7 @@ class ChannelRowTest {
     @Test
     fun offlineChannelSaysWhenItWasLastLive() {
         rule.setContent {
-            LurkTheme(dynamicColor = false) { ChannelRow(offlineChannel(now - 3.days), onClick = {}, now = now) }
+            LurkTheme(dynamicColor = false) { ChannelRow(offlineChannel(now - 3.days), onClick = {}, now = { now }) }
         }
         rule.onNodeWithText("Offline · last live 3 days ago").assertExists()
     }
@@ -66,7 +66,7 @@ class ChannelRowTest {
     @Test
     fun offlineChannelWithoutATimeIsJustOffline() {
         rule.setContent {
-            LurkTheme(dynamicColor = false) { ChannelRow(offlineChannel(null), onClick = {}, now = now) }
+            LurkTheme(dynamicColor = false) { ChannelRow(offlineChannel(null), onClick = {}, now = { now }) }
         }
         rule.onNodeWithText("Offline").assertExists()
     }
@@ -78,7 +78,7 @@ class ChannelRowTest {
                 ChannelRow(
                     liveChannel().copy(lastStream = LastStream(null, null, now - 3.days)),
                     onClick = {},
-                    now = now,
+                    now = { now },
                 )
             }
         }

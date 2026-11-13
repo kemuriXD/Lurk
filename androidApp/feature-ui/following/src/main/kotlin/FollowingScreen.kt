@@ -22,6 +22,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +42,7 @@ import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
-import io.github.kemurixd.lurk.designsystem.time.rememberNow
+import io.github.kemurixd.lurk.designsystem.time.rememberNowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.following.FollowingIntent
@@ -96,8 +97,9 @@ fun FollowingScreen(
     modifier: Modifier = Modifier,
 ) {
     val pullState = rememberPullToRefreshState()
-    // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in.
-    val now = rememberNow()
+    // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in. Only
+    // the offline rows read it, so a tick redraws their text and leaves the screen and the live cards alone.
+    val now = rememberNowState()
     Column(modifier.fillMaxSize()) {
         PlatformFilterChips(
             selected = state.filter,
@@ -133,7 +135,7 @@ fun FollowingScreen(
 
 private fun LazyGridScope.content(
     state: FollowingUiState,
-    now: Instant,
+    now: State<Instant>,
     onIntent: (FollowingIntent) -> Unit,
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
@@ -197,7 +199,7 @@ private fun LazyGridScope.content(
                     onDispose { onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
                 }
             }
-            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = now)
+            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = { now.value })
         }
     }
 }
