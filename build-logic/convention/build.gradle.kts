@@ -10,6 +10,7 @@ dependencies {
     compileOnly(libs.android.gradlePlugin)
     compileOnly(libs.kotlin.gradlePlugin)
     compileOnly(libs.compose.gradlePlugin)
+    compileOnly(libs.roborazzi.gradlePlugin)
     implementation(libs.spotless.gradlePlugin)
     implementation(libs.detekt.gradlePlugin)
 
@@ -27,6 +28,10 @@ gradlePlugin {
         register("lurkAndroidApplication") {
             id = "lurk.android.application"
             implementationClass = "LurkAndroidApplicationPlugin"
+        }
+        register("lurkAndroidLibrary") {
+            id = "lurk.android.library"
+            implementationClass = "LurkAndroidLibraryPlugin"
         }
         register("lurkQuality") {
             id = "lurk.quality"

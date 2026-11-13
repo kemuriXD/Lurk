@@ -45,4 +45,25 @@ class ModuleRulesTest {
     fun appBindsConcretePlatforms() {
         assertNull(ModuleRules.violations(":androidApp:app", ":shared:platform:twitch"))
     }
+
+    @Test
+    fun featureUiMayUseFeatureAndDesignsystem() {
+        assertNull(ModuleRules.violations(":androidApp:feature-ui:following", ":shared:feature:following"))
+        assertNull(ModuleRules.violations(":androidApp:feature-ui:following", ":androidApp:designsystem"))
+    }
+
+    @Test
+    fun featureUiMayNotUseCore() {
+        assertNotNull(ModuleRules.violations(":androidApp:feature-ui:following", ":shared:core:model"))
+    }
+
+    @Test
+    fun designsystemMayUseFeatureCommon() {
+        assertNull(ModuleRules.violations(":androidApp:designsystem", ":shared:feature:common"))
+    }
+
+    @Test
+    fun featureTestingMayNotUseTwitch() {
+        assertNotNull(ModuleRules.violations(":shared:feature:testing", ":shared:platform:twitch"))
+    }
 }

@@ -88,6 +88,14 @@ class PackageLayoutTest {
     }
 
     @Test
+    fun featureUiPackageDropsHyphen() {
+        assertEquals(
+            "io.github.kemurixd.lurk.featureui.following",
+            PackageLayout.rootPackageFor(":androidApp:feature-ui:following"),
+        )
+    }
+
+    @Test
     fun readsThePackageAfterFileAnnotationsAndKdoc() {
         val source = "/**\n * package not.this\n */\n@file:JvmName(\"X\")\n\npackage io.github.kemurixd.lurk.chat\n"
         assertEquals("io.github.kemurixd.lurk.chat", PackageLayout.declaredPackage(source))
