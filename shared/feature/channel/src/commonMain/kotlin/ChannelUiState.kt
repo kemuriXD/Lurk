@@ -60,7 +60,9 @@ sealed interface ChannelEffect {
         val stream: Stream,
     ) : ChannelEffect
 
+    /** A follow change failed. [follow] is what was tried: true to follow, false to unfollow. */
     data class ShowError(
         val error: LurkError,
+        val follow: Boolean,
     ) : ChannelEffect
 }

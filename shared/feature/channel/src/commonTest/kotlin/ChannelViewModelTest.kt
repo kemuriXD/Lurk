@@ -263,10 +263,26 @@ class ChannelViewModelTest {
 
             vm.effects.test {
                 vm.onIntent(ChannelIntent.ToggleFollow)
-                assertEquals(ChannelEffect.ShowError(LurkError.Blocked), awaitItem())
+                assertEquals(ChannelEffect.ShowError(LurkError.Blocked, follow = true), awaitItem())
             }
             runCurrent()
             assertEquals(FollowState.NotFollowing, vm.state.value.follow)
+        }
+
+    @Test
+    fun kickUnfollowFailureSaysItWasAnUnfollow() =
+        runTest {
+            kick.followed = { Outcome.Success(Followed(emptyList(), listOf(testChannel(Platform.KICK, id = "")))) }
+            kick.setFollow = { _, _ -> Outcome.Failure(LurkError.Blocked) }
+            val vm = viewModel(kick, accounts(Platform.KICK))
+            keepCollecting(vm)
+            runCurrent()
+            assertEquals(FollowState.Following, vm.state.value.follow)
+
+            vm.effects.test {
+                vm.onIntent(ChannelIntent.ToggleFollow)
+                assertEquals(ChannelEffect.ShowError(LurkError.Blocked, follow = false), awaitItem())
+            }
         }
 
     @Test

@@ -209,7 +209,7 @@ class ChannelViewModel(
             // The toggle cancelled any pending follow list; read it again so the button doesn't stay unsure.
             loadFollowed(owner)
             val error = (result as? PlatformSlice.Failed)?.error ?: LurkError.NotSignedIn
-            effectChannel.trySend(ChannelEffect.ShowError(error))
+            effectChannel.trySend(ChannelEffect.ShowError(error, follow = target))
         }
     }
 
