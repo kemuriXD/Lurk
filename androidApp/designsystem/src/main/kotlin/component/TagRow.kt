@@ -32,7 +32,6 @@ internal fun tagsThatFit(
     gap: Int,
     moreWidth: (hidden: Int) -> Int,
 ): Int {
-    if (widths.isEmpty()) return 0
     if (widths.sum() + gap * (widths.size - 1) <= available) return widths.size
     var used = 0
     var fits = 0
@@ -100,7 +99,7 @@ internal fun TagRow(
 @Composable
 private fun MoreChip(
     hidden: Int,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val description = pluralStringResource(R.plurals.cd_more_tags, hidden, hidden)
     Chip(text = "+$hidden", modifier = modifier.semantics { contentDescription = description })
