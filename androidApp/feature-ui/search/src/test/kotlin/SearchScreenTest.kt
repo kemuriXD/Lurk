@@ -41,7 +41,10 @@ import kotlin.time.Instant
 class SearchScreenTest {
     @get:Rule val rule = createComposeRule()
 
-    private val intents = mutableListOf<SearchIntent>()
+    private val allIntents = mutableListOf<SearchIntent>()
+
+    /** What the user's taps and typing sent; rows coming on screen send their own intent, checked separately. */
+    private val intents get() = allIntents.filterNot { it is SearchIntent.OfflineRowShown }
     private val channels = mutableListOf<ChannelRef>()
     private val categories = mutableListOf<Category>()
     private var keyboardHidden = 0
@@ -69,7 +72,7 @@ class SearchScreenTest {
                 LurkTheme(dynamicColor = false) {
                     SearchScreen(
                         state = state,
-                        onIntent = { intents += it },
+                        onIntent = { allIntents += it },
                         onOpenChannel = { channels += it },
                         onOpenCategory = { categories += it },
                     )
@@ -97,6 +100,27 @@ class SearchScreenTest {
         val otter = channel("pixelotter").copy(lastStream = LastStream(null, null, now - 30.hours))
         show(results(channels = listOf(otter)))
         rule.onNodeWithText("Offline · last live yesterday").assertIsDisplayed()
+    }
+
+    @Test
+    fun offlineResultsWithoutATimeAskForItWhenShown() {
+        val otter = channel("pixelotter").copy(lastStream = LastStream(null, null, now - 30.hours))
+        show(results(channels = listOf(otter, channel("pixelbadger", Platform.KICK))))
+        rule.waitForIdle()
+        assertEquals(
+            listOf<SearchIntent>(SearchIntent.OfflineRowShown(ChannelRef(Platform.KICK, "pixelbadger"))),
+            allIntents.filterIsInstance<SearchIntent.OfflineRowShown>(),
+        )
+    }
+
+    @Test
+    fun onlyResultsOnScreenAskForTheirTime() {
+        val many = (1..100).map { channel("pixel$it", Platform.KICK) }
+        show(results(channels = many))
+        rule.waitForIdle()
+        val asked = allIntents.filterIsInstance<SearchIntent.OfflineRowShown>().map { it.channel.login }
+        assertTrue("the first result asks", "pixel1" in asked)
+        assertTrue("results far below the screen don't ask, asked: $asked", "pixel100" !in asked)
     }
 
     @Test
