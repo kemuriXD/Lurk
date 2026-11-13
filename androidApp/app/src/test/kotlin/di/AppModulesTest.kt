@@ -199,7 +199,9 @@ class AppModulesTest {
 
     @Test
     fun featureCommonModuleResolvesOverTheRealPlatforms() {
-        // verify() can't check LastLiveLoader's generic List binding, so the module is resolved over the real graph.
+        // No verify() here: LastLiveLoader takes List<StreamingPlatform>, and verify() still reports that parameter
+        // missing with List::class in extraTypes ("Missing definition for ... type 'kotlin.collections.List'"). So the
+        // module is resolved over the real graph instead, which checks every binding.
         val koin = platformGraph().koin
         koin.get<AccountsState>()
         koin.get<LastLiveLoader>()
