@@ -98,6 +98,28 @@ private class ShownPreview {
     var url: String? = null
 }
 
+/** A stream's preview picture alone, cropped to fill [modifier]'s size. Not described: the card around it is. */
+@Composable
+internal fun StreamPreviewImage(
+    stream: Stream,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalPlatformContext.current
+    // The preview URL changes every few minutes so the image refreshes; the last one shown stays up while it loads.
+    // Plain memory, not state: a preview landing changes nothing on screen, so it must not recompose the thumbnail.
+    val shown = remember(stream.channel) { ShownPreview() }
+    val url = stream.thumbnailUrl
+    // One request per URL, so other changes to the stream never rebuild it or restart the load.
+    val request = remember(context, url) { thumbnailRequest(context, url, shown.url) }
+    AsyncImage(
+        model = request,
+        onSuccess = { shown.url = url },
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
+    )
+}
+
 /**
  * A stream's picture with the live dot top left and the viewer count bottom left on a scrim. The size comes from
  * [modifier]. [content] draws on top, for example a play button.
@@ -110,21 +132,8 @@ fun StreamThumbnail(
     overlayInset: Dp = OverlayInset,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
-    val context = LocalPlatformContext.current
-    // The preview URL changes every few minutes so the image refreshes; the last one shown stays up while it loads.
-    // Plain memory, not state: a preview landing changes nothing on screen, so it must not recompose the thumbnail.
-    val shown = remember(stream.channel) { ShownPreview() }
-    val url = stream.thumbnailUrl
-    // One request per URL, so other changes to the stream never rebuild it or restart the load.
-    val request = remember(context, url) { thumbnailRequest(context, url, shown.url) }
     Box(modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
-        AsyncImage(
-            model = request,
-            onSuccess = { shown.url = url },
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
+        StreamPreviewImage(stream, Modifier.fillMaxSize())
         // One accessibility node for both overlays: the dot carries "Live, 12.4K viewers" and the count stays silent.
         val viewers = formatViewers(stream.viewers)
         val liveViewers = stringResource(R.string.cd_live_viewers, viewers)

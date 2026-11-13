@@ -1,5 +1,8 @@
 package io.github.kemurixd.lurk.designsystem.component
 
+import java.text.NumberFormat
+import java.util.Locale
+
 private const val THOUSAND = 1_000L
 private const val MILLION = 1_000_000L
 private const val TENTHS = 10L
@@ -25,3 +28,9 @@ private fun compact(
     val fraction = tenths % TENTHS
     return if (fraction == 0L) "$whole$suffix" else "$whole.$fraction$suffix"
 }
+
+/** The full viewer count with the locale's thousands separators: `20,052` in English, `20.052` in German. */
+fun formatViewerCount(
+    count: Long,
+    locale: Locale,
+): String = NumberFormat.getIntegerInstance(locale).format(count)

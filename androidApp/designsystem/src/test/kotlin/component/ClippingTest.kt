@@ -2,11 +2,13 @@ package io.github.kemurixd.lurk.designsystem.component
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Dp
@@ -18,6 +20,7 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
+import io.github.kemurixd.lurk.designsystem.time.LocalClock
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -25,6 +28,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Instant
 
 private const val CHIP = "error_chip"
 
@@ -94,6 +100,59 @@ class ClippingTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun expandedStreamCardStaysInsideAtPhoneWidth() = expandedStreamCardStaysInside(1f)
+
+    @Test
+    fun expandedStreamCardStaysInsideAtDoubleFont() = expandedStreamCardStaysInside(2f)
+
+    private fun expandedStreamCardStaysInside(scale: Float) {
+        val now = Instant.parse("2026-11-13T12:00:00Z")
+        val stream =
+            testStream().copy(
+                displayName = "A rather long display name",
+                title = "A very long stream title that has to be cut short on a phone",
+                category = Category(Platform.TWITCH, "1", "Grand Theft Auto V", null),
+                viewers = 1_234_567,
+                startedAt = now - 12.hours,
+                tags = List(8) { "Tag number $it" },
+            )
+        rule.setContent {
+            density = LocalDensity.current.density
+            CompositionLocalProvider(LocalClock provides FixedClock(now)) {
+                LurkTheme(dynamicColor = false) {
+                    LayoutHost(Phone, scale) { ExpandedStreamCard(stream, onOpenPlayer = {}, onOpenChannel = {}) }
+                }
+            }
+        }
+        val host = rule.onNodeWithTag(HOST).bounds()
+        val tags =
+            listOf(
+                ExpandedStreamCardTags.NAME,
+                ExpandedStreamCardTags.TITLE,
+                ExpandedStreamCardTags.UPTIME,
+                ExpandedStreamCardTags.TAGS,
+                ExpandedStreamCardTags.MORE_TAGS,
+            )
+        for (tag in tags) {
+            val box = rule.onNodeWithTag(tag, useUnmergedTree = true).bounds()
+            assertTrue(
+                "$tag at ${scale}x $box leaves $host",
+                box.left >= host.left && box.right <= host.right && box.top >= host.top && box.bottom <= host.bottom,
+            )
+        }
+        val category = rule.onNodeWithText("Grand Theft Auto V", useUnmergedTree = true).bounds()
+        assertTrue("category at ${scale}x $category leaves $host", category.right <= host.right)
+        val badge = rule.onNodeWithContentDescription("Twitch", useUnmergedTree = true).bounds()
+        assertTrue("badge at ${scale}x $badge leaves $host", badge.right <= host.right && badge.left >= host.left)
+    }
+
+    private class FixedClock(
+        private val at: Instant,
+    ) : Clock {
+        override fun now(): Instant = at
     }
 
     @Test
