@@ -466,6 +466,41 @@ class KickDiscoveryTest {
         }
 
     @Test
+    fun lastLiveReadsTheNewestPastStream() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("api/channel-videos.json"))
+                    },
+                ).api
+
+            assertEquals(
+                Outcome.Success(Instant.parse("2026-01-02T20:00:00Z")),
+                api.lastLive(rigSessions(), ChannelRef(Platform.KICK, "streamer1")),
+            )
+            assertEquals(listOf("/api/v2/channels/streamer1/videos"), seen.map { it.url.encodedPath })
+        }
+
+    @Test
+    fun lastLiveWithNoPastStreamsIsNull() =
+        runTest {
+            val api = Rig(mockEngine { json("[]") }).api
+
+            assertEquals(Outcome.Success(null), api.lastLive(rigSessions(), ChannelRef(Platform.KICK, "streamer1")))
+        }
+
+    @Test
+    fun lastLiveFailureIsAFailure() =
+        runTest {
+            val api = Rig(mockEngine { json("{}", HttpStatusCode.InternalServerError) }).api
+
+            assertIs<Outcome.Failure>(api.lastLive(rigSessions(), ChannelRef(Platform.KICK, "streamer1")))
+        }
+
+    @Test
     fun unknownChannelIsNotFound() =
         runTest {
             val api = Rig(mockEngine { json("""{"message":"Channel not found."}""", HttpStatusCode.NotFound) }).api

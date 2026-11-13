@@ -30,12 +30,14 @@ import io.github.kemurixd.lurk.platform.kick.chat.KickSender
 import io.github.kemurixd.lurk.platform.kick.discovery.categories
 import io.github.kemurixd.lurk.platform.kick.discovery.categoryLive
 import io.github.kemurixd.lurk.platform.kick.discovery.channel
+import io.github.kemurixd.lurk.platform.kick.discovery.lastLive
 import io.github.kemurixd.lurk.platform.kick.discovery.search
 import io.github.kemurixd.lurk.platform.kick.discovery.topLive
 import io.github.kemurixd.lurk.platform.kick.realtime.CentrifugoTransport
 import io.github.kemurixd.lurk.platform.kick.realtime.RealtimeBootstrap
 import io.github.kemurixd.lurk.playback.PlaybackSource
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** Kick behind [StreamingPlatform]. */
 class KickPlatform(
@@ -57,6 +59,7 @@ class KickPlatform(
             categorySorts = listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
             categorySortsNeedingSignIn = setOf(CategorySort.RECOMMENDED),
             categorySortDefaults = listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+            lastLiveLookup = true,
         )
     override val nativeEmotes: NativeEmoteSource = KickEmoteSource(api)
     override val badges: BadgeSource = KickBadgeSource(api)
@@ -77,6 +80,9 @@ class KickPlatform(
     override suspend fun channel(ref: ChannelRef): Outcome<Channel> = api.channel(sessions, ref)
 
     override suspend fun followed(): Outcome<Followed> = api.followed(sessions)
+
+    /** One `channels/{slug}/videos` request: the followed and search replies don't carry the time. */
+    override suspend fun lastLive(ref: ChannelRef): Outcome<Instant?> = api.lastLive(sessions, ref)
 
     override suspend fun setFollow(
         channel: Channel,

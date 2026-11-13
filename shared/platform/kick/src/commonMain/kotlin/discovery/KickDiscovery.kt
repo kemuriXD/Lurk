@@ -4,6 +4,7 @@ import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.common.map
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
@@ -25,6 +26,7 @@ import io.github.kemurixd.lurk.platform.kick.channel.withDetails
 import io.github.kemurixd.lurk.platform.kick.channel.withLastStream
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlin.time.Instant
 
 private const val LIVE_PAGE_SIZE = "24"
 private const val CATEGORY_PAGE_SIZE = "32"
@@ -120,6 +122,20 @@ private fun decodeCategories(root: JsonElement): Page<Category> {
     val next = if (current != null && last != null && current < last) (current + 1).toString() else null
     return Page(categories, next)
 }
+
+/**
+ * When [ref] last went live: the start of its newest finished broadcast, from `channels/{slug}/videos`. Null when it
+ * has none. Lists that lack the time ask this per row on screen.
+ */
+internal suspend fun KickApi.lastLive(
+    sessions: SessionRepository,
+    ref: ChannelRef,
+): Outcome<Instant?> =
+    sessions.authed(Platform.KICK, anonymousFallback = true) { token ->
+        get(KickBase.API, "v2/channels/${ref.login.asPathSegment()}/videos", token)
+            .decode(::latestPastStream)
+            .map { it?.startedAt }
+    }
 
 /**
  * A channel's profile, with its stream when it is live. A slug Kick does not know is `NotFound`.

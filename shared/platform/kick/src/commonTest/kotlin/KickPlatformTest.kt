@@ -84,6 +84,7 @@ class KickPlatformTest {
                     categorySorts = listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
                     categorySortsNeedingSignIn = setOf(CategorySort.RECOMMENDED),
                     categorySortDefaults = listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+                    lastLiveLookup = true,
                 )
             val platform = platform()
             assertEquals(expected, platform.capabilities)
@@ -150,6 +151,15 @@ class KickPlatformTest {
             val result = platform(seen, channelFixture = "api/channel-offline.json").channel(channel("", "").ref)
             assertNotNull((result as Outcome.Success).value.lastStream?.startedAt)
             assertEquals(1, seen.count { it.url.encodedPath == "/api/v2/channels/streamer1/videos" })
+        }
+
+    @Test
+    fun lastLiveReadsThePastStreams() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val result = platform(seen, channelFixture = "api/channel-offline.json").lastLive(channel("", "").ref)
+            assertNotNull((result as Outcome.Success).value)
+            assertEquals(listOf("/api/v2/channels/streamer1/videos"), seen.map { it.url.encodedPath })
         }
 
     @Test
