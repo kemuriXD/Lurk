@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.login
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.view.ViewGroup
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -208,11 +209,14 @@ private fun LoginWebView(
  * login pages are JavaScript apps; nothing of the app is exposed to their scripts.
  */
 @SuppressLint("SetJavaScriptEnabled")
-private fun loginWebView(
+internal fun loginWebView(
     context: Context,
     onPageFinished: () -> Unit,
 ): WebView =
     WebView(context).apply {
+        // Without this AndroidView lays it out as wrap-content: the page's html element comes out 0 tall, and pages
+        // sized to 100% height paint nothing.
+        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
