@@ -21,6 +21,7 @@ import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
 import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
 import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
+import io.github.kemurixd.lurk.feature.testing.testAccount
 import io.github.kemurixd.lurk.feature.testing.testChannel
 import io.github.kemurixd.lurk.feature.testing.testStream
 import kotlinx.coroutines.CompletableDeferred
@@ -53,6 +54,7 @@ class FollowingViewModelTest {
     private val store = ViewModelStore()
     private var created = 0
     private lateinit var sessions: SessionRepository
+    private val fetchers = Platform.entries.associateWith { FakeProfileFetcher(it) }
 
     @BeforeTest
     fun setUp() {
@@ -66,8 +68,7 @@ class FollowingViewModelTest {
     }
 
     private suspend fun TestScope.accounts(vararg signedIn: Platform = Platform.entries.toTypedArray()): AccountsState {
-        val fetchers = Platform.entries.map { FakeProfileFetcher(it) }
-        sessions = SessionRepository(InMemorySecureStore(), fetchers, backgroundScope)
+        sessions = SessionRepository(InMemorySecureStore(), fetchers.values.toList(), backgroundScope)
         signedIn.forEach { sessions.signIn(it, TOKEN) }
         return AccountsState(sessions)
     }
@@ -424,7 +425,85 @@ class FollowingViewModelTest {
             }
         }
 
+    /** Signs Kick out, then in again as a second stand-in account. */
+    private suspend fun switchKickToSecondAccount() {
+        sessions.signOut(Platform.KICK)
+        fetchers.getValue(Platform.KICK).result = Outcome.Success(SECOND_KICK_ACCOUNT)
+        sessions.signIn(Platform.KICK, TOKEN)
+    }
+
+    @Test
+    fun accountSwitchMidLoadKeepsRefreshingUntilTheNewAccountLoads() =
+        runTest {
+            val firstGate = CompletableDeferred<Unit>()
+            val secondGate = CompletableDeferred<Unit>()
+            val firstStream = testStream(Platform.KICK, login = "first-follow", channelId = "")
+            val secondStream = testStream(Platform.KICK, login = "second-follow", channelId = "")
+            kick.followed = {
+                if (kick.followedCalls == 1) {
+                    firstGate.await()
+                    followed(live = listOf(firstStream))
+                } else {
+                    secondGate.await()
+                    followed(live = listOf(secondStream))
+                }
+            }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.refreshing && it.slices[Platform.TWITCH] is PlatformSlice.Loaded<*> }
+
+                switchKickToSecondAccount()
+                runCurrent()
+                firstGate.complete(Unit)
+                runCurrent()
+
+                assertEquals(2, kick.followedCalls)
+                val switching = vm.state.value
+                assertTrue(switching.refreshing)
+                assertEquals(PlatformSlice.Loading, switching.slices[Platform.KICK])
+                assertTrue(firstStream !in switching.live)
+
+                secondGate.complete(Unit)
+                val loaded = awaitUntil { it.allLoaded }
+                assertEquals(listOf(secondStream), loaded.live.filter { it.channel.platform == Platform.KICK })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun accountSwitchWhileUnsubscribedNeverShowsThePreviousAccount() =
+        runTest {
+            val firstStream = testStream(Platform.KICK, login = "first-follow", channelId = "")
+            val secondStream = testStream(Platform.KICK, login = "second-follow", channelId = "")
+            kick.followed = { followed(live = listOf(firstStream)) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded && firstStream in it.live }
+                cancelAndIgnoreRemainingEvents()
+            }
+            advanceTimeBy(6.seconds)
+            runCurrent()
+
+            switchKickToSecondAccount()
+            kick.followed = { followed(live = listOf(secondStream)) }
+
+            vm.state.test {
+                while (true) {
+                    val state = awaitItem()
+                    assertTrue(firstStream !in state.live, "the previous account's follows were shown")
+                    if (state.allLoaded) {
+                        assertTrue(secondStream in state.live)
+                        break
+                    }
+                }
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     private companion object {
         const val TOKEN = "test-token"
+        val SECOND_KICK_ACCOUNT = testAccount(Platform.KICK, "streamer2", "Streamer Two", "1000002")
     }
 }
