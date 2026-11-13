@@ -224,6 +224,31 @@ class FollowingViewModelTest {
         }
 
     @Test
+    fun offlineFoldPersisted() =
+        runTest {
+            val accounts = accounts()
+            val vm = viewModel(accounts)
+
+            vm.state.test {
+                assertFalse(awaitUntil { it.allLoaded }.offlineCollapsed)
+                vm.onIntent(FollowingIntent.ToggleOffline)
+                awaitUntil { it.offlineCollapsed }
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            assertTrue(settings.settings.first().followingOfflineCollapsed)
+
+            val again = viewModel(accounts)
+            again.state.test {
+                assertTrue(awaitUntil { it.allLoaded }.offlineCollapsed)
+                again.onIntent(FollowingIntent.ToggleOffline)
+                awaitUntil { !it.offlineCollapsed }
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertFalse(settings.settings.first().followingOfflineCollapsed)
+        }
+
+    @Test
     fun signedOutPlatformIsNotSignedIn() =
         runTest {
             twitch.followed = { followed(live = listOf(testStream(Platform.TWITCH))) }

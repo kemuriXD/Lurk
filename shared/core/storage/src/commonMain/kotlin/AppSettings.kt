@@ -12,6 +12,7 @@ data class AppSettings(
     val onboardingComplete: Boolean = false,
     val followingFilter: PlatformFilterSetting = PlatformFilterSetting.ALL,
     val followingSort: FollowingSortSetting = FollowingSortSetting.VIEWERS,
+    val followingOfflineCollapsed: Boolean = false,
 )
 
 /** The stored platform chip. Mirrors the feature layer's `PlatformFilter`, which core can't see. */

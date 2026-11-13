@@ -16,6 +16,9 @@ sealed interface FollowingIntent {
         val sort: FollowingSort,
     ) : FollowingIntent
 
+    /** Folds or unfolds the Offline section. Remembered across launches. */
+    data object ToggleOffline : FollowingIntent
+
     /**
      * Reloads every platform; sent on resume and on pull-to-refresh. A platform already loading is left alone. With
      * no collector the load still runs once, and the next subscriber sees its result.

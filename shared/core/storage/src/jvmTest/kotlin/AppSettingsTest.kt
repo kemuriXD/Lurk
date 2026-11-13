@@ -46,7 +46,21 @@ class AppSettingsTest {
                     onboardingComplete = true,
                     followingFilter = PlatformFilterSetting.ALL,
                     followingSort = FollowingSortSetting.VIEWERS,
+                    followingOfflineCollapsed = false,
                 ),
+                settings,
+            )
+        }
+
+    @Test
+    fun offlineFoldRoundTrips() =
+        runBlocking {
+            storeRaw("""{"followingSort":"NAME","followingOfflineCollapsed":true}""")
+
+            val settings = SettingsStore(dataStore).settings.first()
+
+            assertEquals(
+                AppSettings(followingSort = FollowingSortSetting.NAME, followingOfflineCollapsed = true),
                 settings,
             )
         }

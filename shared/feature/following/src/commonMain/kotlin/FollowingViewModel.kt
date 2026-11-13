@@ -89,7 +89,7 @@ class FollowingViewModel(
 
     private val choices: Flow<Choices> =
         settings.settings
-            .map { Choices(it.followingFilter.toFilter(), it.followingSort.toSort()) }
+            .map { Choices(it.followingFilter.toFilter(), it.followingSort.toSort(), it.followingOfflineCollapsed) }
             .distinctUntilChanged()
 
     /** The stored filter and sort and the looked-up times, as the latest values. Fed for the view model's life. */
@@ -173,6 +173,10 @@ class FollowingViewModel(
 
             is FollowingIntent.SelectSort -> {
                 save { it.copy(followingSort = intent.sort.toSetting()) }
+            }
+
+            FollowingIntent.ToggleOffline -> {
+                save { it.copy(followingOfflineCollapsed = !it.followingOfflineCollapsed) }
             }
 
             FollowingIntent.Refresh -> {
@@ -328,6 +332,7 @@ class FollowingViewModel(
     private data class Choices(
         val filter: PlatformFilter = PlatformFilter.ALL,
         val sort: FollowingSort = FollowingSort.VIEWERS,
+        val offlineCollapsed: Boolean = false,
     )
 
     private companion object {
@@ -372,6 +377,7 @@ class FollowingViewModel(
                 refreshing = refreshing,
                 manualRefresh = loads.manual && refreshing,
                 refreshErrors = loads.errors.filterKeys { current(it) && choices.filter.includes(it) },
+                offlineCollapsed = choices.offlineCollapsed,
             )
         }
 
