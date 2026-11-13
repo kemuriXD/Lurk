@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk
 
 import android.app.Application
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -10,24 +11,32 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
+import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.model.SearchResults
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.following.followingModule
+import io.github.kemurixd.lurk.feature.search.searchModule
 import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
 import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
 import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
 import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
+import io.github.kemurixd.lurk.feature.testing.testChannel
 import io.github.kemurixd.lurk.featureui.browse.BrowseTestTags
 import io.github.kemurixd.lurk.featureui.following.FollowingTestTags
+import io.github.kemurixd.lurk.featureui.search.SearchTestTags
 import io.github.kemurixd.lurk.navigation.BrowseRoute
+import io.github.kemurixd.lurk.navigation.CategoryRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
 import io.github.kemurixd.lurk.navigation.PlayerRoute
 import io.github.kemurixd.lurk.navigation.TopLevel
@@ -59,6 +68,8 @@ class LurkAppTest {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
+    private val twitch = FakeStreamingPlatform(Platform.TWITCH)
+
     private val sessions =
         SessionRepository(
             InMemorySecureStore(),
@@ -72,14 +83,13 @@ class LurkAppTest {
             modules(
                 followingModule,
                 browseModule,
+                searchModule,
                 module {
                     single { inMemorySettingsStore() }
                     single<DispatcherProvider> { TestDispatchers(Dispatchers.Unconfined) }
                     single { sessions }
                     single { AccountsState(get()) }
-                    single<List<StreamingPlatform>> {
-                        listOf(FakeStreamingPlatform(Platform.TWITCH), FakeStreamingPlatform(Platform.KICK))
-                    }
+                    single<List<StreamingPlatform>> { listOf(twitch, FakeStreamingPlatform(Platform.KICK)) }
                 },
             )
         }
@@ -117,8 +127,49 @@ class LurkAppTest {
         compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
 
         tab(R.string.tab_search).performClick()
-        compose.onNodeWithText(string(R.string.placeholder_search)).assertIsDisplayed()
+        compose.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
         compose.onNodeWithTag(FollowingTestTags.LIST).assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun search(text: String) {
+        compose.onNodeWithTag(SearchTestTags.FIELD).performTextInput(text)
+        compose.waitUntilAtLeastOneExists(hasText("Pixelotter") or hasText("Retro Racers"), timeoutMillis = 5_000)
+    }
+
+    @Test
+    fun searchResultOpensTheChannel() {
+        twitch.search =
+            {
+                Outcome.Success(
+                    SearchResults(
+                        listOf(testChannel(Platform.TWITCH, "pixelotter", displayName = "Pixelotter")),
+                        emptyList(),
+                    ),
+                )
+            }
+        val backStack = showShellWithStack()
+        tab(R.string.tab_search).performClick()
+
+        search("pix")
+        compose.onNodeWithText("Pixelotter").performClick()
+
+        compose.onNodeWithText(string(R.string.placeholder_channel)).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(ChannelRoute(Platform.TWITCH, "pixelotter"), backStack.last()) }
+    }
+
+    @Test
+    fun searchCategoryOpensTheCategoryPage() {
+        twitch.search = {
+            Outcome.Success(SearchResults(emptyList(), listOf(Category(Platform.TWITCH, "42", "Retro Racers", null))))
+        }
+        val backStack = showShellWithStack()
+        tab(R.string.tab_search).performClick()
+
+        search("retro")
+        compose.onNodeWithText("Retro Racers").performClick()
+
+        compose.runOnIdle { assertEquals(CategoryRoute(Platform.TWITCH, "42", "Retro Racers"), backStack.last()) }
     }
 
     @Test
@@ -139,7 +190,7 @@ class LurkAppTest {
 
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
-        compose.onNodeWithText(string(R.string.placeholder_search)).assertIsDisplayed()
+        compose.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
         compose.onNodeWithText(string(R.string.placeholder_channel)).assertDoesNotExist()
     }
 
@@ -171,12 +222,12 @@ class LurkAppTest {
         runBlocking { sessions.signIn(Platform.TWITCH, STAND_IN_COOKIE) }
         compose.setContent { LurkTheme { LurkApp() } }
         tab(R.string.tab_search).performClick()
-        compose.onNodeWithText(string(R.string.placeholder_search)).assertIsDisplayed()
+        compose.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
 
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
         compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
-        compose.onNodeWithText(string(R.string.placeholder_search)).assertDoesNotExist()
+        compose.onNodeWithTag(SearchTestTags.FIELD).assertDoesNotExist()
     }
 
     @Test

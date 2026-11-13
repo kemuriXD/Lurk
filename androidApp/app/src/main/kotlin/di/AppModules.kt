@@ -13,6 +13,7 @@ import io.github.kemurixd.lurk.emotes.emotesModule
 import io.github.kemurixd.lurk.feature.browse.browseModule
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
 import io.github.kemurixd.lurk.feature.following.followingModule
+import io.github.kemurixd.lurk.feature.search.searchModule
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
@@ -65,4 +66,5 @@ fun appModules(context: Context): List<Module> =
         featureCommonModule,
         followingModule,
         browseModule,
+        searchModule,
     )

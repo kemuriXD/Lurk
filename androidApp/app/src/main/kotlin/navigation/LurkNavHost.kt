@@ -24,6 +24,7 @@ import io.github.kemurixd.lurk.designsystem.component.LurkTopBar
 import io.github.kemurixd.lurk.featureui.browse.BrowseEntry
 import io.github.kemurixd.lurk.featureui.browse.CategoryEntry
 import io.github.kemurixd.lurk.featureui.following.FollowingEntry
+import io.github.kemurixd.lurk.featureui.search.SearchEntry
 import io.github.kemurixd.lurk.player.PlayerPlaceholderScreen
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
@@ -52,7 +53,7 @@ fun LurkNavHost(
                     TabPage(TopLevel.BROWSE, navigator) { BrowseTab(navigator) }
                 }
                 entry<SearchRoute> {
-                    TabPage(TopLevel.SEARCH, navigator) { Placeholder(stringResource(R.string.placeholder_search)) }
+                    TabPage(TopLevel.SEARCH, navigator) { SearchTab(navigator) }
                 }
                 entry<CategoryRoute> { route ->
                     PushedPage(route.name, navigator) { CategoryPage(route, navigator) }
@@ -131,6 +132,14 @@ private fun FollowingTab(navigator: Navigator) {
         onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
         onSignIn = { platform -> navigator.push(LoginRoute(platform)) },
         onOpenBrowse = { navigator.select(TopLevel.BROWSE) },
+    )
+}
+
+@Composable
+private fun SearchTab(navigator: Navigator) {
+    SearchEntry(
+        onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
+        onOpenCategory = { category -> navigator.push(CategoryRoute(category.platform, category.id, category.name)) },
     )
 }
 
