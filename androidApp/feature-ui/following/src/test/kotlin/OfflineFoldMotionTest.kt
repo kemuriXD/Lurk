@@ -5,14 +5,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollToNode
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -31,14 +30,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.annotation.GraphicsMode
 import kotlin.time.Clock
 import kotlin.time.Instant
 
 /** How the Offline section folds and unfolds: the rows fade, and an unfold near the bottom scrolls a row into view. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
-@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class OfflineFoldMotionTest {
     @get:Rule val rule = createComposeRule()
 
@@ -69,46 +66,80 @@ class OfflineFoldMotionTest {
 
     private fun headerTop() = header().fetchSemanticsNode().boundsInRoot.top
 
-    /** The pixels of [area] on screen right now. */
-    private fun pixels(area: Rect): IntArray {
-        val image = rule.onRoot().captureToImage()
-        val out = IntArray(image.width * image.height)
-        image.readPixels(out, 0, 0, image.width, image.height)
-        val rows = area.top.toInt()..<area.bottom.toInt()
-        val columns = area.left.toInt()..<area.right.toInt()
-        return rows.flatMap { y -> columns.map { x -> out[y * image.width + x] } }.toIntArray()
-    }
+    /** The visible height of the first row: the animated container clips it, so the clipped bounds shrink with it. */
+    private fun rowHeight() =
+        rule
+            .onAllNodesWithText("Sleeper1")
+            .fetchSemanticsNodes()
+            .firstOrNull()
+            ?.boundsInRoot
+            ?.height
+            ?.toInt()
 
-    /**
-     * Rows that leave a lazy list are no longer composed, only drawn while they fade, so the fade can't be seen in the
-     * semantics tree. Their pixels can: the frame the fold first shows, the rows' place still differs from what it
-     * looks like once the fade is over.
-     */
-    @Test
-    @Config(sdk = [35], qualifiers = "w360dp-h900dp")
-    fun foldingFadesTheRowsOutInsteadOfCuttingThem() {
-        show()
-        val area = rule.onNodeWithText("Sleeper1").fetchSemanticsNode().boundsInRoot
-        val before = pixels(area)
-        rule.mainClock.autoAdvance = false
+    private fun fold(collapsed: Boolean) =
         rule.runOnIdle {
-            state = state.copy(offlineCollapsed = true)
+            state = state.copy(offlineCollapsed = collapsed)
             Snapshot.sendApplyNotifications()
         }
-        var frames = 0
-        var now = before
-        while (now.contentEquals(before) && frames < MAX_FRAMES) {
+
+    /** The rows stay in the list while they shrink, and only then go. */
+    @Test
+    @Config(sdk = [35], qualifiers = "w360dp-h900dp")
+    fun foldingShrinksTheRowsBeforeRemovingThem() {
+        show()
+        val full = rowHeight()!!
+        rule.mainClock.autoAdvance = false
+        fold(true)
+        var smallest = full
+        repeat(8) {
             rule.mainClock.advanceTimeByFrame()
-            now = pixels(area)
-            frames++
+            rowHeight()?.let { smallest = minOf(smallest, it) }
         }
-        assertTrue("the fold never showed in $frames frames", !now.contentEquals(before))
-        val firstFoldedFrame = now
+        assertTrue("the row only got down to $smallest of $full px", smallest in 1 until full)
         rule.mainClock.advanceTimeBy(2_000)
-        val settled = pixels(area)
         rule.onNodeWithText("Sleeper1").assertDoesNotExist()
-        val stillThere = firstFoldedFrame.indices.count { firstFoldedFrame[it] != settled[it] }
-        assertTrue("only $stillThere px still show the row on the first folded frame", stillThere > MIN_FADING_PIXELS)
+    }
+
+    @Test
+    @Config(sdk = [35], qualifiers = "w360dp-h900dp")
+    fun unfoldingGrowsTheRowsFromNothing() {
+        state = state.copy(offlineCollapsed = true)
+        show()
+        rule.mainClock.autoAdvance = false
+        fold(false)
+        val heights = mutableListOf<Int>()
+        repeat(40) {
+            rule.mainClock.advanceTimeByFrame()
+            rowHeight()?.let { heights += it }
+        }
+        assertTrue("heights $heights", heights.isNotEmpty() && heights.any { it < heights.last() })
+    }
+
+    /** Scrolled to the end, a fold glides the header down as the rows shrink; it never jumps in one frame. */
+    @Test
+    @Config(sdk = [35], qualifiers = "w360dp-h480dp")
+    fun foldingAtTheEndOfTheListMovesTheHeaderInSmallSteps() {
+        state = loaded(live = listOf(stream("streamer1"), stream("streamer2")), collapsed = false)
+        show()
+        rule.onNodeWithTag(FollowingTestTags.LIST).performScrollToNode(hasText("Sleeper3"))
+        rule.waitForIdle()
+        val rows =
+            rule
+                .onNodeWithText("Sleeper1")
+                .fetchSemanticsNode()
+                .boundsInRoot.height
+                .toInt() * 3
+        var last = headerTop()
+        rule.mainClock.autoAdvance = false
+        fold(true)
+        var biggestStep = 0f
+        repeat(60) {
+            rule.mainClock.advanceTimeByFrame()
+            val top = headerTop()
+            biggestStep = maxOf(biggestStep, kotlin.math.abs(top - last))
+            last = top
+        }
+        assertTrue("the header jumped $biggestStep px of $rows in one frame", biggestStep < rows / 4f)
     }
 
     @Test
@@ -133,7 +164,7 @@ class OfflineFoldMotionTest {
     }
 
     @Test
-    fun unfoldingNearTheBottomScrollsAFullRowIntoView() {
+    fun unfoldingNearTheBottomScrollsExactlyAFullRowIntoView() {
         // On the test screen one live card leaves the Offline header just above the bottom edge.
         state = loaded(live = listOf(stream("streamer1")), collapsed = true)
         show()
@@ -145,6 +176,9 @@ class OfflineFoldMotionTest {
         val shown = row.boundsInRoot.height
         assertTrue("the row shows $shown of ${row.size.height} px", shown >= row.size.height - 1)
         assertTrue("the header stays in view, top ${headerTop()}", headerTop() >= list.top - 1)
+        // Just enough: the row ends where the list's bottom padding begins, not further up.
+        val end = list.bottom - 16f
+        assertEquals("row bottom ${row.boundsInRoot.bottom} against $end", end, row.boundsInRoot.bottom, 2f)
     }
 
     private fun loaded(
@@ -193,9 +227,4 @@ class OfflineFoldMotionTest {
             live = null,
             lastStream = null,
         )
-
-    private companion object {
-        const val MAX_FRAMES = 30
-        const val MIN_FADING_PIXELS = 100
-    }
 }

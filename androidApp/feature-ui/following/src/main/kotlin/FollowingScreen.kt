@@ -1,6 +1,12 @@
 package io.github.kemurixd.lurk.featureui.following
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,8 +32,10 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -112,7 +120,16 @@ fun FollowingScreen(
     // the offline rows read it, so a tick redraws their text and leaves the screen and the live cards alone.
     val now = rememberNowState()
     val grid = rememberLazyGridState()
-    RevealOfflineRowsOnUnfold(grid, state.offlineCollapsed, firstRowKey = state.offline.firstOrNull()?.key)
+    // One transition for every offline row: they grow in and shrink out together, and the rows stay in the list until
+    // the shrinking is over. Only the rows on screen are composed, so only those animate.
+    val offlineShown = remember { MutableTransitionState(!state.offlineCollapsed) }
+    SideEffect { offlineShown.targetState = !state.offlineCollapsed }
+    RevealOfflineRowsOnUnfold(
+        grid,
+        state.offlineCollapsed,
+        offlineShown,
+        firstRowKey = state.offline.firstOrNull()?.key,
+    )
     Column(modifier.fillMaxSize()) {
         PlatformFilterChips(
             selected = state.filter,
@@ -141,7 +158,7 @@ fun FollowingScreen(
                 modifier = Modifier.fillMaxSize().testTag(FollowingTestTags.LIST),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
-                content(state, now, onIntent, onOpenPlayer, onOpenChannel, onSignIn, onOpenBrowse)
+                content(state, now, offlineShown, onIntent, onOpenPlayer, onOpenChannel, onSignIn, onOpenBrowse)
             }
         }
     }
@@ -150,6 +167,7 @@ fun FollowingScreen(
 private fun LazyGridScope.content(
     state: FollowingUiState,
     now: State<Instant>,
+    offlineShown: MutableTransitionState<Boolean>,
     onIntent: (FollowingIntent) -> Unit,
     onOpenPlayer: (Stream) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
@@ -199,35 +217,47 @@ private fun LazyGridScope.content(
     } else if (loaded && !loading) {
         fullWidth("nobody_live") { NobodyLive(onOpenBrowse) }
     }
-    if (state.offline.isNotEmpty()) {
-        fullWidth(OFFLINE_HEADER_KEY) { OfflineHeader(state.offline.size, state.offlineCollapsed, onIntent) }
-        // Folded, no offline row is composed at all, so none of them asks for a last-live lookup.
-        if (!state.offlineCollapsed) offlineRows(state, now, onIntent, onOpenChannel)
-    }
+    offlineSection(state, now, offlineShown, onIntent, onOpenChannel)
+}
+
+private fun LazyGridScope.offlineSection(
+    state: FollowingUiState,
+    now: State<Instant>,
+    shown: MutableTransitionState<Boolean>,
+    onIntent: (FollowingIntent) -> Unit,
+    onOpenChannel: (ChannelRef) -> Unit,
+) {
+    if (state.offline.isEmpty()) return
+    fullWidth(OFFLINE_HEADER_KEY) { OfflineHeader(state.offline.size, state.offlineCollapsed, onIntent) }
+    // Folded and finished shrinking, no offline row is composed at all, so none asks for a last-live lookup.
+    if (!state.offlineCollapsed || shown.currentState) offlineRows(state, now, shown, onIntent, onOpenChannel)
 }
 
 private fun LazyGridScope.offlineRows(
     state: FollowingUiState,
     now: State<Instant>,
+    shown: MutableTransitionState<Boolean>,
     onIntent: (FollowingIntent) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
 ) {
+    val expanded = !state.offlineCollapsed
     items(state.offline, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
         // Composed rows only: the lazy grid composes what is on screen, so off-screen rows never cost a lookup, and
         // a row that scrolls away before its turn lets go of it.
+        // A row that is shrinking away has no use for its lookup, so it lets go the moment the fold starts.
         if (channel.lastStream?.startedAt == null) {
-            DisposableEffect(channel.ref) {
-                onIntent(FollowingIntent.OfflineRowShown(channel.ref))
-                onDispose { onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
+            DisposableEffect(channel.ref, expanded) {
+                if (expanded) onIntent(FollowingIntent.OfflineRowShown(channel.ref))
+                onDispose { if (expanded) onIntent(FollowingIntent.OfflineRowHidden(channel.ref)) }
             }
         }
-        ChannelRow(
-            channel = channel,
-            onClick = { onOpenChannel(channel.ref) },
-            // Rows fade in as the section unfolds and fade out as it folds.
-            modifier = Modifier.animateItem(),
-            now = { now.value },
-        )
+        AnimatedVisibility(
+            visibleState = shown,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = { now.value })
+        }
     }
 }
 
