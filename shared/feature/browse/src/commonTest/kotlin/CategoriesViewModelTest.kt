@@ -132,4 +132,57 @@ class CategoriesViewModelTest {
             assertEquals(LurkError.Timeout, state.value.loadMoreError)
             assertEquals(PlatformSlice.Loaded(Unit), state.value.slice)
         }
+
+    @Test
+    fun nonRetryableLoadMoreFailureStopsPagingAndKeepsItems() =
+        runTest {
+            var requests = 0
+            twitch.categories = { cursor ->
+                requests++
+                if (cursor == null) {
+                    pageOf(c(Platform.TWITCH, "1"), next = "p2")
+                } else {
+                    Outcome.Failure(LurkError.IntegrityRequired)
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            vm.onIntent(CategoriesIntent.LoadMore)
+            runCurrent()
+            assertEquals(2, requests)
+            assertEquals(LurkError.IntegrityRequired, state.value.loadMoreError)
+            assertEquals(listOf("1"), state.value.categories.map { it.id })
+
+            vm.onIntent(CategoriesIntent.LoadMore)
+            vm.onIntent(CategoriesIntent.Retry)
+            runCurrent()
+
+            assertEquals(2, requests)
+            assertEquals(listOf("1"), state.value.categories.map { it.id })
+        }
+
+    @Test
+    fun retryableLoadMoreFailureRetriesWithTheSameCursor() =
+        runTest {
+            val cursors = mutableListOf<String?>()
+            twitch.categories = { cursor ->
+                cursors += cursor
+                when {
+                    cursor == null -> pageOf(c(Platform.TWITCH, "1"), next = "p2")
+                    cursors.size == 2 -> Outcome.Failure(LurkError.Timeout)
+                    else -> pageOf(c(Platform.TWITCH, "2"))
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            vm.onIntent(CategoriesIntent.LoadMore)
+            runCurrent()
+            vm.onIntent(CategoriesIntent.Retry)
+            runCurrent()
+
+            assertEquals(listOf(null, "p2", "p2"), cursors)
+            assertEquals(listOf("1", "2"), state.value.categories.map { it.id })
+        }
 }

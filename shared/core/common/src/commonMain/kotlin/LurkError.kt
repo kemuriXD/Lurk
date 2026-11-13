@@ -36,6 +36,29 @@ sealed interface LurkError {
     ) : LurkError
 }
 
+/**
+ * Whether asking again can plausibly succeed. False for failures that repeat until something outside the call changes:
+ * a platform check the app can't pass, a changed schema, a block, a lapsed session, a missing item or a client error.
+ */
+val LurkError.isRetryable: Boolean
+    get() =
+        when (this) {
+            LurkError.Offline, LurkError.Timeout, LurkError.ProxyFailed, LurkError.Unexpected -> true
+
+            is LurkError.RateLimited -> true
+
+            is LurkError.Http -> code >= 500
+
+            LurkError.AuthExpired,
+            LurkError.Blocked,
+            LurkError.IntegrityRequired,
+            LurkError.SchemaChanged,
+            LurkError.NotFound,
+            LurkError.NotSignedIn,
+            LurkError.Unsupported,
+            -> false
+        }
+
 /** Carries a [LurkError] across layers that throw; [outcomeOf] turns it back into a value. */
 class LurkException(
     val error: LurkError,

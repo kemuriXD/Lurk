@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.feature.browse
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.common.isRetryable
 import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.loadBoth
@@ -143,7 +144,14 @@ internal class PagedFeed<T>(
             }
 
             is PlatformSlice.Failed -> {
-                if (first) before.copy(slice = result) else before.copy(moreError = result.error)
+                when {
+                    first -> before.copy(slice = result)
+
+                    // Asking for the same page again would fail the same way, so end the list here.
+                    !result.error.isRetryable -> before.copy(moreError = result.error, cursor = null)
+
+                    else -> before.copy(moreError = result.error)
+                }
             }
 
             PlatformSlice.NotSignedIn -> {
