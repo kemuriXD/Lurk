@@ -299,6 +299,25 @@ class LurkAppTest {
     }
 
     @Test
+    fun systemBackPopsCategorySettingsAndPlayerOneAtATime() {
+        val backStack = showShellWithStack()
+        val pages =
+            listOf(
+                CategoryRoute(Platform.TWITCH, "509658", "Just Chatting"),
+                SettingsRoute,
+                PlayerRoute(Platform.TWITCH, "streamer1", "Test stream", thumbnailUrl = null),
+            )
+        pages.forEach { page ->
+            compose.runOnIdle { backStack.add(page) }
+            compose.waitForIdle()
+            compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+            compose.waitForIdle()
+            compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
+            compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun playerHidesTheNavigationSuite() {
         val backStack = showShellWithStack()
         tab(R.string.tab_search).assertIsDisplayed()
