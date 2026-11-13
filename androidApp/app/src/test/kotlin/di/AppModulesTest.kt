@@ -26,6 +26,9 @@ import io.github.kemurixd.lurk.core.storage.db.LurkDatabase
 import io.github.kemurixd.lurk.core.storage.storageModule
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.feature.common.featureCommonModule
+import io.github.kemurixd.lurk.feature.following.FollowingViewModel
+import io.github.kemurixd.lurk.feature.following.followingModule
+import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
@@ -149,8 +152,9 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(13, modules.size)
+        assertEquals(14, modules.size)
         assertTrue(featureCommonModule in modules)
+        assertTrue(followingModule in modules)
         assertTrue(playbackModule in modules)
         assertTrue(authModule in modules)
         assertTrue(twitchModule in modules)
@@ -174,6 +178,16 @@ class AppModulesTest {
     @Test
     fun featureCommonModuleIsComplete() {
         featureCommonModule.verify(extraTypes = listOf(SessionRepository::class))
+    }
+
+    // followingModule, like authModule, takes the List of platforms from getAll(), which verify() cannot see
+    // through. Resolving the view model over the real platform graph covers it.
+
+    @Test
+    fun followingViewModelResolvesOverTheRealPlatforms() {
+        val app = platformGraph()
+        app.modules(followingModule, module { single { inMemorySettingsStore() } })
+        app.koin.get<FollowingViewModel>()
     }
 
     @Test
