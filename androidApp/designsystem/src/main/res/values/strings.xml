@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="platform_twitch">Twitch</string>
+    <string name="platform_kick">Kick</string>
+
+    <string name="filter_all">All</string>
+
+    <string name="live_badge">LIVE</string>
+    <string name="viewers_count">%1$s viewers</string>
+    <string name="offline">Offline</string>
+    <string name="supporting_category_viewers">%1$s · %2$s viewers</string>
+    <string name="loading">Loading</string>
+
+    <string name="cd_open_channel">Open %1$s</string>
+    <string name="cd_account_and_settings">Account and settings</string>
+    <string name="error_chip_message">Couldn’t load %1$s</string>
+    <string name="error_chip_retry">Retry</string>
+    <string name="error_chip_retry_cd">Retry loading %1$s</string>
+
+    <string name="error_offline">You’re offline. Check your connection and try again.</string>
+    <string name="error_timeout">That took too long. Try again.</string>
+    <string name="error_auth_expired">Your session expired. Sign in again.</string>
+    <string name="error_blocked">Kick blocked the request. Try again in a moment.</string>
+    <string name="error_integrity_required">The platform asked for a check this app can’t pass yet.</string>
+    <string name="error_proxy_failed">The proxy didn’t respond. Check your proxy settings.</string>
+    <string name="error_schema_changed">The platform changed something. An update may be needed.</string>
+    <string name="error_not_found">Nothing found here.</string>
+    <string name="error_not_signed_in">Sign in to see this.</string>
+    <string name="error_unsupported">This isn’t supported yet.</string>
+    <string name="error_unexpected">Something went wrong.</string>
+    <string name="error_http">The server returned an error. Try again later.</string>
+    <string name="error_rate_limited">Too many requests. Wait a moment and try again.</string>
+</resources>
