@@ -245,9 +245,70 @@ class SearchScreenTest {
     }
 
     @Test
-    fun resultsLandingDoNotMoveAListTheUserScrolled() {
+    fun resultsLandingAboveDoNotMoveAListTheUserScrolledToCategories() {
         val pixel = Category(Platform.TWITCH, "1000003", "Pixel Game", null, 1000)
         var state by mutableStateOf(results(channels = (1..30).map { channel("pixel$it") }, categories = listOf(pixel)))
+        showLive { state }
+        rule.onNodeWithTag(SearchTestTags.LIST).performScrollToNode(hasText("Pixel Game"))
+        rule.waitForIdle()
+        rule.onNodeWithText("Pixel Game").assertIsDisplayed()
+
+        state = state.copy(channels = listOf(channel("pixel0")) + state.channels)
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Pixel Game").assertIsDisplayed()
+        rule.onNodeWithText("Pixel0").assertDoesNotExist()
+    }
+
+    @Test
+    fun aNewQueryScrollsBackToTheTop() {
+        val many = (1..30).map { channel("pixel$it") }
+        var state by mutableStateOf(results(query = "pix", channels = many))
+        showLive { state }
+        rule.onNodeWithTag(SearchTestTags.LIST).performScrollToNode(hasText("Pixel30"))
+        rule.waitForIdle()
+        rule.onNodeWithText("Pixel1").assertDoesNotExist()
+
+        state = results(query = "pixe", channels = many)
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Pixel1").assertIsDisplayed()
+    }
+
+    @Test
+    fun categoriesOnlyFillTheGridInsteadOfOneRow() {
+        val games = (1..9).map { Category(Platform.TWITCH, "10$it", "Game$it", null, 1000L * it) }
+        show(results(categories = games).copy(type = SearchType.CATEGORIES))
+        rule.onNodeWithTag(SearchTestTags.CATEGORY_ROW).assertDoesNotExist()
+        val first = rule.onNodeWithText("Game1").fetchSemanticsNode().boundsInRoot
+        val second = rule.onNodeWithText("Game2").fetchSemanticsNode().boundsInRoot
+        assertEquals("tiles sit side by side", first.top, second.top, 1f)
+        assertTrue("the second tile is beside the first", second.left >= first.right - 1f)
+        // A third tile fits beside them: the grid fills the width instead of a single scrolling row.
+        val third = rule.onNodeWithText("Game3").fetchSemanticsNode().boundsInRoot
+        assertEquals(first.top, third.top, 1f)
+    }
+
+    @Test
+    fun categoriesInTheMixedViewStayInOneHorizontalRow() {
+        val games = (1..3).map { Category(Platform.TWITCH, "10$it", "Game$it", null, 1000L * it) }
+        show(results(channels = listOf(channel("pixelotter")), categories = games))
+        rule.onNodeWithTag(SearchTestTags.CATEGORY_ROW).assertExists()
+    }
+
+    @Test
+    fun noResultsCopyNamesTheTypeBeingFiltered() {
+        show(SearchUiState(query = "pix", type = SearchType.CATEGORIES, phase = SearchPhase.NO_RESULTS))
+        rule.onNodeWithText("No categories for “pix”").assertIsDisplayed()
+    }
+
+    @Test
+    fun noResultsCopyNamesChannelsWhenFilteringThem() {
+        show(SearchUiState(query = "pix", type = SearchType.CHANNELS, phase = SearchPhase.NO_RESULTS))
+        rule.onNodeWithText("No channels for “pix”").assertIsDisplayed()
+    }
+
+    private fun showLive(state: () -> SearchUiState) {
         rule.setContent {
             CompositionLocalProvider(
                 LocalSoftwareKeyboardController provides keyboard,
@@ -255,7 +316,7 @@ class SearchScreenTest {
             ) {
                 LurkTheme(dynamicColor = false) {
                     SearchScreen(
-                        state = state,
+                        state = state(),
                         onIntent = { allIntents += it },
                         onOpenChannel = { channels += it },
                         onOpenCategory = { categories += it },
@@ -263,43 +324,44 @@ class SearchScreenTest {
                 }
             }
         }
-        rule.onNodeWithTag(SearchTestTags.LIST).performTouchInput { swipeUp() }
+    }
+
+    @Test
+    fun rowsEnteringWhileScrollingDoNotEachStartTheirOwnClock() {
+        var clockReads = 0
+        val countingClock =
+            object : Clock {
+                override fun now(): Instant {
+                    clockReads++
+                    return now
+                }
+            }
+        val many = (1..200).map { channel("pixel$it") }
+        rule.setContent {
+            CompositionLocalProvider(
+                LocalSoftwareKeyboardController provides keyboard,
+                LocalClock provides countingClock,
+            ) {
+                LurkTheme(dynamicColor = false) {
+                    SearchScreen(
+                        state = results(channels = many),
+                        onIntent = { allIntents += it },
+                        onOpenChannel = { channels += it },
+                        onOpenCategory = { categories += it },
+                    )
+                }
+            }
+        }
         rule.waitForIdle()
-        rule.onNodeWithText("Pixel1").assertDoesNotExist()
-
-        state = state.copy(channels = state.channels + channel("pixel31"))
-        rule.waitForIdle()
-
-        rule.onNodeWithText("Pixel1").assertDoesNotExist()
-    }
-
-    @Test
-    fun typeSwitchSendsSelectType() {
-        show(results(channels = listOf(channel("pixelotter"))))
-        rule.onNodeWithTag(SearchTestTags.TYPE_CATEGORIES).performClick()
-        rule.onNodeWithTag(SearchTestTags.TYPE_CHANNELS).performClick()
-        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).performClick()
-        assertEquals(
-            listOf<SearchIntent>(
-                SearchIntent.SelectType(SearchType.CATEGORIES),
-                SearchIntent.SelectType(SearchType.CHANNELS),
-                SearchIntent.SelectType(SearchType.ALL),
-            ),
-            intents,
-        )
-    }
-
-    @Test
-    fun typeSwitchShowsTheSelectedType() {
-        show(results(channels = listOf(channel("pixelotter"))).copy(type = SearchType.CHANNELS))
-        rule.onNodeWithTag(SearchTestTags.TYPE_CHANNELS).assertIsSelected()
-        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).assertIsNotSelected()
-    }
-
-    @Test
-    fun typeSwitchIsHiddenUntilThereIsAQuery() {
-        show(SearchUiState())
-        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).assertDoesNotExist()
+        clockReads = 0
+        repeat(8) {
+            rule.onNodeWithTag(SearchTestTags.LIST).performTouchInput { swipeUp() }
+            rule.waitForIdle()
+        }
+        val entered = allIntents.count { it is SearchIntent.OfflineRowShown }
+        assertTrue("only $entered rows entered, too few to mean anything", entered > 30)
+        // One ticking clock serves the whole list; a clock per row costs a state and a timer for every row that enters.
+        assertTrue("rows read the clock $clockReads times while $entered entered", clockReads <= 2)
     }
 
     private fun results(

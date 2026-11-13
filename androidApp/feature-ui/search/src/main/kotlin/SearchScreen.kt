@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.search
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -34,6 +36,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -61,6 +64,7 @@ import io.github.kemurixd.lurk.designsystem.component.InlineErrorChip
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
+import io.github.kemurixd.lurk.designsystem.time.rememberNow
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.search.SearchIntent
@@ -69,13 +73,20 @@ import io.github.kemurixd.lurk.feature.search.SearchType
 import io.github.kemurixd.lurk.feature.search.SearchUiState
 import io.github.kemurixd.lurk.feature.search.SearchViewModel
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.time.Instant
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
 private const val PLACEHOLDER_COUNT = 3
+private const val CATEGORY_TILE = "category_tile"
+private const val CHANNEL_ROW = "channel_row"
+private const val PLACEHOLDER = "placeholder"
 private val FieldShape = 28.dp
 private val FieldPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 private val CardPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
 private val TileWidth = 116.dp
+
+/** The smallest tile in the wrapping grid, as Browse's category grid uses. */
+private val TileGridMin = 104.dp
 
 /** Gets the [SearchViewModel] and hands the state to [SearchScreen]. */
 @Composable
@@ -111,6 +122,12 @@ fun SearchScreen(
     onOpenCategory: (Category) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val gridState = rememberLazyGridState()
+    // A new search starts at the top, whatever the previous list was scrolled to.
+    val query = state.query.trim()
+    LaunchedEffect(query) { gridState.scrollToItem(0) }
+    // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in.
+    val now = rememberNow()
     Column(modifier.fillMaxSize().imePadding()) {
         SearchField(initial = state.query, onIntent = onIntent)
         if (state.phase == SearchPhase.EMPTY) {
@@ -133,24 +150,34 @@ fun SearchScreen(
             if (state.phase == SearchPhase.NO_RESULTS) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     EmptyState(
-                        title = stringResource(R.string.no_results_title, state.query.trim()),
+                        title = stringResource(state.type.noResultsTitle(), state.query.trim()),
                         body = stringResource(R.string.no_results_body),
                         action = null,
                         icon = DesignR.drawable.ic_search,
                     )
                 }
             } else {
+                val categoriesOnly = state.type == SearchType.CATEGORIES
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 300.dp),
+                    columns = GridCells.Adaptive(minSize = if (categoriesOnly) TileGridMin else 300.dp),
+                    state = gridState,
                     modifier = Modifier.weight(1f).fillMaxWidth().testTag(SearchTestTags.LIST),
                     contentPadding = PaddingValues(bottom = 16.dp),
                 ) {
-                    results(state, onIntent, onOpenChannel, onOpenCategory)
+                    results(state, now, onIntent, onOpenChannel, onOpenCategory)
                 }
             }
         }
     }
 }
+
+@StringRes
+private fun SearchType.noResultsTitle(): Int =
+    when (this) {
+        SearchType.ALL -> R.string.no_results_title
+        SearchType.CHANNELS -> R.string.no_channels_title
+        SearchType.CATEGORIES -> R.string.no_categories_title
+    }
 
 @Composable
 private fun SearchField(
@@ -256,6 +283,7 @@ private fun Progress(searching: Boolean) {
 
 private fun LazyGridScope.results(
     state: SearchUiState,
+    now: Instant,
     onIntent: (SearchIntent) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
     onOpenCategory: (Category) -> Unit,
@@ -273,7 +301,12 @@ private fun LazyGridScope.results(
     }
     if (state.channels.isNotEmpty()) {
         fullWidth("channels_header") { SectionHeader(stringResource(R.string.section_channels)) }
-        items(state.channels, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
+        items(
+            state.channels,
+            key = { it.key },
+            span = { GridItemSpan(maxLineSpan) },
+            contentType = { CHANNEL_ROW },
+        ) { channel ->
             // Composed rows only: the lazy grid composes what is on screen, so off-screen rows never cost a lookup, and
             // a row that scrolls away before its turn lets go of it.
             if (channel.live == null && channel.lastStream?.startedAt == null) {
@@ -282,15 +315,30 @@ private fun LazyGridScope.results(
                     onDispose { onIntent(SearchIntent.OfflineRowHidden(channel.ref)) }
                 }
             }
-            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, showLiveRing = false)
+            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, showLiveRing = false, now = now)
         }
     }
     if (state.categories.isNotEmpty()) {
         fullWidth("categories_header") { SectionHeader(stringResource(R.string.section_categories)) }
-        fullWidth("categories") { Categories(state.categories, onOpenCategory) }
+        if (state.type == SearchType.CATEGORIES) {
+            // Only categories: a wrapping grid of tiles that fills the screen.
+            items(
+                state.categories,
+                key = { "${it.platform.name}:${it.id}" },
+                contentType = { CATEGORY_TILE },
+            ) { category ->
+                CategoryTile(
+                    category = category,
+                    onClick = { onOpenCategory(category) },
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                )
+            }
+        } else {
+            fullWidth("categories") { Categories(state.categories, onOpenCategory) }
+        }
     }
     if (state.phase == SearchPhase.TYPING) {
-        items(PLACEHOLDER_COUNT, key = { "placeholder:$it" }) {
+        items(PLACEHOLDER_COUNT, key = { "placeholder:$it" }, contentType = { PLACEHOLDER }) {
             StreamCardPlaceholder(Modifier.padding(CardPadding))
         }
     }
@@ -302,6 +350,7 @@ private fun Categories(
     onOpen: (Category) -> Unit,
 ) {
     LazyRow(
+        modifier = Modifier.testTag(SearchTestTags.CATEGORY_ROW),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -315,7 +364,8 @@ private fun LazyGridScope.fullWidth(
     key: String,
     content: @Composable () -> Unit,
 ) {
-    item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
+    // The key's kind (before any colon) is the content type, so rows of one kind reuse each other's composition.
+    item(key = key, span = { GridItemSpan(maxLineSpan) }, contentType = key.substringBefore(':')) { content() }
 }
 
 @Composable
