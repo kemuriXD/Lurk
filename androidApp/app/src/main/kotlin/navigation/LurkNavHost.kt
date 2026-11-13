@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -83,6 +84,10 @@ fun LurkNavHost(
                 }
             },
     )
+    // A plain back callback, registered after the display's, so the system calls it on release and the page plays
+    // the same pop slide as the back button. Without it the display previews the swipe, seeking the page under the
+    // finger. At the start tab's root there is nothing to pop, so the system's own back-to-home runs.
+    BackHandler(enabled = backStack.size > 1, onBack = navigator::back)
 }
 
 private fun Navigator.openPlayer(stream: Stream) {

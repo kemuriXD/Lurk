@@ -66,16 +66,17 @@ class PageTransitionTest {
     }
 
     @Test
-    fun everyKindSharesOneDurationAndEasing() {
-        val all =
-            NavigationKind.entries.map { kind ->
-                pageTransition(kind, FollowingRoute, channel).let { it.durationMillis to it.easing }
+    fun everyKindIncludingTheBackSwipeSharesOneDurationAndEasing() {
+        val specs =
+            NavigationKind.entries.map { pageTransition(it, FollowingRoute, channel) }.map {
+                it.durationMillis to
+                    it.easing
             }
-        assertEquals(1, all.toSet().size)
-        assertEquals(300, all.first().first)
+        assertEquals(1, specs.toSet().size)
+        assertEquals(300, specs.first().first)
         // Tab switches use the same spec as pushes and pops.
         val tab = pageTransition(NavigationKind.PUSH, FollowingRoute, BrowseRoute)
-        assertEquals(all.first(), tab.durationMillis to tab.easing)
+        assertEquals(specs.first(), tab.durationMillis to tab.easing)
     }
 
     private fun scene(key: NavKey): Scene<NavKey> {

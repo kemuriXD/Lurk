@@ -30,8 +30,8 @@ private val SlideEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 /**
  * The slide for moving from the page keyed [from] to the one keyed [to]. A switch between tabs goes the way the tabs
  * lie (a tab further right slides left), whatever the back stack did to get there. Other pushes slide forward and pops
- * slide backward. The back swipe is always the pop slide. Every kind shares one duration and easing, so the whole
- * app moves the same way.
+ * slide backward. The back swipe is always the pop slide. Every kind, the back swipe included, shares one
+ * duration and easing, so the whole app moves the same way.
  */
 internal fun pageTransition(
     kind: NavigationKind,
@@ -54,7 +54,11 @@ internal fun pageTransition(
                 SlideDirection.BACKWARD
             }
         }
-    return PageTransition(direction, SLIDE_MILLIS, SlideEasing)
+    return PageTransition(
+        direction,
+        SLIDE_MILLIS,
+        SlideEasing,
+    )
 }
 
 internal fun PageTransition.toContentTransform(): ContentTransform {
