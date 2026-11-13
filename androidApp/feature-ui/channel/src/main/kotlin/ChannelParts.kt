@@ -115,31 +115,42 @@ internal fun ChannelHeader(
                     .padding(4.dp),
             ) { LiveDot() }
         }
-        Column(
-            modifier = Modifier.padding(start = IdentityStart, top = IdentityTop, end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false).semantics { heading() },
-                )
-                PlatformBadge(ref.platform)
-            }
-            if (channel != null) {
-                Text(
-                    text = statusLine(channel, now),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag(ChannelTestTags.STATUS),
-                )
-            }
+        HeaderIdentity(name, ref, channel, now)
+    }
+}
+
+/** The channel's name, platform badge and status line, under the banner beside the avatar. */
+@Composable
+private fun HeaderIdentity(
+    name: String,
+    ref: ChannelRef,
+    channel: Channel?,
+    now: Instant,
+) {
+    Column(
+        modifier = Modifier.padding(start = IdentityStart, top = IdentityTop, end = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).semantics { heading() },
+            )
+            PlatformBadge(ref.platform)
+        }
+        if (channel != null) {
+            Text(
+                text = statusLine(channel, now),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag(ChannelTestTags.STATUS),
+            )
         }
     }
 }

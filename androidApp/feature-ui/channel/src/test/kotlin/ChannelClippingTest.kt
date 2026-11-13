@@ -47,7 +47,7 @@ class ChannelClippingTest {
         rect: Rect,
         radius: Float,
     ): Boolean {
-        if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return false
+        if (point.x !in rect.left..rect.right || point.y !in rect.top..rect.bottom) return false
         val dx = point.x - point.x.coerceIn(rect.left + radius, rect.right - radius)
         val dy = point.y - point.y.coerceIn(rect.top + radius, rect.bottom - radius)
         return sqrt(dx * dx + dy * dy) <= radius + 0.01f

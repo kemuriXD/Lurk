@@ -107,7 +107,8 @@ class LiveDotTest {
         setAnimatorScale(1f)
         var reads = 0
         val showing = mutableStateOf(true)
-        // Compose's test clock refuses infinite animations while it advances by itself; stepping it by hand lets this one run.
+        // The test clock refuses infinite animations while it advances by itself.
+        // Stepping it by hand lets this one run.
         rule.mainClock.autoAdvance = false
         rule.setContent {
             CountingStrings(onRead = { id -> if (id == R.string.live || id == R.string.viewers_count) reads++ }) {

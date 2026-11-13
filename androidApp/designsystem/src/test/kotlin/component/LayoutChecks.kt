@@ -41,7 +41,7 @@ internal fun insideRounded(
     rect: Rect,
     radius: Float,
 ): Boolean {
-    if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return false
+    if (point.x !in rect.left..rect.right || point.y !in rect.top..rect.bottom) return false
     val cx = point.x.coerceIn(rect.left + radius, rect.right - radius)
     val cy = point.y.coerceIn(rect.top + radius, rect.bottom - radius)
     val dx = point.x - cx
