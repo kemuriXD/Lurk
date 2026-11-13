@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -170,6 +171,10 @@ private fun LazyGridScope.content(
             SectionHeader(stringResource(R.string.section_offline), count = state.offline.size)
         }
         items(state.offline, key = { it.key }, span = { GridItemSpan(maxLineSpan) }) { channel ->
+            // Composed rows only: the lazy grid composes what is on screen, so off-screen rows never cost a lookup.
+            if (channel.lastStream?.startedAt == null) {
+                LaunchedEffect(channel.ref) { onIntent(FollowingIntent.OfflineRowShown(channel.ref)) }
+            }
             ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) })
         }
     }

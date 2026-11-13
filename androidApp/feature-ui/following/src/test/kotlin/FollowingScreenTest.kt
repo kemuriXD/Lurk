@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import io.github.kemurixd.lurk.core.common.LurkError
@@ -94,6 +95,31 @@ class FollowingScreenTest {
         val sleeper = channel("sleeper1").copy(lastStream = LastStream(null, null, now - 3.days))
         show(loaded(live = emptyList(), offline = listOf(sleeper, channel("sleeper2"))))
         rule.onNodeWithText("Offline · last live 3 days ago").assertIsDisplayed()
+    }
+
+    @Test
+    fun offlineRowsWithoutATimeAskForItWhenShown() {
+        val sleeper = channel("sleeper1").copy(lastStream = LastStream(null, null, now - 3.days))
+        show(loaded(live = emptyList(), offline = listOf(sleeper, channel("sleeper2"))))
+        rule.onNodeWithText("Sleeper1").assertExists()
+        // The "nobody live" block leaves room for one row on the test screen, so the second one is scrolled in.
+        rule.onNodeWithTag(FollowingTestTags.LIST).performScrollToNode(hasText("Sleeper2"))
+        rule.waitForIdle()
+        assertEquals(
+            listOf<FollowingIntent>(FollowingIntent.OfflineRowShown(ChannelRef(Platform.TWITCH, "sleeper2"))),
+            intents,
+        )
+    }
+
+    @Test
+    fun onlyOfflineRowsOnScreenAskForTheirTime() {
+        val many = (1..100).map { channel("sleeper$it") }
+        show(loaded(live = emptyList(), offline = many))
+        rule.waitForIdle()
+        val asked = intents.filterIsInstance<FollowingIntent.OfflineRowShown>().map { it.channel.login }
+        assertTrue("the first row asks", "sleeper1" in asked)
+        assertTrue("rows far below the screen don't ask, asked: $asked", "sleeper100" !in asked)
+        assertTrue("fewer rows ask than exist: ${asked.size}", asked.size < many.size)
     }
 
     @Test
