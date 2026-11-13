@@ -95,6 +95,18 @@ class LoadBothTest {
         }
 
     @Test
+    fun unexpectedExceptionFailsOnlyThatPlatform() =
+        runTest {
+            kick.topLive = { throw IllegalStateException("mapper bug") }
+            twitch.topLive = { Outcome.Success(page(Platform.TWITCH)) }
+
+            val result = loadBoth(platforms) { it.topLive(null) }
+
+            assertEquals(PlatformSlice.Failed(LurkError.Unexpected), result[Platform.KICK])
+            assertEquals(PlatformSlice.Loaded(page(Platform.TWITCH)), result[Platform.TWITCH])
+        }
+
+    @Test
     fun cancellationPropagates() =
         runTest {
             val cancelled = mutableSetOf<Platform>()

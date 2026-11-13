@@ -6,7 +6,7 @@ import io.github.kemurixd.lurk.core.model.Account
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.storage.SecureStore
 
-/** A [SecureStore] kept in a map, for building a real `SessionRepository` in tests. */
+/** A [SecureStore] kept in a plain map, for building a real `SessionRepository` in single-threaded `runTest` tests. */
 class InMemorySecureStore : SecureStore {
     val values = mutableMapOf<String, String>()
 
@@ -26,7 +26,7 @@ class InMemorySecureStore : SecureStore {
     override suspend fun clear() = values.clear()
 }
 
-/** A [ProfileFetcher] that answers every token with [result]. */
+/** A [ProfileFetcher] that answers every token with [result]. Its counter is for single-threaded `runTest` use. */
 class FakeProfileFetcher(
     override val platform: Platform,
     var result: Outcome<Account> = Outcome.Success(testAccount(platform)),

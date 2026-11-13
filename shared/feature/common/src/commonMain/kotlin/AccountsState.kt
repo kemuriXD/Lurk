@@ -23,6 +23,9 @@ class AccountsState(
 /**
  * Combines the per-platform state flows without a scope of its own: [value] reads them directly and each collector
  * combines them while it collects. Nothing runs when nobody collects.
+ *
+ * This subclass exists to give a synchronous [value] with no scope, which `stateIn` can't. Implementing [StateFlow]
+ * needs the `ExperimentalForInheritanceCoroutinesApi` opt-in.
  */
 @OptIn(ExperimentalForInheritanceCoroutinesApi::class)
 private class CombinedStates(

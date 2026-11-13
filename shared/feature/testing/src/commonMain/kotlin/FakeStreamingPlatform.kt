@@ -23,6 +23,8 @@ import io.github.kemurixd.lurk.playback.PlaybackSource
 /**
  * A [StreamingPlatform] whose calls are plain lambdas that tests swap out. Each call defaults to an empty success
  * (a stand-in profile for [channel]) and counts how often it ran. [chat] is not used by the list screens and throws.
+ *
+ * The counters are plain fields, meant for single-threaded `runTest` use.
  */
 class FakeStreamingPlatform(
     override val id: Platform,
