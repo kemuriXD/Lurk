@@ -5,7 +5,9 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -17,6 +19,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.kemurixd.lurk.designsystem.R
 import kotlinx.coroutines.delay
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
 
@@ -24,6 +27,7 @@ private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3_600L
 private const val MINUTES_PER_HOUR = 60
 private const val MILLIS_PER_SECOND = 1_000L
+private const val MILLIS_PER_MINUTE = 60_000L
 
 /** How long a stream has run, as H:MM:SS ("1:47:59"). Hours keep counting past a day; a negative time reads zero. */
 fun formatUptime(elapsed: Duration): String {
@@ -42,17 +46,48 @@ fun spokenUptime(
     elapsed: Duration,
     resources: Resources,
 ): String {
-    val minutesInTotal = (elapsed.inWholeSeconds.coerceAtLeast(0) / SECONDS_PER_MINUTE).toInt()
+    val minutesInTotal = elapsed.inWholeMinutes.coerceAtLeast(0).toInt()
     if (minutesInTotal == 0) return resources.getString(R.string.cd_live_for_under_minute)
     val hours = minutesInTotal / MINUTES_PER_HOUR
     val minutes = minutesInTotal % MINUTES_PER_HOUR
-    val parts =
-        listOfNotNull(
-            hours.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.cd_uptime_hours, it, it) },
-            minutes.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.cd_uptime_minutes, it, it) },
-        )
-    return resources.getString(R.string.cd_live_for, parts.joinToString(" "))
+    val hoursText = resources.getQuantityString(R.plurals.cd_uptime_hours, hours, hours)
+    val minutesText = resources.getQuantityString(R.plurals.cd_uptime_minutes, minutes, minutes)
+    val spoken =
+        when {
+            hours == 0 -> minutesText
+            minutes == 0 -> hoursText
+            else -> resources.getString(R.string.cd_uptime_hours_minutes, hoursText, minutesText)
+        }
+    return resources.getString(R.string.cd_live_for, spoken)
 }
+
+/**
+ * The whole minutes since [startedAt], as a state that changes on the stream's own minute boundary, and only while the
+ * app is at least started. A screen reader's "N minutes" reads this, so it keeps in step with the visible clock and
+ * a card in the background wakes nothing. Null when the start is unknown.
+ */
+@Composable
+fun rememberUptimeMinutes(startedAt: Instant?): State<Long> {
+    val clock = LocalClock.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val minutes = remember(clock, startedAt) { mutableLongStateOf(minutesSince(clock, startedAt)) }
+    LaunchedEffect(clock, startedAt, lifecycle) {
+        if (startedAt == null) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                minutes.longValue = minutesSince(clock, startedAt)
+                val intoMinute = (clock.now() - startedAt).inWholeMilliseconds.mod(MILLIS_PER_MINUTE)
+                delay(MILLIS_PER_MINUTE - intoMinute)
+            }
+        }
+    }
+    return minutes
+}
+
+private fun minutesSince(
+    clock: Clock,
+    startedAt: Instant?,
+): Long = if (startedAt == null) 0L else (clock.now() - startedAt).inWholeMinutes.coerceAtLeast(0)
 
 private fun Long.twoDigits(): String = toString().padStart(2, '0')
 

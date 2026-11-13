@@ -18,6 +18,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
@@ -134,8 +138,52 @@ class ExpandedStreamCardTest {
         show(live(startedAt = now - 59.minutes))
         assertTrue("live for 59 minutes" in cardDescriptions().single())
         now += 2.minutes
-        rule.mainClock.advanceTimeBy(60_100)
+        rule.mainClock.advanceTimeBy(120_100)
         assertTrue(cardDescriptions().toString(), "live for 1 hour 1 minute," in cardDescriptions().single())
+    }
+
+    @Test
+    fun anUnknownStartStillSaysLive() {
+        show(live(startedAt = null))
+        assertTrue(
+            cardDescriptions().toString(),
+            "Speedrunning all night, live, 20,052 viewers" in cardDescriptions().single(),
+        )
+    }
+
+    @Test
+    fun theSpokenMinuteChangesOnTheStreamsOwnMinuteBoundary() {
+        // 30 s short of the hour: the minute must roll over 30 s on, not up to a minute later.
+        show(live(startedAt = now - (59.minutes + 30.seconds)))
+        assertTrue(cardDescriptions().toString(), "live for 59 minutes" in cardDescriptions().single())
+        now += 31.seconds
+        rule.mainClock.advanceTimeBy(31_000)
+        assertTrue(cardDescriptions().toString(), "live for 1 hour," in cardDescriptions().single())
+    }
+
+    @Test
+    fun theSpokenMinuteStandsStillWhileTheAppIsInTheBackground() {
+        val owner =
+            object : LifecycleOwner {
+                val registry = LifecycleRegistry.createUnsafe(this)
+                override val lifecycle: Lifecycle get() = registry
+            }
+        rule.runOnUiThread { owner.registry.currentState = Lifecycle.State.CREATED }
+        rule.setContent {
+            CompositionLocalProvider(LocalClock provides clock, LocalLifecycleOwner provides owner) {
+                LurkTheme(dynamicColor = false) {
+                    LayoutHost(Phone, 1f) {
+                        ExpandedStreamCard(live(startedAt = now - 5.minutes), onOpenPlayer = {}, onOpenChannel = {})
+                    }
+                }
+            }
+        }
+        now += 3.minutes
+        rule.mainClock.advanceTimeBy(200_000)
+        assertTrue(cardDescriptions().toString(), "live for 5 minutes" in cardDescriptions().single())
+        rule.runOnUiThread { owner.registry.currentState = Lifecycle.State.RESUMED }
+        rule.waitForIdle()
+        assertTrue(cardDescriptions().toString(), "live for 8 minutes" in cardDescriptions().single())
     }
 
     @Test

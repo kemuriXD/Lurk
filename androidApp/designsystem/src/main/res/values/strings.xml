@@ -44,6 +44,8 @@
     </plurals>
 
     <string name="cd_card_separator">", "</string>
+    <string name="cd_live">live</string>
+    <string name="cd_uptime_hours_minutes">%1$s %2$s</string>
     <string name="cd_live_for">live for %1$s</string>
     <string name="cd_live_for_under_minute">live for less than a minute</string>
     <plurals name="cd_uptime_hours">

@@ -46,8 +46,9 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.R
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.time.UptimeText
-import io.github.kemurixd.lurk.designsystem.time.rememberNowState
+import io.github.kemurixd.lurk.designsystem.time.rememberUptimeMinutes
 import io.github.kemurixd.lurk.designsystem.time.spokenUptime
+import kotlin.time.Duration.Companion.minutes
 
 private const val PREVIEW_RATIO = 16f / 9f
 private const val NAME_SHARE = 0.6f
@@ -140,8 +141,9 @@ fun ExpandedStreamCard(
 private fun rememberCardDescription(stream: Stream): () -> String {
     val resources = LocalContext.current.resources
     val locale = LocalConfiguration.current.locales[0]
-    val now = rememberNowState()
+    val minutes = rememberUptimeMinutes(stream.startedAt)
     val separator = stringResource(R.string.cd_card_separator)
+    val live = stringResource(R.string.cd_live)
     val viewers = stringResource(R.string.viewers_count, formatViewerCount(stream.viewers, locale))
     val platform = stringResource(stream.channel.platform.labelRes)
     return {
@@ -149,7 +151,7 @@ private fun rememberCardDescription(stream: Stream): () -> String {
         listOfNotNull(
             stream.displayName,
             stream.title.takeIf { it.isNotBlank() },
-            startedAt?.let { spokenUptime(now.value - it, resources) },
+            if (startedAt == null) live else spokenUptime(minutes.value.minutes, resources),
             viewers,
             stream.category?.name,
         ).plus(stream.tags).plus(platform).joinToString(separator)
