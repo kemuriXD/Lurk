@@ -19,16 +19,17 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -44,11 +45,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.kemurixd.lurk.R
 import io.github.kemurixd.lurk.auth.LoginSpec
-import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.designsystem.ErrorAction
+import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.labelRes
-import io.github.kemurixd.lurk.designsystem.messageRes
 import io.github.kemurixd.lurk.feature.accounts.LoginEffect
 import io.github.kemurixd.lurk.feature.accounts.LoginUiState
 import io.github.kemurixd.lurk.feature.accounts.LoginViewModel
@@ -69,8 +70,8 @@ private val PollInterval = 500.milliseconds
  *
  * Every cookie is cleared before the login page loads. The session cookie is then looked for on every finished page
  * and every 500 ms while the screen is visible; once found, [LoginViewModel] signs in with it. Success clears the
- * cookies again and calls [onDone]. A failure shows the error, clears the cookies and reloads the page for another
- * try. Cancel, or back with no page to go back to, clears the cookies and calls [onCancel]. Leaving any other way
+ * cookies again and calls [onDone]. A failure shows the error in a banner, clears the cookies and reloads the page
+ * for another try; the banner's Retry does that clear and reload again and hides the banner. Cancel, or back with no page to go back to, clears the cookies and calls [onCancel]. Leaving any other way
  * clears them on [cleanupScope], which outlives the screen; the app also clears them at every start.
  */
 @Composable
@@ -101,7 +102,7 @@ fun LoginScreen(
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         LoginBar(platform, onCancel = session::cancel)
         val current = state
-        if (current is LoginUiState.Failed) SignInError(current.error)
+        if (current is LoginUiState.Failed) SignInError(current, session)
         if (current == LoginUiState.Loading || current == LoginUiState.SigningIn) {
             LinearProgressIndicator(Modifier.fillMaxWidth().testTag(LoginTestTags.PROGRESS))
         }
@@ -160,17 +161,26 @@ private fun LoginBar(
     }
 }
 
+/** The failure as an error banner. Retry clears and reloads the login page, and hides the banner until the next one. */
 @Composable
-private fun SignInError(error: LurkError) {
-    Surface(
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        modifier = Modifier.fillMaxWidth().testTag(LoginTestTags.ERROR),
-    ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(stringResource(R.string.login_failed), style = MaterialTheme.typography.titleSmall)
-            Text(stringResource(error.messageRes()), style = MaterialTheme.typography.bodyMedium)
-        }
+private fun SignInError(
+    failure: LoginUiState.Failed,
+    session: LoginSession,
+) {
+    var retried by remember(failure) { mutableStateOf(false) }
+    if (retried) return
+    val scope = rememberCoroutineScope()
+    Box(Modifier.testTag(LoginTestTags.ERROR)) {
+        ErrorBanner(
+            title = stringResource(R.string.login_failed),
+            error = failure.error,
+            onRetry = {
+                retried = true
+                scope.launch { session.retry() }
+            },
+            action = ErrorAction.Retry(),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
     }
 }
 

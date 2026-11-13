@@ -21,6 +21,7 @@ import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.accounts.LoginViewModel
 import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
@@ -186,6 +187,25 @@ class LoginScreenTest {
             ),
             events,
         )
+    }
+
+    @Test
+    fun signInFailureShowsABannerWhoseRetryReloadsTheLogin() {
+        fetchers.getValue(Platform.TWITCH).result = Outcome.Failure(LurkError.Offline)
+        show()
+        jar.header = "auth-token=$COOKIE"
+        poll()
+        compose.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.login_failed)).assertIsDisplayed()
+        compose.onNodeWithText(string(DesignR.string.error_offline)).assertIsDisplayed()
+        events.clear()
+        jar.header = null
+
+        compose.onNodeWithText("Retry").performClick()
+        compose.waitForIdle()
+
+        assertEquals(listOf("clear started", "clear done", "load https://www.twitch.tv/login"), events)
+        compose.onNodeWithTag(ErrorTags.BANNER).assertDoesNotExist()
     }
 
     @Test

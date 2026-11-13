@@ -68,6 +68,13 @@ internal class LoginSession(
         loaded = true
     }
 
+    /** Another try after a failure: clears every cookie and loads the login page again, as [start] does. */
+    suspend fun retry() {
+        val view = webView ?: return
+        if (finished) return
+        start(view)
+    }
+
     fun onPageFinished() {
         if (!loaded) return
         onIntent(LoginIntent.PageLoaded)
