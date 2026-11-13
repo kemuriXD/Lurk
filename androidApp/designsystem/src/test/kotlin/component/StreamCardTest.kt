@@ -1,11 +1,16 @@
 package io.github.kemurixd.lurk.designsystem.component
 
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,6 +53,17 @@ class StreamCardTest {
         show()
         tap("stream_card_title")
         assertEquals(0 to 1, channel to player)
+    }
+
+    @Test
+    fun channelControlsHaveAtLeast48dpTouchTargets() {
+        show()
+        for (tag in listOf("stream_card_avatar", "stream_card_name")) {
+            val bounds = rule.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
+            assertTrue("$tag height ${bounds.height}", bounds.height >= 48.dp)
+            // The name takes whatever width is left, so only the fixed-size avatar is held to a width.
+            if (tag == "stream_card_avatar") assertTrue("$tag width ${bounds.width}", bounds.width >= 48.dp)
+        }
     }
 
     @Test

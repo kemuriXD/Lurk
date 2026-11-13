@@ -19,6 +19,7 @@ import coil3.compose.AsyncImage
 
 private val RingWidth = 2.dp
 private val RingGap = 4.dp
+private val LargeAvatar = 40.dp
 
 /** Round channel picture with an initial as the fallback, and an optional red ring while live. */
 @Composable
@@ -29,6 +30,8 @@ internal fun LurkAvatar(
     modifier: Modifier = Modifier,
     liveRing: Boolean = false,
 ) {
+    val initialStyle =
+        if (size >= LargeAvatar) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelMedium
     val ring = if (liveRing) Modifier.border(RingWidth, MaterialTheme.colorScheme.error, CircleShape) else Modifier
     Box(modifier.size(size).then(ring), contentAlignment = Alignment.Center) {
         val inner = if (liveRing) Modifier.padding(RingGap / 2).size(size - RingGap) else Modifier.size(size)
@@ -42,14 +45,7 @@ internal fun LurkAvatar(
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         text = name.firstOrNull()?.uppercase().orEmpty(),
-                        style =
-                            if (size >=
-                                40.dp
-                            ) {
-                                MaterialTheme.typography.titleMedium
-                            } else {
-                                MaterialTheme.typography.labelMedium
-                            },
+                        style = initialStyle,
                     )
                 }
             } else {

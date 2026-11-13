@@ -31,13 +31,15 @@ fun LurkTopBar(
     modifier: Modifier = Modifier,
     navigationIcon: (@Composable () -> Unit)? = null,
 ) {
+    val hasNavigation = navigationIcon != null
+    val titleInset = if (hasNavigation) 4.dp else 0.dp
     Row(
         modifier =
             modifier
                 .fillMaxWidth()
                 .height(64.dp)
                 .background(MaterialTheme.colorScheme.surface)
-                .padding(start = if (navigationIcon == null) 16.dp else 4.dp, end = 4.dp),
+                .padding(start = if (hasNavigation) 4.dp else 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         navigationIcon?.invoke()
@@ -47,19 +49,7 @@ fun LurkTopBar(
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .padding(
-                        start =
-                            if (navigationIcon ==
-                                null
-                            ) {
-                                0.dp
-                            } else {
-                                4.dp
-                            },
-                    ).semantics { heading() },
+            modifier = Modifier.weight(1f).padding(start = titleInset).semantics { heading() },
         )
         IconButton(onClick = onAccount) {
             Box(
