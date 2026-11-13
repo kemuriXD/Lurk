@@ -14,10 +14,12 @@ import io.github.kemurixd.lurk.core.storage.FollowingSortSetting
 import io.github.kemurixd.lurk.core.storage.PlatformFilterSetting
 import io.github.kemurixd.lurk.core.storage.SettingsStore
 import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.feature.common.LastLiveLoader
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.loadBoth
 import io.github.kemurixd.lurk.feature.common.sortedByViewers
+import io.github.kemurixd.lurk.feature.common.withLastLive
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -53,6 +55,9 @@ import kotlin.time.Duration.Companion.seconds
  * signed-out platform shows `NotSignedIn`, a switched one shows `Loading` until the new account's load lands, and a
  * load that finishes after its account left is dropped.
  *
+ * Offline rows whose platform leaves out when they were last live get the time from [lastLive], only once the screen
+ * reports them with [FollowingIntent.OfflineRowShown].
+ *
  * Call [onIntent] from the main thread.
  */
 class FollowingViewModel(
@@ -60,6 +65,7 @@ class FollowingViewModel(
     private val accounts: AccountsState,
     private val settings: SettingsStore,
     private val dispatchers: DispatcherProvider,
+    private val lastLive: LastLiveLoader = LastLiveLoader(platforms, dispatchers),
     private val refreshInterval: Duration = 60.seconds,
 ) : ViewModel() {
     /** Every platform's load results in one value, so the UI never sees a slice and its error out of step. */
@@ -76,7 +82,10 @@ class FollowingViewModel(
             .map { Choices(it.followingFilter.toFilter(), it.followingSort.toSort()) }
             .distinctUntilChanged()
 
-    private val content: Flow<FollowingUiState> = combine(choices, loads, owners, ::uiState)
+    private val content: Flow<FollowingUiState> =
+        combine(choices, loads, owners, lastLive.times) { choices, loads, owners, times ->
+            uiState(choices, loads, owners).let { it.copy(offline = it.offline.withLastLive(times)) }
+        }
 
     /** Emits nothing: it reloads on start, every [refreshInterval], and when an account changes. */
     private val autoRefresh: Flow<Nothing> =
@@ -109,6 +118,7 @@ class FollowingViewModel(
             is FollowingIntent.SelectSort -> save { it.copy(followingSort = intent.sort.toSetting()) }
             FollowingIntent.Refresh -> refresh(platforms)
             is FollowingIntent.Retry -> refresh(platforms.filter { it.id == intent.platform })
+            is FollowingIntent.OfflineRowShown -> lastLive.request(intent.channel, viewModelScope)
         }
     }
 

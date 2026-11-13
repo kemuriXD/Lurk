@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.feature.following
 
+import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 
@@ -20,6 +21,14 @@ sealed interface FollowingIntent {
      * no collector the load still runs once, and the next subscriber sees its result.
      */
     data object Refresh : FollowingIntent
+
+    /**
+     * An offline row came on screen. If its platform's list leaves out when it was last live, that is looked up in
+     * the background and the row gains the time when it lands.
+     */
+    data class OfflineRowShown(
+        val channel: ChannelRef,
+    ) : FollowingIntent
 
     /** Reloads one platform, from its error chip. */
     data class Retry(

@@ -506,4 +506,79 @@ class FollowingViewModelTest {
         const val TOKEN = "test-token"
         val SECOND_KICK_ACCOUNT = testAccount(Platform.KICK, "streamer2", "Streamer Two", "1000002")
     }
+
+    @Test
+    fun anOfflineKickRowOnScreenGetsItsLastLiveTime() =
+        runTest {
+            val then = Instant.parse("2026-01-01T00:00:00Z")
+            val shown = testChannel(Platform.KICK, login = "amy", id = "", displayName = "Amy")
+            val hidden = testChannel(Platform.KICK, login = "bob", id = "", displayName = "Bob")
+            kick.followed = { followed(offline = listOf(shown, hidden)) }
+            kick.lastLive = { Outcome.Success(then) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                val loaded = awaitUntil { it.allLoaded }
+                assertTrue(loaded.offline.all { it.lastStream?.startedAt == null })
+                vm.onIntent(FollowingIntent.OfflineRowShown(shown.ref))
+                val filled = awaitUntil { state -> state.offline.any { it.lastStream?.startedAt != null } }
+                assertEquals(
+                    then,
+                    filled.offline
+                        .single { it.ref == shown.ref }
+                        .lastStream
+                        ?.startedAt,
+                )
+                assertEquals(
+                    null,
+                    filled.offline
+                        .single { it.ref == hidden.ref }
+                        .lastStream
+                        ?.startedAt,
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(listOf(shown.ref), kick.lastLiveRequests)
+        }
+
+    @Test
+    fun aFailedLastLiveLookupKeepsTheRowOffline() =
+        runTest {
+            val amy = testChannel(Platform.KICK, login = "amy", id = "", displayName = "Amy")
+            kick.followed = { followed(offline = listOf(amy)) }
+            kick.lastLive = { Outcome.Failure(LurkError.Timeout) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                vm.onIntent(FollowingIntent.OfflineRowShown(amy.ref))
+                runCurrent()
+                advanceTimeBy(1.seconds)
+                assertEquals(
+                    null,
+                    vm.state.value.offline
+                        .single()
+                        .lastStream
+                        ?.startedAt,
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(listOf(amy.ref), kick.lastLiveRequests)
+        }
+
+    @Test
+    fun twitchRowsNeverCostALastLiveLookup() =
+        runTest {
+            val zed = testChannel(Platform.TWITCH, login = "zed", displayName = "Zed")
+            twitch.followed = { followed(offline = listOf(zed)) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                vm.onIntent(FollowingIntent.OfflineRowShown(zed.ref))
+                runCurrent()
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertTrue(twitch.lastLiveRequests.isEmpty())
+        }
 }
