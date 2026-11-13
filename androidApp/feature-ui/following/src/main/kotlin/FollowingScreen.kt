@@ -191,7 +191,8 @@ private fun LazyGridScope.content(
     val hasItems = state.live.isNotEmpty() || state.offline.isNotEmpty()
 
     // Nothing loaded anywhere: one full-screen state. Otherwise a banner per failed platform.
-    val nothingLoaded = !hasItems && !loading && !loaded
+    // Only when every platform failed: a signed-out platform keeps its own sign-in prompt beside a failed one's banner.
+    val nothingLoaded = !hasItems && slices.isNotEmpty() && slices.values.all { it is PlatformSlice.Failed }
     platformErrors(failures, nothingLoaded, R.string.following_error_title) { onIntent(FollowingIntent.Retry(it)) }
     signedOut.forEach { platform ->
         fullWidth("sign_in:${platform.name}") { SignInPrompt(platform, onSignIn) }

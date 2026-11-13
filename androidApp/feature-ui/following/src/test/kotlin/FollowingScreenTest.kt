@@ -246,6 +246,22 @@ class FollowingScreenTest {
     }
 
     @Test
+    fun oneFailedAndOneSignedOutShowsTheBannerAndTheSignInPrompt() {
+        show(
+            state(
+                slices =
+                    mapOf(
+                        Platform.TWITCH to PlatformSlice.Failed(LurkError.Timeout),
+                        Platform.KICK to PlatformSlice.NotSignedIn,
+                    ),
+            ),
+        )
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithTag(ErrorTags.STATE).assertDoesNotExist()
+        rule.onNodeWithText("Sign in to Kick").assertIsDisplayed()
+    }
+
+    @Test
     fun aFailedRefreshOverLoadedFollowsShowsABanner() {
         val loaded = PlatformSlice.Loaded(Followed(listOf(stream("streamer1")), emptyList()), stale = true)
         show(
