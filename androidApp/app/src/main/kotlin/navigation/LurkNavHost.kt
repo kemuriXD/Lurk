@@ -7,11 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
-import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -29,66 +30,72 @@ import io.github.kemurixd.lurk.login.LoginScreen
 import io.github.kemurixd.lurk.player.PlayerPlaceholderScreen
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
-/** The Navigation 3 display: one entry per route. */
+/**
+ * The Navigation 3 display, showing the stack of the tab in front.
+ *
+ * Every tab's entries stay decorated whether shown or not, so a hidden tab keeps each page's saved state (scroll
+ * position, typed text) and its ViewModels until the page is popped from that tab's own stack. The display only gets
+ * the tab in front.
+ */
 @Composable
 fun LurkNavHost(
-    backStack: NavBackStack<NavKey>,
     navigator: Navigator,
     modifier: Modifier = Modifier,
 ) {
+    val decorators =
+        listOf(
+            rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
+            rememberViewModelStoreNavEntryDecorator<NavKey>(),
+        )
+    val routes = routes(navigator)
+    val entries =
+        TopLevel.entries.associateWith { tab ->
+            key(tab) { rememberTabEntries(tab, navigator.stack(tab), decorators, routes) }
+        }
     NavDisplay(
-        backStack = backStack,
+        entries = entries.getValue(navigator.current),
         modifier = modifier,
         onBack = navigator::back,
         transitionSpec = { slide(NavigationKind.PUSH) },
         popTransitionSpec = { slide(NavigationKind.POP) },
-        predictivePopTransitionSpec = { slide(NavigationKind.PREDICTIVE_POP) },
-        entryDecorators =
-            listOf(
-                rememberSaveableStateHolderNavEntryDecorator(),
-                rememberViewModelStoreNavEntryDecorator(),
-            ),
-        entryProvider =
-            entryProvider {
-                entry<FollowingRoute>(metadata = { routeMetadata(it) }) {
-                    TabPage(TopLevel.FOLLOWING, navigator) { FollowingTab(navigator) }
-                }
-                entry<BrowseRoute>(metadata = { routeMetadata(it) }) {
-                    TabPage(TopLevel.BROWSE, navigator) { BrowseTab(navigator) }
-                }
-                entry<SearchRoute>(metadata = { routeMetadata(it) }) {
-                    TabPage(TopLevel.SEARCH, navigator) { SearchTab(navigator) }
-                }
-                entry<CategoryRoute> { route ->
-                    PushedPage(route.name, navigator) { CategoryPage(route, navigator) }
-                }
-                entry<ChannelRoute> { route ->
-                    // The channel draws its own banner and back button (Figma), so it skips the shared top bar.
-                    ChannelPage(route, navigator)
-                }
-                entry<PlayerRoute> { route ->
-                    PlayerPlaceholderScreen(
-                        route = route,
-                        onGoToChannel = { navigator.push(ChannelRoute(route.platform, route.login)) },
-                        onBack = navigator::back,
-                    )
-                }
-                entry<SettingsRoute> {
-                    PushedPage(stringResource(R.string.title_settings), navigator) {
-                        SettingsEntry(onOpenLogin = { platform -> navigator.push(LoginRoute(platform)) })
-                    }
-                }
-                entry<LoginRoute> { route ->
-                    // Full screen with its own Cancel bar (Figma); the shell hides the navigation suite.
-                    LoginScreen(platform = route.platform, onDone = navigator::back, onCancel = navigator::back)
-                }
-            },
+        // Unused while the handler below pops on release; if the display ever previews a back swipe, it is the pop.
+        predictivePopTransitionSpec = { slide(NavigationKind.POP) },
     )
     // A plain back callback, registered after the display's, so the system calls it on release and the page plays
     // the same pop slide as the back button. Without it the display previews the swipe, seeking the page under the
-    // finger. At the start tab's root there is nothing to pop, so the system's own back-to-home runs.
-    BackHandler(enabled = backStack.size > 1, onBack = navigator::back)
+    // finger. At the start tab's root there is nothing to go back to, so the system's own back-to-home runs.
+    BackHandler(enabled = navigator.canGoBack, onBack = navigator::back)
 }
+
+private fun routes(navigator: Navigator): (NavKey) -> NavEntry<NavKey> =
+    entryProvider {
+        entry<FollowingRoute> { TabPage(TopLevel.FOLLOWING, navigator) { FollowingTab(navigator) } }
+        entry<BrowseRoute> { TabPage(TopLevel.BROWSE, navigator) { BrowseTab(navigator) } }
+        entry<SearchRoute> { TabPage(TopLevel.SEARCH, navigator) { SearchTab(navigator) } }
+        entry<CategoryRoute> { route ->
+            PushedPage(route.name, navigator) { CategoryPage(route, navigator) }
+        }
+        entry<ChannelRoute> { route ->
+            // The channel draws its own banner and back button (Figma), so it skips the shared top bar.
+            ChannelPage(route, navigator)
+        }
+        entry<PlayerRoute> { route ->
+            PlayerPlaceholderScreen(
+                route = route,
+                onGoToChannel = { navigator.push(ChannelRoute(route.platform, route.login)) },
+                onBack = navigator::back,
+            )
+        }
+        entry<SettingsRoute> {
+            PushedPage(stringResource(R.string.title_settings), navigator) {
+                SettingsEntry(onOpenLogin = { platform -> navigator.push(LoginRoute(platform)) })
+            }
+        }
+        entry<LoginRoute> { route ->
+            // Full screen with its own Cancel bar (Figma); the shell hides the navigation suite.
+            LoginScreen(platform = route.platform, onDone = navigator::back, onCancel = navigator::back)
+        }
+    }
 
 private fun Navigator.openPlayer(stream: Stream) {
     push(

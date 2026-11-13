@@ -36,13 +36,6 @@ class PageTransitionTest {
     }
 
     @Test
-    fun theBackSwipeIsTheSamePopSlide() {
-        assertEquals(SlideDirection.BACKWARD, direction(NavigationKind.PREDICTIVE_POP, channel, FollowingRoute))
-        // Even between tabs: the finger drags the current page to the right.
-        assertEquals(SlideDirection.BACKWARD, direction(NavigationKind.PREDICTIVE_POP, FollowingRoute, SearchRoute))
-    }
-
-    @Test
     fun aTabFurtherRightSlidesLeft() {
         assertEquals(SlideDirection.FORWARD, direction(NavigationKind.PUSH, FollowingRoute, BrowseRoute))
         assertEquals(SlideDirection.FORWARD, direction(NavigationKind.PUSH, BrowseRoute, SearchRoute))
@@ -51,7 +44,7 @@ class PageTransitionTest {
 
     @Test
     fun aTabFurtherLeftSlidesRight() {
-        // Tab switches reset the stack, so one can read as a push even when it goes left.
+        // A tab switch can read as a push even when it goes left.
         assertEquals(SlideDirection.BACKWARD, direction(NavigationKind.PUSH, SearchRoute, FollowingRoute))
         assertEquals(SlideDirection.BACKWARD, direction(NavigationKind.PUSH, SearchRoute, BrowseRoute))
         assertEquals(SlideDirection.BACKWARD, direction(NavigationKind.POP, BrowseRoute, FollowingRoute))
@@ -66,7 +59,7 @@ class PageTransitionTest {
     }
 
     @Test
-    fun everyKindIncludingTheBackSwipeSharesOneDurationAndEasing() {
+    fun everyKindSharesOneDurationAndEasing() {
         val specs =
             NavigationKind.entries.map { pageTransition(it, FollowingRoute, channel) }.map {
                 it.durationMillis to
@@ -79,8 +72,12 @@ class PageTransitionTest {
         assertEquals(specs.first(), tab.durationMillis to tab.easing)
     }
 
-    private fun scene(key: NavKey): Scene<NavKey> {
-        val entry = NavEntry(key, metadata = routeMetadata(key)) {}
+    private fun scene(
+        key: NavKey,
+        tab: TopLevel = checkNotNull(TopLevel.of(key)),
+        index: Int = 0,
+    ): Scene<NavKey> {
+        val entry = tabEntry(tab, index, key) { NavEntry(it) {} }
         return object : Scene<NavKey> {
             override val key: Any = entry.contentKey
             override val entries = listOf(entry)
@@ -102,7 +99,67 @@ class PageTransitionTest {
         )
         assertEquals(
             SlideDirection.FORWARD,
-            pageTransition(NavigationKind.PUSH, scene(FollowingRoute), scene(channel)).direction,
+            pageTransition(NavigationKind.PUSH, scene(FollowingRoute), scene(channel, TopLevel.FOLLOWING, 1)).direction,
         )
+    }
+
+    @Test
+    fun aTabSwitchFromAPushedPageStillGoesTheTabsWay() {
+        // Browse > Channel in front, then Search, whose stack is at its root.
+        assertEquals(
+            SlideDirection.FORWARD,
+            pageTransition(NavigationKind.PUSH, scene(channel, TopLevel.BROWSE, 1), scene(SearchRoute)).direction,
+        )
+        // And back to Browse, which still shows the channel.
+        assertEquals(
+            SlideDirection.BACKWARD,
+            pageTransition(NavigationKind.PUSH, scene(SearchRoute), scene(channel, TopLevel.BROWSE, 1)).direction,
+        )
+    }
+
+    @Test
+    fun backFromAnotherTabsRootToTheStartTabGoesTheTabsWay() {
+        // Start tab Browse showing a category; back from Following's root slides as a move right, not as a pop.
+        assertEquals(
+            SlideDirection.FORWARD,
+            pageTransition(NavigationKind.POP, scene(FollowingRoute), scene(category, TopLevel.BROWSE, 1)).direction,
+        )
+        // Start tab Following showing a channel; back from Search's root is a move left.
+        assertEquals(
+            SlideDirection.BACKWARD,
+            pageTransition(NavigationKind.POP, scene(SearchRoute), scene(channel, TopLevel.FOLLOWING, 1)).direction,
+        )
+    }
+
+    @Test
+    fun pushesAndPopsInsideOneTabStillSlideForwardAndBack() {
+        assertEquals(
+            SlideDirection.FORWARD,
+            pageTransition(NavigationKind.PUSH, scene(category, TopLevel.SEARCH, 1), scene(channel, TopLevel.SEARCH, 2))
+                .direction,
+        )
+        assertEquals(
+            SlideDirection.BACKWARD,
+            pageTransition(NavigationKind.POP, scene(channel, TopLevel.SEARCH, 1), scene(SearchRoute)).direction,
+        )
+    }
+
+    @Test
+    fun theSameRouteHasADifferentContentKeyInEachTabAndPlace() {
+        val keys =
+            listOf(
+                tabEntry(TopLevel.BROWSE, 1, channel) { NavEntry(it) {} },
+                tabEntry(TopLevel.SEARCH, 1, channel) { NavEntry(it) {} },
+                tabEntry(TopLevel.SEARCH, 3, channel) { NavEntry(it) {} },
+            ).map { it.contentKey }
+
+        assertEquals(keys.size, keys.toSet().size)
+    }
+
+    @Test
+    fun aTabEntryKeepsTheRoutesOwnMetadata() {
+        val entry = tabEntry(TopLevel.BROWSE, 1, channel) { NavEntry(it, metadata = mapOf("own" to 1)) {} }
+
+        assertEquals(1, entry.metadata["own"])
     }
 }

@@ -14,6 +14,8 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -25,46 +27,43 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.rememberNavBackStack
 import io.github.kemurixd.lurk.feature.common.AccountsState
 import io.github.kemurixd.lurk.navigation.LoginRoute
 import io.github.kemurixd.lurk.navigation.LurkNavHost
 import io.github.kemurixd.lurk.navigation.Navigator
 import io.github.kemurixd.lurk.navigation.PlayerRoute
 import io.github.kemurixd.lurk.navigation.TopLevel
+import io.github.kemurixd.lurk.navigation.rememberNavigator
 import io.github.kemurixd.lurk.navigation.startDestination
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
 
 /**
- * The app shell. The start tab is read once, from the sign-in state the splash waited for. After that the saved back
- * stack decides what shows, so signing in or out later doesn't move the user.
+ * The app shell. The start tab follows sign-in: Following when signed in, Browse when not. A sign-in or sign-out
+ * changes it without moving the page in front (see [Navigator.changeStart]).
  */
 @Composable
 fun LurkApp(modifier: Modifier = Modifier) {
     val accounts = koinInject<AccountsState>()
-    val start = remember { startDestination(accounts.states.value) }
-    val backStack = rememberNavBackStack(start.route)
-    LurkApp(backStack, modifier)
+    val navigator = rememberNavigator(remember { startDestination(accounts.states.value) })
+    val states by accounts.states.collectAsState()
+    val start = startDestination(states)
+    LaunchedEffect(navigator, start) { navigator.changeStart(start) }
+    LurkApp(navigator, modifier)
 }
 
 /**
- * The shell over a given back stack: the navigation bar or rail around the Navigation 3 display. The stack's first key
- * is the start tab's root. The player and the login are full screen, so the navigation suite hides while either is
- * on top.
+ * The shell over a given navigator: the navigation bar or rail around the Navigation 3 display. The player and the
+ * login are full screen, so the navigation suite hides while either is on top.
  */
 @Composable
 fun LurkApp(
-    backStack: NavBackStack<NavKey>,
+    navigator: Navigator,
     modifier: Modifier = Modifier,
 ) {
-    val navigator =
-        remember(backStack) { Navigator(backStack, start = TopLevel.of(backStack.firstOrNull()) ?: TopLevel.BROWSE) }
-    val current = TopLevel.current(backStack)
     val layoutType =
-        if (backStack.lastOrNull().isFullScreen()) {
+        if (navigator.currentStack.lastOrNull().isFullScreen()) {
             NavigationSuiteType.None
         } else {
             NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
@@ -75,7 +74,7 @@ fun LurkApp(
         navigationSuiteItems = {
             TopLevel.entries.forEach { tab ->
                 item(
-                    selected = tab == current,
+                    selected = tab == navigator.current,
                     onClick = { navigator.select(tab) },
                     icon = { Icon(painterResource(tab.icon), contentDescription = null) },
                     label = { Text(stringResource(tab.label)) },
@@ -87,7 +86,6 @@ fun LurkApp(
         // the bar sits, as consumed. A screen's own imePadding() then adds only the part of the keyboard that rises
         // above the bar. The bottom edge is not padded here: the scaffold already ends the content above the bar.
         LurkNavHost(
-            backStack,
             navigator,
             Modifier
                 .windowInsetsPadding(

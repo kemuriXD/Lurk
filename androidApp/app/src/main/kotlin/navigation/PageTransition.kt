@@ -13,7 +13,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.scene.Scene
 
 /** How the app moves between pages. Every page slides sideways; nothing scales or cross-fades. */
-internal enum class NavigationKind { PUSH, POP, PREDICTIVE_POP }
+internal enum class NavigationKind { PUSH, POP }
 
 /** FORWARD: the new page enters from the right and the old one leaves to the left. BACKWARD: the reverse. */
 internal enum class SlideDirection { FORWARD, BACKWARD }
@@ -28,9 +28,10 @@ private const val SLIDE_MILLIS = 300
 private val SlideEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /**
- * The slide for moving from the page keyed [from] to the one keyed [to]. A switch between tabs goes the way the tabs
- * lie (a tab further right slides left), whatever the back stack did to get there. Other pushes slide forward and pops
- * slide backward. The back swipe is always the pop slide. Every kind, the back swipe included, shares one
+ * The slide for moving from a page in tab [from] to a page in tab [to] (a [TopLevel], or a tab's root key). A move
+ * between tabs goes the way the tabs lie (a tab further right slides left), whatever the stacks did to get there; that
+ * includes back from another tab's root to the start tab. Inside one tab, pushes slide forward and pops slide
+ * backward. The back gesture pops on release (see LurkNavHost), so it plays the same pop slide. Every kind shares one
  * duration and easing, so the whole app moves the same way.
  */
 internal fun pageTransition(
@@ -42,7 +43,7 @@ internal fun pageTransition(
     val toTab = tabOf(to)
     val direction =
         when {
-            kind != NavigationKind.PREDICTIVE_POP && fromTab != null && toTab != null && fromTab != toTab -> {
+            fromTab != null && toTab != null && fromTab != toTab -> {
                 if (toTab.ordinal > fromTab.ordinal) SlideDirection.FORWARD else SlideDirection.BACKWARD
             }
 
@@ -67,15 +68,6 @@ internal fun PageTransition.toContentTransform(): ContentTransform {
     return slideInHorizontally(spec) { width -> sign * width } togetherWith
         slideOutHorizontally(spec) { width -> -sign * width }
 }
-
-private const val TAB_METADATA = "lurk.tab"
-
-/**
- * The metadata every entry for [key] carries: the tab, for a tab's root. A scene hands over only its entries, whose
- * content key is a string and whose key is private, so the tab has to ride along in the metadata.
- */
-internal fun routeMetadata(key: NavKey): Map<String, Any> =
-    TopLevel.of(key)?.let { mapOf(TAB_METADATA to it) }.orEmpty()
 
 private fun tabOf(page: Any?): TopLevel? = page as? TopLevel ?: TopLevel.of(page as? NavKey)
 

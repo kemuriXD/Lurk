@@ -3,10 +3,12 @@ package io.github.kemurixd.lurk
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -14,9 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
-import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.rememberNavBackStack
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.common.Outcome
@@ -50,9 +50,12 @@ import io.github.kemurixd.lurk.navigation.CategoryRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
 import io.github.kemurixd.lurk.navigation.FollowingRoute
 import io.github.kemurixd.lurk.navigation.LoginRoute
+import io.github.kemurixd.lurk.navigation.Navigator
 import io.github.kemurixd.lurk.navigation.PlayerRoute
+import io.github.kemurixd.lurk.navigation.SearchRoute
 import io.github.kemurixd.lurk.navigation.SettingsRoute
 import io.github.kemurixd.lurk.navigation.TopLevel
+import io.github.kemurixd.lurk.navigation.rememberNavigator
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -134,14 +137,14 @@ class LurkAppTest {
 
     private fun tab(label: Int) = compose.onNode(hasText(string(label)) and hasClickAction())
 
-    /** Shows the shell over a back stack the test can push onto, starting on Browse. */
-    private fun showShellWithStack(): NavBackStack<NavKey> {
-        lateinit var backStack: NavBackStack<NavKey>
+    /** Shows the shell over a navigator the test can push onto, starting on [start] (Browse by default). */
+    private fun showShell(start: TopLevel = TopLevel.BROWSE): Navigator {
+        lateinit var navigator: Navigator
         compose.setContent {
-            backStack = rememberNavBackStack(BrowseRoute)
-            LurkTheme { LurkApp(backStack) }
+            navigator = rememberNavigator(start)
+            LurkTheme { LurkApp(navigator) }
         }
-        return backStack
+        return navigator
     }
 
     @Test
@@ -174,14 +177,14 @@ class LurkAppTest {
                     ),
                 )
             }
-        val backStack = showShellWithStack()
+        val navigator = showShell()
         tab(R.string.tab_search).performClick()
 
         search("pix")
         compose.onNodeWithText("Pixelotter").performClick()
 
         compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
-        compose.runOnIdle { assertEquals(ChannelRoute(Platform.TWITCH, "pixelotter"), backStack.last()) }
+        compose.runOnIdle { assertEquals(ChannelRoute(Platform.TWITCH, "pixelotter"), navigator.currentStack.last()) }
     }
 
     @Test
@@ -189,13 +192,18 @@ class LurkAppTest {
         twitch.search = {
             Outcome.Success(SearchResults(emptyList(), listOf(Category(Platform.TWITCH, "42", "Retro Racers", null))))
         }
-        val backStack = showShellWithStack()
+        val navigator = showShell()
         tab(R.string.tab_search).performClick()
 
         search("retro")
         compose.onNodeWithText("Retro Racers").performClick()
 
-        compose.runOnIdle { assertEquals(CategoryRoute(Platform.TWITCH, "42", "Retro Racers"), backStack.last()) }
+        compose.runOnIdle {
+            assertEquals(
+                CategoryRoute(Platform.TWITCH, "42", "Retro Racers"),
+                navigator.currentStack.last(),
+            )
+        }
     }
 
     @Test
@@ -209,23 +217,23 @@ class LurkAppTest {
 
     @Test
     fun settingsSignInOpensTheLoginAndCancelReturns() {
-        val backStack = showShellWithStack()
-        compose.runOnIdle { backStack.add(SettingsRoute) }
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(SettingsRoute) }
 
         compose.onNodeWithTag(SettingsTestTags.action(Platform.KICK)).performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { backStack.last() == LoginRoute(Platform.KICK) }
+        compose.waitUntil(timeoutMillis = 5_000) { navigator.currentStack.last() == LoginRoute(Platform.KICK) }
         compose.onNodeWithTag(LoginTestTags.CANCEL).performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) { backStack.last() == SettingsRoute }
+        compose.waitUntil(timeoutMillis = 5_000) { navigator.currentStack.last() == SettingsRoute }
         compose.onNodeWithTag(SettingsTestTags.ACCOUNTS).assertIsDisplayed()
     }
 
     @Test
     fun loginHidesTheNavigationSuite() {
-        val backStack = showShellWithStack()
+        val navigator = showShell()
         tab(R.string.tab_search).assertIsDisplayed()
 
-        compose.runOnIdle { backStack.add(LoginRoute(Platform.TWITCH)) }
+        compose.runOnIdle { navigator.push(LoginRoute(Platform.TWITCH)) }
 
         compose.onNodeWithTag(LoginTestTags.CANCEL).assertIsDisplayed()
         TopLevel.entries.forEach { tab(it.label).assertDoesNotExist() }
@@ -234,26 +242,22 @@ class LurkAppTest {
 
     @Test
     fun followingSignInOpensTheLoginAndBackReturns() {
-        lateinit var backStack: NavBackStack<NavKey>
-        compose.setContent {
-            backStack = rememberNavBackStack(FollowingRoute)
-            LurkTheme { LurkApp(backStack) }
-        }
+        val navigator = showShell(TopLevel.FOLLOWING)
         compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
 
         compose.onNode(hasText("Sign in to Twitch") and hasClickAction()).performScrollTo().performClick()
         compose.onNodeWithTag(LoginTestTags.CANCEL).assertIsDisplayed()
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
-        compose.waitUntil(timeoutMillis = 5_000) { backStack.last() == FollowingRoute }
+        compose.waitUntil(timeoutMillis = 5_000) { navigator.currentStack.last() == FollowingRoute }
         compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
     }
 
     @Test
     fun backFromChannelReturnsToOrigin() {
-        val backStack = showShellWithStack()
+        val navigator = showShell()
         tab(R.string.tab_search).performClick()
-        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        compose.runOnIdle { navigator.push(ChannelRoute(Platform.TWITCH, "streamer1")) }
         compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
 
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
@@ -264,16 +268,16 @@ class LurkAppTest {
 
     @Test
     fun placeholderGoToChannelOpensChannel() {
-        val backStack = showShellWithStack()
+        val navigator = showShell()
         compose.runOnIdle {
-            backStack.add(PlayerRoute(Platform.KICK, "streamer1", "Test stream", thumbnailUrl = null))
+            navigator.push(PlayerRoute(Platform.KICK, "streamer1", "Test stream", thumbnailUrl = null))
         }
         compose.onNodeWithText("Test stream").assertIsDisplayed()
 
         compose.onNodeWithText(string(R.string.player_go_to_channel)).performClick()
 
         compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
-        compose.runOnIdle { assertEquals(ChannelRoute(Platform.KICK, "streamer1"), backStack.last()) }
+        compose.runOnIdle { assertEquals(ChannelRoute(Platform.KICK, "streamer1"), navigator.currentStack.last()) }
     }
 
     @Test
@@ -300,7 +304,7 @@ class LurkAppTest {
 
     @Test
     fun systemBackPopsCategorySettingsAndPlayerOneAtATime() {
-        val backStack = showShellWithStack()
+        val navigator = showShell()
         val pages =
             listOf(
                 CategoryRoute(Platform.TWITCH, "509658", "Just Chatting"),
@@ -308,22 +312,22 @@ class LurkAppTest {
                 PlayerRoute(Platform.TWITCH, "streamer1", "Test stream", thumbnailUrl = null),
             )
         pages.forEach { page ->
-            compose.runOnIdle { backStack.add(page) }
+            compose.runOnIdle { navigator.push(page) }
             compose.waitForIdle()
             compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
             compose.waitForIdle()
-            compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
+            compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), navigator.currentStack.toList()) }
             compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
         }
     }
 
     @Test
     fun playerHidesTheNavigationSuite() {
-        val backStack = showShellWithStack()
+        val navigator = showShell()
         tab(R.string.tab_search).assertIsDisplayed()
 
         compose.runOnIdle {
-            backStack.add(PlayerRoute(Platform.TWITCH, "streamer1", "Test stream", thumbnailUrl = null))
+            navigator.push(PlayerRoute(Platform.TWITCH, "streamer1", "Test stream", thumbnailUrl = null))
         }
 
         compose.onNodeWithText("Test stream").assertIsDisplayed()
@@ -333,20 +337,20 @@ class LurkAppTest {
 
     @Test
     fun topBarBackArrowPopsThePushedRoute() {
-        val backStack = showShellWithStack()
-        compose.runOnIdle { backStack.add(CategoryRoute(Platform.TWITCH, "42", "Retro Racers")) }
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(CategoryRoute(Platform.TWITCH, "42", "Retro Racers")) }
         compose.onNodeWithTag(BrowseTestTags.CATEGORY_LIST).assertIsDisplayed()
 
         compose.onNodeWithContentDescription(string(R.string.cd_back)).performClick()
 
         compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
-        compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
+        compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), navigator.currentStack.toList()) }
     }
 
     @Test
     fun channelDrawsItsOwnHeaderInsteadOfTheTopBar() {
-        val backStack = showShellWithStack()
-        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(ChannelRoute(Platform.TWITCH, "streamer1")) }
 
         compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
         compose.onNodeWithContentDescription(string(DesignR.string.cd_account_and_settings)).assertDoesNotExist()
@@ -354,13 +358,13 @@ class LurkAppTest {
 
     @Test
     fun channelBackButtonPopsTheRoute() {
-        val backStack = showShellWithStack()
-        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(ChannelRoute(Platform.TWITCH, "streamer1")) }
 
         compose.onNodeWithTag(ChannelTestTags.BACK).performClick()
 
         compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
-        compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), backStack.toList()) }
+        compose.runOnIdle { assertEquals(listOf<NavKey>(BrowseRoute), navigator.currentStack.toList()) }
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -368,8 +372,8 @@ class LurkAppTest {
     fun channelLivePreviewPushesThePlayer() {
         val stream = testStream(Platform.TWITCH, login = "streamer1", title = "Speedrun night")
         twitch.channel = { Outcome.Success(testChannel(Platform.TWITCH, live = stream)) }
-        val backStack = showShellWithStack()
-        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(ChannelRoute(Platform.TWITCH, "streamer1")) }
         compose.waitUntilAtLeastOneExists(hasTestTag(ChannelTestTags.LIVE_PREVIEW), timeoutMillis = 5_000)
 
         compose.onNodeWithTag(ChannelTestTags.LIVE_PREVIEW).performClick()
@@ -378,19 +382,115 @@ class LurkAppTest {
         compose.runOnIdle {
             assertEquals(
                 PlayerRoute(Platform.TWITCH, "streamer1", "Speedrun night", thumbnailUrl = null),
-                backStack.last(),
+                navigator.currentStack.last(),
             )
         }
     }
 
     @Test
     fun channelSignInButtonOpensTheLoginRoute() {
-        val backStack = showShellWithStack()
-        compose.runOnIdle { backStack.add(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(ChannelRoute(Platform.TWITCH, "streamer1")) }
 
         compose.onNodeWithTag(ChannelTestTags.SIGN_IN).performClick()
 
-        compose.runOnIdle { assertEquals(LoginRoute(Platform.TWITCH), backStack.last()) }
+        compose.runOnIdle { assertEquals(LoginRoute(Platform.TWITCH), navigator.currentStack.last()) }
+    }
+
+    @Test
+    fun switchingAwayAndBackShowsTheSamePage() {
+        val navigator = showShell()
+        compose.runOnIdle { navigator.push(CategoryRoute(Platform.TWITCH, "42", "Retro Racers")) }
+        compose.onNodeWithTag(BrowseTestTags.CATEGORY_LIST).assertIsDisplayed()
+
+        tab(R.string.tab_search).performClick()
+        compose.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
+        tab(R.string.tab_browse).performClick()
+
+        compose.onNodeWithTag(BrowseTestTags.CATEGORY_LIST).assertIsDisplayed()
+    }
+
+    @Test
+    fun backAtAnotherTabsRootShowsTheStartTabAsItWasLeft() {
+        runBlocking { sessions.signIn(Platform.TWITCH, STAND_IN_COOKIE) }
+        val navigator = showShell(TopLevel.FOLLOWING)
+        compose.runOnIdle { navigator.push(ChannelRoute(Platform.TWITCH, "streamer1")) }
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
+        tab(R.string.tab_search).performClick()
+        compose.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
+
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
+        compose.onNodeWithTag(SearchTestTags.FIELD).assertDoesNotExist()
+    }
+
+    @Test
+    fun aHiddenTabKeepsItsState() {
+        showShell()
+        tab(R.string.tab_search).performClick()
+        compose.onNodeWithTag(SearchTestTags.FIELD).performTextInput("pix")
+
+        tab(R.string.tab_browse).performClick()
+        compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
+        tab(R.string.tab_search).performClick()
+
+        compose.onNodeWithTag(SearchTestTags.FIELD).assert(hasText("pix"))
+    }
+
+    @Test
+    fun theSameChannelOpenInTwoTabs() {
+        val navigator = showShell()
+        val channel = ChannelRoute(Platform.TWITCH, "streamer1")
+        compose.runOnIdle { navigator.push(channel) }
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
+        tab(R.string.tab_search).performClick()
+        compose.runOnIdle { navigator.push(channel) }
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
+
+        tab(R.string.tab_browse).performClick()
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
+        compose.onNodeWithTag(ChannelTestTags.BACK).performClick()
+
+        compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
+    }
+
+    @Test
+    fun signingInMakesFollowingTheStartTabWithoutMovingThePage() {
+        compose.setContent { LurkTheme { LurkApp() } }
+        compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
+
+        runBlocking { sessions.signIn(Platform.TWITCH, STAND_IN_COOKIE) }
+        compose.waitForIdle()
+        compose.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).assertIsDisplayed()
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+
+        compose.onNodeWithTag(FollowingTestTags.LIST).assertIsDisplayed()
+    }
+
+    @Test
+    fun stacksAndTheTabInFrontSurviveRecreation() {
+        val restore = StateRestorationTester(compose)
+        lateinit var navigator: Navigator
+        restore.setContent {
+            navigator = rememberNavigator(TopLevel.BROWSE)
+            LurkTheme { LurkApp(navigator) }
+        }
+        val category = CategoryRoute(Platform.TWITCH, "42", "Retro Racers")
+        val channel = ChannelRoute(Platform.TWITCH, "streamer1")
+        compose.runOnIdle { navigator.push(category) }
+        tab(R.string.tab_search).performClick()
+        compose.runOnIdle { navigator.push(channel) }
+
+        restore.emulateSavedInstanceStateRestore()
+
+        compose.runOnIdle {
+            assertEquals(TopLevel.SEARCH, navigator.current)
+            assertEquals(TopLevel.BROWSE, navigator.start)
+            assertEquals(listOf(SearchRoute, channel), navigator.currentStack.toList())
+            assertEquals(listOf(BrowseRoute, category), navigator.stack(TopLevel.BROWSE).toList())
+        }
+        compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
     }
 
     private companion object {
