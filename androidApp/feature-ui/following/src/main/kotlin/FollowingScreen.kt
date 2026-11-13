@@ -47,19 +47,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.ChannelRow
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
-import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
-import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCard
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.labelRes
+import io.github.kemurixd.lurk.designsystem.component.platformErrors
 import io.github.kemurixd.lurk.designsystem.time.rememberNowState
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
@@ -187,14 +185,9 @@ private fun LazyGridScope.content(
     val loaded = slices.values.any { it is PlatformSlice.Loaded<*> }
     val hasItems = state.live.isNotEmpty() || state.offline.isNotEmpty()
 
-    if (failures.isNotEmpty() && !hasItems && !loading && !loaded) {
-        // Nothing loaded anywhere: one full-screen state, whose Retry asks every failed platform again.
-        fullWidth("failed") { AllFailed(failures, onIntent) }
-    } else {
-        failures.forEach { (platform, error) ->
-            fullWidth("error:${platform.name}") { FailedPlatform(platform, error, onIntent) }
-        }
-    }
+    // Nothing loaded anywhere: one full-screen state. Otherwise a banner per failed platform.
+    val nothingLoaded = !hasItems && !loading && !loaded
+    platformErrors(failures, nothingLoaded, R.string.following_error_title) { onIntent(FollowingIntent.Retry(it)) }
     signedOut.forEach { platform ->
         fullWidth("sign_in:${platform.name}") { SignInPrompt(platform, onSignIn) }
     }
@@ -299,35 +292,6 @@ private fun OfflineHeader(
             modifier = Modifier.padding(end = 8.dp).size(24.dp).graphicsLayer { rotationZ = turn },
         )
     }
-}
-
-@Composable
-private fun FailedPlatform(
-    platform: Platform,
-    error: LurkError,
-    onIntent: (FollowingIntent) -> Unit,
-) {
-    ErrorBanner(
-        title = stringResource(DesignR.string.error_load_platform, stringResource(platform.labelRes)),
-        error = error,
-        onRetry = { onIntent(FollowingIntent.Retry(platform)) },
-        platform = platform,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-}
-
-@Composable
-private fun AllFailed(
-    failures: List<Pair<Platform, LurkError>>,
-    onIntent: (FollowingIntent) -> Unit,
-) {
-    val (platform, error) = failures.first()
-    ErrorState(
-        title = stringResource(R.string.following_error_title),
-        error = error,
-        onRetry = { failures.forEach { (failed, _) -> onIntent(FollowingIntent.Retry(failed)) } },
-        platform = platform,
-    )
 }
 
 @Composable
