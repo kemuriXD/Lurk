@@ -12,7 +12,11 @@ import org.junit.Test
 
 class MissingPreviewInterceptorTest {
     private val server = MockWebServer()
-    private val client = OkHttpClient.Builder().addInterceptor(MissingPreviewInterceptor()).build()
+
+    /** Treats the test server as Twitch's preview host. */
+    private val client by lazy {
+        OkHttpClient.Builder().addInterceptor(MissingPreviewInterceptor(setOf(server.hostName))).build()
+    }
 
     @After
     fun tearDown() {
@@ -61,5 +65,27 @@ class MissingPreviewInterceptorTest {
             assertTrue(response.isSuccessful)
             assertEquals("frame", response.body.string())
         }
+    }
+
+    @Test
+    fun theSamePathOnAnotherHostIsLeftAlone() {
+        server.start()
+        server.enqueue(
+            MockResponse
+                .Builder()
+                .code(200)
+                .body("someone else's image")
+                .build(),
+        )
+        val defaults = OkHttpClient.Builder().addInterceptor(MissingPreviewInterceptor()).build()
+
+        defaults
+            .newCall(
+                Request.Builder().url(server.url("/ttv-static/404_preview-440x248.jpg")).build(),
+            ).execute()
+            .use {
+                assertTrue(it.isSuccessful)
+                assertEquals("someone else's image", it.body.string())
+            }
     }
 }

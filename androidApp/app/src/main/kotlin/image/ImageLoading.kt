@@ -11,15 +11,21 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 private const val MISSING_PREVIEW_PATH = "/404_preview"
 private const val NOT_FOUND = 404
 
+/** Where Twitch serves live previews and its grey placeholder. */
+private val TWITCH_PREVIEW_HOSTS = setOf("static-cdn.jtvnw.net")
+
 /**
  * Turns a redirect to Twitch's grey "no preview" image into a 404. The image then fails, so the card shows its own
  * placeholder, and Coil caches nothing, because it stores only successful replies. Twitch redirects there when a
- * channel is offline or a new broadcast has no frame yet.
+ * channel is offline or a new broadcast has no frame yet. Only replies from [hosts] are touched.
  */
-internal class MissingPreviewInterceptor : Interceptor {
+internal class MissingPreviewInterceptor(
+    private val hosts: Set<String> = TWITCH_PREVIEW_HOSTS,
+) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val response = chain.proceed(chain.request())
-        if (MISSING_PREVIEW_PATH !in response.request.url.encodedPath) return response
+        val url = response.request.url
+        if (url.host !in hosts || MISSING_PREVIEW_PATH !in url.encodedPath) return response
         response.close()
         return response
             .newBuilder()
