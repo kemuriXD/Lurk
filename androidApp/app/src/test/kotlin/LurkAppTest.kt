@@ -7,18 +7,23 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import io.github.kemurixd.lurk.auth.SessionRepository
+import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
 import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
 import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
+import io.github.kemurixd.lurk.feature.testing.TestDispatchers
+import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
 import io.github.kemurixd.lurk.navigation.BrowseRoute
 import io.github.kemurixd.lurk.navigation.ChannelRoute
 import io.github.kemurixd.lurk.navigation.PlayerRoute
@@ -62,7 +67,10 @@ class LurkAppTest {
     fun startKoinWithFakes() {
         startKoin {
             modules(
+                followingModule,
                 module {
+                    single { inMemorySettingsStore() }
+                    single<DispatcherProvider> { TestDispatchers(Dispatchers.Unconfined) }
                     single { sessions }
                     single { AccountsState(get()) }
                     single<List<StreamingPlatform>> {
@@ -102,11 +110,11 @@ class LurkAppTest {
         compose.onNodeWithText(string(R.string.placeholder_browse)).assertIsDisplayed()
 
         tab(R.string.tab_following).performClick()
-        compose.onNodeWithText(string(R.string.placeholder_following)).assertIsDisplayed()
+        compose.onNodeWithTag(FOLLOWING_LIST).assertIsDisplayed()
 
         tab(R.string.tab_search).performClick()
         compose.onNodeWithText(string(R.string.placeholder_search)).assertIsDisplayed()
-        compose.onNodeWithText(string(R.string.placeholder_following)).assertDoesNotExist()
+        compose.onNodeWithTag(FOLLOWING_LIST).assertDoesNotExist()
     }
 
     @Test
@@ -151,7 +159,7 @@ class LurkAppTest {
 
         compose.setContent { LurkTheme { LurkApp() } }
 
-        compose.onNodeWithText(string(R.string.placeholder_following)).assertIsDisplayed()
+        compose.onNodeWithTag(FOLLOWING_LIST).assertIsDisplayed()
     }
 
     @Test
@@ -163,7 +171,7 @@ class LurkAppTest {
 
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
-        compose.onNodeWithText(string(R.string.placeholder_following)).assertIsDisplayed()
+        compose.onNodeWithTag(FOLLOWING_LIST).assertIsDisplayed()
         compose.onNodeWithText(string(R.string.placeholder_search)).assertDoesNotExist()
     }
 
@@ -195,5 +203,6 @@ class LurkAppTest {
 
     private companion object {
         const val STAND_IN_COOKIE = "stand-in-cookie"
+        const val FOLLOWING_LIST = "following_list"
     }
 }

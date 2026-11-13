@@ -20,6 +20,7 @@ import io.github.kemurixd.lurk.R
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.LurkTopBar
+import io.github.kemurixd.lurk.featureui.following.FollowingEntry
 import io.github.kemurixd.lurk.player.PlayerPlaceholderScreen
 import io.github.kemurixd.lurk.designsystem.R as DesignR
 
@@ -42,10 +43,7 @@ fun LurkNavHost(
         entryProvider =
             entryProvider {
                 entry<FollowingRoute> {
-                    TabPage(
-                        TopLevel.FOLLOWING,
-                        navigator,
-                    ) { Placeholder(stringResource(R.string.placeholder_following)) }
+                    TabPage(TopLevel.FOLLOWING, navigator) { FollowingTab(navigator) }
                 }
                 entry<BrowseRoute> {
                     TabPage(TopLevel.BROWSE, navigator) { Placeholder(stringResource(R.string.placeholder_browse)) }
@@ -87,6 +85,24 @@ private val Platform.label: Int
             Platform.TWITCH -> DesignR.string.platform_twitch
             Platform.KICK -> DesignR.string.platform_kick
         }
+
+@Composable
+private fun FollowingTab(navigator: Navigator) {
+    FollowingEntry(
+        onOpenPlayer = { stream ->
+            navigator.push(
+                PlayerRoute(
+                    platform = stream.channel.platform,
+                    login = stream.channel.login,
+                    title = stream.title,
+                    thumbnailUrl = stream.thumbnailUrl,
+                ),
+            )
+        },
+        onOpenChannel = { ref -> navigator.push(ChannelRoute(ref.platform, ref.login)) },
+        onSignIn = { platform -> navigator.push(LoginRoute(platform)) },
+    )
+}
 
 @Composable
 private fun TabPage(
