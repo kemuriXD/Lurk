@@ -16,6 +16,7 @@ import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
 import io.github.kemurixd.lurk.feature.testing.testChannel
 import io.github.kemurixd.lurk.feature.testing.testStream
+import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -53,10 +54,10 @@ class SearchViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(): SearchViewModel {
+    private fun viewModel(platforms: List<StreamingPlatform> = listOf(twitch, kick)): SearchViewModel {
         val factory =
             viewModelFactory {
-                initializer { SearchViewModel(listOf(twitch, kick), TestDispatchers(dispatcher)) }
+                initializer { SearchViewModel(platforms, TestDispatchers(dispatcher)) }
             }
         return ViewModelProvider.create(store, factory)["vm", SearchViewModel::class]
     }
@@ -273,6 +274,20 @@ class SearchViewModelTest {
             type(vm, "pix")
 
             assertEquals(listOf("t_live", "k_live", "t_offline", "k_offline"), state.value.channels.logins())
+        }
+
+    @Test
+    fun twitchBeforeKickAmongEqualsWhateverTheBindingOrder() =
+        runTest {
+            twitch.search =
+                { found(channel(Platform.TWITCH, "t_live", live = true), channel(Platform.TWITCH, "t_off")) }
+            kick.search = { found(channel(Platform.KICK, "k_live", live = true), channel(Platform.KICK, "k_off")) }
+            val vm = viewModel(listOf(kick, twitch))
+            val state = watch(vm.state)
+
+            type(vm, "pix")
+
+            assertEquals(listOf("t_live", "k_live", "t_off", "k_off"), state.value.channels.logins())
         }
 
     @Test

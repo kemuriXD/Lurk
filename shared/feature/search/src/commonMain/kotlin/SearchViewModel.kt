@@ -158,7 +158,7 @@ class SearchViewModel(
     )
 
     private fun uiState(core: Core): SearchUiState {
-        val shown = platforms.map { it.id }.filter(core.filter::includes)
+        val shown = platforms.map { it.id }.sortedBy { it.ordinal }.filter(core.filter::includes)
         val slices = shown.mapNotNull { id -> core.status[id]?.let { id to it } }.toMap()
         val channels: List<Channel> = shown.flatMap { core.found[it]?.channels.orEmpty() }.sortedBy { it.live == null }
         val categories: List<Category> = shown.flatMap { core.found[it]?.categories.orEmpty() }
