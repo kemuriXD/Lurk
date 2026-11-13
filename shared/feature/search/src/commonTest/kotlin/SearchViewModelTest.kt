@@ -326,6 +326,26 @@ class SearchViewModelTest {
         }
 
     @Test
+    fun retryFinishingAfterANewQueryNeverShows() =
+        runTest {
+            twitch.search = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "pix")
+            val oldRetry = CompletableDeferred<Outcome<SearchResults>>()
+            twitch.search = { if (it == "pix") oldRetry.await() else found(channel(Platform.TWITCH, "new_result")) }
+
+            vm.onIntent(SearchIntent.Retry(Platform.TWITCH))
+            runCurrent()
+            type(vm, "pixel")
+            oldRetry.complete(found(channel(Platform.TWITCH, "old_result")))
+            runCurrent()
+
+            assertEquals(listOf("new_result"), state.value.channels.logins())
+            assertEquals("pixel", state.value.query)
+        }
+
+    @Test
     fun noResultsPhase() =
         runTest {
             val vm = viewModel()
