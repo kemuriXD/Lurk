@@ -24,7 +24,7 @@ import kotlin.time.Instant
 private val RowPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 24.dp, bottom = 12.dp)
 
 /**
- * One channel in a list (Figma ChannelRow). Shows the LIVE badge and viewers while live, and a ring on the avatar
+ * One channel in a list (Figma ChannelRow). Shows the live dot and viewers while live, and a ring on the avatar
  * unless [showLiveRing] is off. Offline, it says when the channel was last live, counted from [now]; without one,
  * it starts its own ticking clock. [now] is read only while offline, so a tick never recomposes a live row.
  */
@@ -78,6 +78,6 @@ fun ChannelRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (live != null) LiveBadge()
+        if (live != null) LiveDot()
     }
 }

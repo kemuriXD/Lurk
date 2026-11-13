@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -97,7 +99,7 @@ private class ShownPreview {
 }
 
 /**
- * A stream's picture with the LIVE badge top left and the viewer count bottom left on a scrim. The size comes from
+ * A stream's picture with the live dot top left and the viewer count bottom left on a scrim. The size comes from
  * [modifier]. [content] draws on top, for example a play button.
  */
 @Composable
@@ -123,9 +125,21 @@ fun StreamThumbnail(
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
-        LiveBadge(Modifier.align(Alignment.TopStart).padding(overlayInset))
+        // One accessibility node for both overlays: the dot carries "Live, 12.4K viewers" and the count stays silent.
+        val viewers = formatViewers(stream.viewers)
+        val liveViewers = stringResource(R.string.cd_live_viewers, viewers)
+        Box(
+            Modifier
+                .align(Alignment.TopStart)
+                .padding(overlayInset)
+                .semantics { contentDescription = liveViewers }
+                .background(PlayerColors.scrim, CircleShape)
+                .padding(6.dp),
+        ) {
+            LiveDot(describe = false)
+        }
         Text(
-            text = stringResource(R.string.viewers_count, formatViewers(stream.viewers)),
+            text = stringResource(R.string.viewers_count, viewers),
             style = MaterialTheme.typography.labelSmall,
             color = PlayerColors.onScrim,
             modifier =
@@ -134,7 +148,8 @@ fun StreamThumbnail(
                     .padding(overlayInset)
                     .clip(RoundedCornerShape(LurkRadius.xs))
                     .background(PlayerColors.scrim)
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                    .clearAndSetSemantics {},
         )
         content()
     }

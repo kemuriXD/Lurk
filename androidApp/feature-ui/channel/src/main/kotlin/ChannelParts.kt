@@ -42,7 +42,7 @@ import coil3.compose.AsyncImage
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Stream
-import io.github.kemurixd.lurk.designsystem.component.LiveBadge
+import io.github.kemurixd.lurk.designsystem.component.LiveDot
 import io.github.kemurixd.lurk.designsystem.component.LurkAvatar
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.StreamThumbnail
@@ -62,7 +62,7 @@ private val AvatarTop = 88.dp
 private val IdentityStart = 120.dp
 private val IdentityTop = 140.dp
 private val BadgeTop = 164.dp
-private val BadgeStart = 34.5.dp
+private val BadgeStart = 54.dp
 private val ButtonIcon = 20.dp
 private val PlayButton = 56.dp
 private val TextInset = 8.dp
@@ -106,7 +106,14 @@ internal fun ChannelHeader(
             liveRing = live != null,
             modifier = Modifier.offset(AvatarStart, AvatarTop).semantics { contentDescription = avatarLabel },
         )
-        if (live != null) LiveBadge(Modifier.offset(BadgeStart, BadgeTop))
+        if (live != null) {
+            Box(
+                Modifier
+                    .offset(BadgeStart, BadgeTop)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+                    .padding(4.dp),
+            ) { LiveDot() }
+        }
         Column(
             modifier = Modifier.padding(start = IdentityStart, top = IdentityTop, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),

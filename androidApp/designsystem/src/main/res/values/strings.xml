@@ -5,7 +5,8 @@
 
     <string name="filter_all">All</string>
 
-    <string name="live_badge">LIVE</string>
+    <string name="live">Live</string>
+    <string name="cd_live_viewers">Live, %1$s viewers</string>
     <string name="viewers_count">%1$s viewers</string>
     <string name="offline">Offline</string>
     <string name="offline_last_live">Offline · last live %1$s</string>
