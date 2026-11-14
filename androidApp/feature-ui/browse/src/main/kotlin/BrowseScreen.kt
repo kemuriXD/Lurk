@@ -39,6 +39,7 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.CollapsibleHeader
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
+import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.PlatformLogo
@@ -137,7 +138,16 @@ fun BrowseScreen(
             }
         },
     ) {
-        Box(Modifier.weight(1f)) {
+        PullToRefresh(
+            refreshing = if (tab == BrowseTab.TOP_LIVE) topLive.refreshing else categories.refreshing,
+            onRefresh = {
+                when (tab) {
+                    BrowseTab.TOP_LIVE -> onTopLiveIntent(TopLiveIntent.Refresh)
+                    BrowseTab.CATEGORIES -> onCategoriesIntent(CategoriesIntent.Refresh)
+                }
+            },
+            modifier = Modifier.weight(1f),
+        ) {
             when (tab) {
                 BrowseTab.TOP_LIVE -> {
                     TopLiveGrid(
@@ -321,6 +331,18 @@ private fun LazyGridScope.categoryContent(
     onOpenCategory: (Category) -> Unit,
 ) {
     val slice = state.slice
+    if (state.categories.isNotEmpty() && slice is PlatformSlice.Failed) {
+        // A reload that failed keeps the tiles; the failure sits above them.
+        fullWidth("failed_reload") {
+            ErrorBanner(
+                title = stringResource(R.string.categories_error_title),
+                error = slice.error,
+                onRetry = { onIntent(CategoriesIntent.Retry) },
+                platform = state.platform,
+                retrying = state.retrying,
+            )
+        }
+    }
     when {
         state.categories.isNotEmpty() -> {
             items(state.categories, key = { "${it.platform.name}:${it.id}" }) { category ->

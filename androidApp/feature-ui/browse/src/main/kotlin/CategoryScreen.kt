@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -36,6 +37,7 @@ import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
+import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
@@ -100,10 +102,29 @@ fun CategoryScreen(
         enabled = state.canLoadMore && !state.loadingMore && state.loadMoreError == null,
         onLoadMore = { onIntent(CategoryStreamsIntent.LoadMore) },
     )
+    PullToRefresh(
+        refreshing = state.refreshing,
+        onRefresh = { onIntent(CategoryStreamsIntent.Refresh) },
+        modifier = modifier.fillMaxSize(),
+    ) {
+        CategoryGrid(platform, name, state, gridState, onIntent, onOpenPlayer, onOpenChannel)
+    }
+}
+
+@Composable
+private fun CategoryGrid(
+    platform: Platform,
+    name: String,
+    state: CategoryStreamsUiState,
+    gridState: LazyGridState,
+    onIntent: (CategoryStreamsIntent) -> Unit,
+    onOpenPlayer: (Stream) -> Unit,
+    onOpenChannel: (ChannelRef) -> Unit,
+) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 300.dp),
         state = gridState,
-        modifier = modifier.fillMaxSize().testTag(BrowseTestTags.CATEGORY_LIST),
+        modifier = Modifier.fillMaxSize().testTag(BrowseTestTags.CATEGORY_LIST),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         fullWidth("header") {
@@ -168,6 +189,19 @@ private fun LazyGridScope.streamContent(
     onOpenChannel: (ChannelRef) -> Unit,
 ) {
     val slice = state.slice
+    if (state.streams.isNotEmpty() && slice is PlatformSlice.Failed) {
+        // A reload that failed keeps the rows; the failure sits above them.
+        fullWidth("failed_reload") {
+            ErrorBanner(
+                title = stringResource(R.string.category_error_title),
+                error = slice.error,
+                onRetry = { onIntent(CategoryStreamsIntent.Retry) },
+                platform = platform,
+                modifier = Modifier.padding(BannerPadding),
+                retrying = state.retrying,
+            )
+        }
+    }
     when {
         state.streams.isNotEmpty() -> {
             items(state.streams, key = { it.key }) { stream ->

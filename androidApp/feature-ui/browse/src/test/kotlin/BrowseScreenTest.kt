@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.featureui.browse
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -10,6 +11,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -369,6 +372,7 @@ class BrowseScreenTest {
             mapOf(Platform.TWITCH to PlatformSlice.Loaded(Unit), Platform.KICK to PlatformSlice.Loaded(Unit)),
         canLoadMore: Boolean = false,
         loadMoreErrors: Map<Platform, LurkError> = emptyMap(),
+        refreshing: Boolean = false,
     ) = TopLiveUiState(
         filter = PlatformFilter.ALL,
         streams = streams,
@@ -376,18 +380,21 @@ class BrowseScreenTest {
         canLoadMore = canLoadMore,
         loadingMore = false,
         loadMoreErrors = loadMoreErrors,
+        refreshing = refreshing,
     )
 
     private fun categoriesState(
         categories: List<Category> = emptyList(),
         slice: PlatformSlice<Unit> = PlatformSlice.Loaded(Unit),
         loadMoreError: LurkError? = null,
+        refreshing: Boolean = false,
     ) = CategoriesUiState(
         platform = Platform.TWITCH,
         categories = categories,
         slice = slice,
         canLoadMore = false,
         loadMoreError = loadMoreError,
+        refreshing = refreshing,
     )
 
     private fun category(id: String) = Category(Platform.TWITCH, id, "Category $id", boxArtUrl = null, viewers = 1200)
@@ -480,5 +487,65 @@ class BrowseScreenTest {
         // The spinner state, and the off button, come after the delay.
         rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
+    }
+
+    @Test
+    fun pullingTopLiveDownRefreshesIt() {
+        show()
+        rule.onNodeWithTag(BrowseTestTags.TOP_LIVE_LIST).performTouchInput { swipeDown() }
+        rule.waitForIdle()
+        assertEquals(listOf<TopLiveIntent>(TopLiveIntent.Refresh), topLiveIntents)
+    }
+
+    @Test
+    fun pullingCategoriesDownRefreshesThem() {
+        show(categories = categoriesState(categories = listOf(category("1"))))
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        rule.onNodeWithTag(BrowseTestTags.CATEGORIES_LIST).performTouchInput { swipeDown() }
+        rule.waitForIdle()
+        assertEquals(listOf<CategoriesIntent>(CategoriesIntent.Refresh), categoryIntents)
+        assertEquals(emptyList<TopLiveIntent>(), topLiveIntents)
+    }
+
+    @Test
+    fun aRefreshOverABannerKeepsItAndShowsOnlyThePullSpinner() {
+        show(
+            topLive =
+                topLiveState(
+                    slices =
+                        mapOf(
+                            Platform.TWITCH to PlatformSlice.Loaded(Unit),
+                            Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
+                        ),
+                    refreshing = true,
+                ),
+        )
+        rule.onNodeWithTag(BrowseTestTags.REFRESH_INDICATOR).assertIsDisplayed()
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsEnabled()
+        rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
+        rule.onAllNodesWithTag(ErrorTags.RETRY_PROGRESS, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun noPullSpinnerWhenNothingRefreshes() {
+        show()
+        rule.onNodeWithTag(BrowseTestTags.REFRESH_INDICATOR).assertDoesNotExist()
+    }
+
+    @Test
+    fun aFailedCategoriesRefreshShowsABannerOverTheTiles() {
+        show(
+            categories =
+                categoriesState(
+                    categories = listOf(category("1")),
+                    slice = PlatformSlice.Failed(LurkError.Timeout),
+                ),
+        )
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithText("Category 1").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(listOf<CategoriesIntent>(CategoriesIntent.Retry), categoryIntents)
     }
 }

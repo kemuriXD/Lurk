@@ -9,4 +9,5 @@ object BrowseTestTags {
     const val PLATFORM_TWITCH = "browse_platform_twitch"
     const val PLATFORM_KICK = "browse_platform_kick"
     const val CATEGORY_LIST = "category_streams_list"
+    const val REFRESH_INDICATOR = "browse_refresh_indicator"
 }

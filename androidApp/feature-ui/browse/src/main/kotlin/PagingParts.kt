@@ -1,6 +1,7 @@
 package io.github.kemurixd.lurk.featureui.browse
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -8,6 +9,10 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,6 +20,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -98,4 +104,36 @@ internal fun LazyGridScope.pagingFooter(
             }
         }
     }
+}
+
+/**
+ * Pull to refresh over a Browse list. Only the pull spinner shows while [refreshing]: the list keeps its rows and any
+ * error surface, as Following does. Inside a [io.github.kemurixd.lurk.designsystem.component.CollapsibleHeader] a pull
+ * first brings a collapsed header back, then refreshes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PullToRefresh(
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val pull = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        modifier = modifier,
+        state = pull,
+        indicator = {
+            if (refreshing || pull.distanceFraction > 0f) {
+                PullToRefreshDefaults.Indicator(
+                    state = pull,
+                    isRefreshing = refreshing,
+                    modifier = Modifier.align(Alignment.TopCenter).testTag(BrowseTestTags.REFRESH_INDICATOR),
+                )
+            }
+        },
+        content = content,
+    )
 }

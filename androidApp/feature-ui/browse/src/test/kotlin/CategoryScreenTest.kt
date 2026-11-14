@@ -10,6 +10,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -241,5 +243,20 @@ class CategoryScreenTest {
         // The spinner state, and the off button, come after the delay.
         rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
+    }
+
+    @Test
+    fun pullingDownRefreshesTheCategory() {
+        show(state(streams = listOf(stream())))
+        rule.onNodeWithTag(BrowseTestTags.CATEGORY_LIST).performTouchInput { swipeDown() }
+        rule.waitForIdle()
+        assertEquals(listOf<CategoryStreamsIntent>(CategoryStreamsIntent.Refresh), intents)
+    }
+
+    @Test
+    fun aFailedRefreshShowsABannerOverTheRows() {
+        show(state(streams = listOf(stream()), slice = PlatformSlice.Failed(LurkError.Timeout)))
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithText("Streamer One").assertIsDisplayed()
     }
 }
