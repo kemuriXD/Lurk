@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.designsystem.snapshot
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -218,6 +219,16 @@ class ComponentSnapshotTest {
             Column(Modifier.padding(8.dp)) {
                 StreamCard(stream(), onOpenPlayer = {}, onOpenChannel = {})
                 StreamCard(stream(Platform.KICK), onOpenPlayer = {}, onOpenChannel = {})
+                StreamCardPlaceholder()
+            }
+        }
+
+    /** A 320 dp phone's card (288 dp): the text goes under the picture instead of squeezing the name. */
+    @Test
+    fun streamCardNarrow() =
+        rule.snapshots("Component_StreamCard_Narrow") {
+            Column(Modifier.padding(8.dp).width(288.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StreamCard(stream(), onOpenPlayer = {}, onOpenChannel = {})
                 StreamCardPlaceholder()
             }
         }

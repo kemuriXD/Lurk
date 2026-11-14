@@ -1,11 +1,15 @@
 package io.github.kemurixd.lurk.designsystem.component
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
@@ -15,6 +19,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import coil3.ColorImage
@@ -27,6 +33,7 @@ import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -182,5 +189,48 @@ class StreamCardTest {
         rule.waitForIdle()
         // A new viewer count reuses the request; a new URL loads with the preview already shown as its placeholder.
         assertEquals(listOf(null, "https://cdn.example/t/1.jpg?t=1"), placeholders)
+    }
+
+    private fun showAt(
+        width: Int,
+        fontScale: Float,
+    ) {
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                LurkTheme(dynamicColor = false) {
+                    Box(Modifier.width(width.dp)) {
+                        StreamCard(testStream(), onOpenPlayer = {}, onOpenChannel = {})
+                    }
+                }
+            }
+        }
+    }
+
+    private fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+
+    @Test
+    fun aNarrowCardStacksTheTextUnderThePictureSoTheNameStaysReadable() {
+        // A 320 dp phone at 1.15x type: the card is 288 dp wide.
+        showAt(width = 288, fontScale = 1.15f)
+        val picture = bounds(StreamCardTags.VIEWERS)
+        val name = bounds("stream_card_name")
+        assertTrue("name top ${name.top} is beside the picture (bottom ${picture.bottom})", name.top >= picture.bottom)
+        val layout = mutableListOf<TextLayoutResult>()
+        rule
+            .onNodeWithTag("stream_card_name", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layout)
+        assertFalse("the name is cut off", layout.single().isLineEllipsized(0))
+    }
+
+    @Test
+    fun aCardOnA360dpPhoneKeepsThePictureBesideTheText() {
+        showAt(width = 328, fontScale = 1f)
+        val picture = bounds(StreamCardTags.VIEWERS)
+        val name = bounds("stream_card_name")
+        assertTrue("name top ${name.top} is under the picture (bottom ${picture.bottom})", name.top < picture.bottom)
     }
 }

@@ -164,6 +164,8 @@ class BrowseScreenTest {
     }
 
     @Test
+    // A phone wide enough for row cards, so both footers are composed under the one card.
+    @Config(qualifiers = "w360dp-h780dp")
     fun differentLoadMoreErrorsKeepSeparateFooters() {
         show(
             topLive =
@@ -175,6 +177,8 @@ class BrowseScreenTest {
     }
 
     @Test
+    // A phone wide enough for row cards, so both footers are composed under the one card.
+    @Config(qualifiers = "w360dp-h780dp")
     fun signInFootersAreNeverMerged() {
         show(
             topLive =

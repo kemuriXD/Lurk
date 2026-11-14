@@ -5,10 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,6 +41,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import coil3.PlatformContext
 import coil3.compose.AsyncImage
@@ -54,11 +57,33 @@ private val ThumbnailHeight = 90.dp
 private val CardPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 12.dp, bottom = 8.dp)
 private val OverlayInset = 6.dp
 private const val TITLE_LINES = 2
+private const val THUMBNAIL_ASPECT = 16f / 9f
+
+/** The gap between the picture and the text, beside or under it. */
+private val PartGap = 12.dp
+
+/**
+ * The narrowest the text beside the picture may get at 1x type, growing with the font scale. Below it the name would
+ * shrink to a letter or two, so the card stacks: the picture on top, the text under it. A 360 dp phone at 1x keeps the
+ * Figma row; a 320 dp phone at 1.15x stacks.
+ */
+private val MinTextBeside = 120.dp
+
+/** Whether a card this wide stacks its text under the picture at this font scale. */
+private fun stacks(
+    cardWidth: Dp,
+    fontScale: Float,
+): Boolean {
+    val padding =
+        CardPadding.calculateLeftPadding(LayoutDirection.Ltr) + CardPadding.calculateRightPadding(LayoutDirection.Ltr)
+    return cardWidth - padding - ThumbnailWidth - PartGap < MinTextBeside * fontScale
+}
 
 /**
  * A live stream in the list layout (Figma StreamCard, Layout=List). The avatar and the channel name
  * open the channel; everything else opens the player. The platform badge shows only while [showPlatform] is on: a
- * list filtered to one platform already says which it is.
+ * list filtered to one platform already says which it is. On a card too narrow for the text beside the picture
+ * ([MinTextBeside]), the text goes under it.
  */
 @Composable
 fun StreamCard(
@@ -68,19 +93,26 @@ fun StreamCard(
     modifier: Modifier = Modifier,
     showPlatform: Boolean = true,
 ) {
-    Row(
-        modifier =
-            modifier
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val card =
+            Modifier
                 .fillMaxWidth()
                 .testTag("stream_card")
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .clickable(onClick = onOpenPlayer)
-                .padding(CardPadding),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        StreamThumbnail(stream, Modifier.size(ThumbnailWidth, ThumbnailHeight))
-        StreamInfo(stream, onOpenChannel, showPlatform, Modifier.weight(1f))
+                .padding(CardPadding)
+        if (stacks(maxWidth, LocalDensity.current.fontScale)) {
+            Column(card, verticalArrangement = Arrangement.spacedBy(PartGap)) {
+                StreamThumbnail(stream, Modifier.fillMaxWidth().aspectRatio(THUMBNAIL_ASPECT))
+                StreamInfo(stream, onOpenChannel, showPlatform, Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(card, horizontalArrangement = Arrangement.spacedBy(PartGap)) {
+                StreamThumbnail(stream, Modifier.size(ThumbnailWidth, ThumbnailHeight))
+                StreamInfo(stream, onOpenChannel, showPlatform, Modifier.weight(1f))
+            }
+        }
     }
 }
 
@@ -237,29 +269,45 @@ private fun StreamInfo(
     }
 }
 
-/** Static skeleton shown while streams load (Figma StreamCard, State=Loading). Not interactive. */
+/**
+ * Static skeleton shown while streams load (Figma StreamCard, State=Loading). Not interactive. It stacks where
+ * [StreamCard] does, so the loaded cards take its place without a jump.
+ */
 @Composable
 fun StreamCardPlaceholder(modifier: Modifier = Modifier) {
     val loading = stringResource(R.string.loading)
     val bone = MaterialTheme.colorScheme.surfaceContainerHighest
-    Row(
-        modifier =
-            modifier
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val card =
+            Modifier
                 .fillMaxWidth()
                 .testTag("stream_card_placeholder")
                 .semantics { contentDescription = loading }
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .padding(CardPadding),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Spacer(Modifier.size(ThumbnailWidth, ThumbnailHeight).clip(RoundedCornerShape(LurkRadius.md)).background(bone))
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Bone(110.dp, 14.dp, bone)
-            Bone(150.dp, 12.dp, bone)
-            Bone(120.dp, 12.dp, bone)
-            Bone(80.dp, 10.dp, bone)
+                .padding(CardPadding)
+        val picture = Modifier.clip(RoundedCornerShape(LurkRadius.md)).background(bone)
+        if (stacks(maxWidth, LocalDensity.current.fontScale)) {
+            Column(card, verticalArrangement = Arrangement.spacedBy(PartGap)) {
+                Spacer(Modifier.fillMaxWidth().aspectRatio(THUMBNAIL_ASPECT).then(picture))
+                Bones(bone)
+            }
+        } else {
+            Row(card, horizontalArrangement = Arrangement.spacedBy(PartGap)) {
+                Spacer(Modifier.size(ThumbnailWidth, ThumbnailHeight).then(picture))
+                Bones(bone)
+            }
         }
+    }
+}
+
+@Composable
+private fun Bones(color: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Bone(110.dp, 14.dp, color)
+        Bone(150.dp, 12.dp, color)
+        Bone(120.dp, 12.dp, color)
+        Bone(80.dp, 10.dp, color)
     }
 }
 
