@@ -96,8 +96,23 @@ class SearchViewModel(
         core.update { now ->
             when {
                 text.trim() == now.query.trim() -> now.copy(query = text)
-                text.isBlank() -> now.copy(query = text, found = emptyMap(), status = emptyMap(), searched = "")
-                else -> now.copy(query = text, status = platforms.associate { it.id to PlatformSlice.Loading })
+                text.isBlank() -> {
+                    now.copy(
+                        query = text,
+                        found = emptyMap(),
+                        status = emptyMap(),
+                        searched = "",
+                        retrying = emptySet(),
+                    )
+                }
+
+                else -> {
+                    now.copy(
+                        query = text,
+                        status = platforms.associate { it.id to PlatformSlice.Loading },
+                        retrying = emptySet(),
+                    )
+                }
             }
         }
     }
@@ -122,7 +137,14 @@ class SearchViewModel(
         val query = core.value.query.trim()
         if (query.isEmpty()) return
         retries.remove(platform)?.cancel()
-        core.update { it.copy(status = it.status + (platform to PlatformSlice.Loading)) }
+        // A failure stays on screen while it is asked again, so the banner never gives way to a skeleton and back.
+        core.update {
+            if (it.status[platform] is PlatformSlice.Failed) {
+                it.copy(retrying = it.retrying + platform)
+            } else {
+                it.copy(status = it.status + (platform to PlatformSlice.Loading))
+            }
+        }
         retries[platform] = viewModelScope.launch { load(target, query) }
     }
 
@@ -141,6 +163,7 @@ class SearchViewModel(
                 now.copy(
                     found = if (answer != null) now.found + (platform.id to answer) else now.found - platform.id,
                     status = now.status + (platform.id to slice.asStatus()),
+                    retrying = now.retrying - platform.id,
                 )
             }
         }
@@ -169,6 +192,7 @@ class SearchViewModel(
         val found: Map<Platform, SearchResults> = emptyMap(),
         val status: Map<Platform, PlatformSlice<Unit>> = emptyMap(),
         val searched: String = "",
+        val retrying: Set<Platform> = emptySet(),
     )
 
     private fun uiState(
@@ -211,7 +235,8 @@ class SearchViewModel(
                     SearchPhase.NO_RESULTS
                 }
             }
-        return SearchUiState(core.query, core.filter, core.type, channels, categories, slices, phase)
+        val retrying = core.retrying.filterTo(mutableSetOf()) { it in slices }
+        return SearchUiState(core.query, core.filter, core.type, channels, categories, slices, phase, retrying)
     }
 
     private companion object {

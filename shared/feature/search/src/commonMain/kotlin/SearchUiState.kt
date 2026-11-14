@@ -34,7 +34,8 @@ enum class SearchPhase {
  * then each platform's own order. [channels], [categories] and [slices] cover only the platforms [filter] includes.
  * [channels] and [categories] also cover only the kind [type] includes.
  *
- * While a new search runs, the previous results stay on screen and the slices read `Loading`.
+ * While a new search runs, the previous results stay on screen and the slices read `Loading`. A platform in [retrying]
+ * is being asked again after a failure: its `Failed` slice stays until the answer lands.
  */
 data class SearchUiState(
     val query: String = "",
@@ -44,6 +45,7 @@ data class SearchUiState(
     val categories: List<Category> = emptyList(),
     val slices: Map<Platform, PlatformSlice<Unit>> = emptyMap(),
     val phase: SearchPhase = SearchPhase.EMPTY,
+    val retrying: Set<Platform> = emptySet(),
 )
 
 /** What the Search screen can ask of [SearchViewModel]. */

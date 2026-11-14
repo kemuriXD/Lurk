@@ -528,4 +528,62 @@ class SearchViewModelTest {
             )
             assertEquals(1, kick.lastLiveRequests.size)
         }
+
+    @Test
+    fun aRetryKeepsTheFailureOnScreenAndMarksItRetrying() =
+        runTest {
+            twitch.search = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "pix")
+            val gate = CompletableDeferred<Outcome<SearchResults>>()
+            twitch.search = { gate.await() }
+
+            vm.onIntent(SearchIntent.Retry(Platform.TWITCH))
+            runCurrent()
+
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slices[Platform.TWITCH])
+            assertEquals(setOf(Platform.TWITCH), state.value.retrying)
+            assertEquals(SearchPhase.RESULTS, state.value.phase)
+
+            gate.complete(Outcome.Failure(LurkError.Offline))
+            runCurrent()
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slices[Platform.TWITCH])
+            assertTrue(state.value.retrying.isEmpty())
+            assertEquals(SearchPhase.RESULTS, state.value.phase)
+        }
+
+    @Test
+    fun aRetryThatSucceedsReplacesTheFailureAndStopsRetrying() =
+        runTest {
+            twitch.search = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "pix")
+            twitch.search = { found(channel(Platform.TWITCH, "t1")) }
+
+            vm.onIntent(SearchIntent.Retry(Platform.TWITCH))
+            runCurrent()
+
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.TWITCH])
+            assertTrue(state.value.retrying.isEmpty())
+        }
+
+    @Test
+    fun aNewQueryEndsTheRetryMark() =
+        runTest {
+            twitch.search = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            type(vm, "pix")
+            twitch.search = { CompletableDeferred<Outcome<SearchResults>>().await() }
+            vm.onIntent(SearchIntent.Retry(Platform.TWITCH))
+            runCurrent()
+            assertEquals(setOf(Platform.TWITCH), state.value.retrying)
+
+            vm.onIntent(SearchIntent.QueryChanged("pixel"))
+            runCurrent()
+
+            assertTrue(state.value.retrying.isEmpty())
+        }
 }
