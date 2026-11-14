@@ -218,7 +218,6 @@ private fun LazyGridScope.streamContent(
                     error = slice.error,
                     onRetry = { onIntent(CategoryStreamsIntent.Retry) },
                     platform = platform,
-                    // A pushed page: a category that is gone leaves by going back.
                     action = slice.error.action(firstPage = true, canGoBack = true),
                     retrying = state.retrying,
                 )
@@ -238,10 +237,7 @@ private fun LazyGridScope.streamContent(
         }
 
         slice == PlatformSlice.Loading -> {
-            items(
-                PLACEHOLDERS,
-                key = { "placeholder:$it" },
-            ) { StreamCardPlaceholder(Modifier.padding(ContentPadding)) }
+            items(PLACEHOLDERS, key = { "placeholder:$it" }) { StreamCardPlaceholder(Modifier.padding(ContentPadding)) }
         }
 
         else -> {
