@@ -26,9 +26,13 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionRepositoryTest {
-    /** [putDelayMs] stands in for a slow disk: each value lands at once, then the write takes that long to return. */
+    /**
+     * [putDelayMs] and [removeDelayMs] stand in for a slow disk: each change lands at once, then the call takes that long
+     * to return.
+     */
     private class FakeSecureStore(
         private val putDelayMs: Long = 0,
+        private val removeDelayMs: Long = 0,
     ) : SecureStore {
         val values = mutableMapOf<String, String>()
 
@@ -44,6 +48,7 @@ class SessionRepositoryTest {
 
         override suspend fun remove(key: String) {
             values.remove(key)
+            if (removeDelayMs > 0) delay(removeDelayMs)
         }
 
         override suspend fun clear() = values.clear()
@@ -373,6 +378,22 @@ class SessionRepositoryTest {
             assertTrue(store.values.isEmpty())
             assertEquals(AccountState.SignedOut, repo.state(Platform.TWITCH).value)
             assertNull(repo.token(Platform.TWITCH))
+        }
+
+    @Test
+    fun aCancelledSignOutStillWipesTheWholeSession() =
+        runTest {
+            val store = FakeSecureStore(removeDelayMs = 100)
+            val repo = signedIn(store, FakeFetcher(Platform.TWITCH, Outcome.Success(account)))
+
+            val signOut = launch { repo.signOut(Platform.TWITCH) }
+            // The token is gone and the account removal is under way.
+            runCurrent()
+            signOut.cancel()
+            advanceUntilIdle()
+
+            assertTrue(store.values.isEmpty(), "stored: ${store.values.keys}")
+            assertEquals(AccountState.SignedOut, repo.state(Platform.TWITCH).value)
         }
 
     @Test

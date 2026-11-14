@@ -78,11 +78,18 @@ class SessionRepository(
         }
     }
 
+    /**
+     * Removes the token and the account and marks the platform signed out. Once it has the lock, cancellation waits for
+     * all three, as in [signIn], so a sign-out cut short never leaves the account behind or a removed token marked
+     * signed in.
+     */
     suspend fun signOut(platform: Platform) {
         val session = session(platform)
         session.lock.withLock {
-            vault.remove(platform)
-            session.state.value = AccountState.SignedOut
+            withContext(NonCancellable) {
+                vault.remove(platform)
+                session.state.value = AccountState.SignedOut
+            }
         }
     }
 
