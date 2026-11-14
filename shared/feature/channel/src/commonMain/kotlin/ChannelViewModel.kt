@@ -126,7 +126,15 @@ class ChannelViewModel(
 
     private fun loadChannel(keepFailure: Boolean = false) {
         channelJob?.cancel()
-        data.update { if (keepFailure) it.copy(retrying = true) else it.copy(slice = PlatformSlice.Loading, retrying = false) }
+        data.update {
+            if (keepFailure) {
+                it.copy(
+                    retrying = true,
+                )
+            } else {
+                it.copy(slice = PlatformSlice.Loading, retrying = false)
+            }
+        }
         val job =
             viewModelScope.launch(start = CoroutineStart.LAZY) {
                 val me = currentCoroutineContext().job

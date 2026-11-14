@@ -809,5 +809,4 @@ class FollowingViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
-
 }

@@ -326,8 +326,11 @@ class FollowingViewModel(
         ): LoadState {
             val previous = slices.getValue(platform)
             val done =
-                copy(owners = owners + (platform to owner), loading = loading - platform, retrying = retrying - platform)
-                    .let { it.copy(manual = it.manual && it.loading.isNotEmpty()) }
+                copy(
+                    owners = owners + (platform to owner),
+                    loading = loading - platform,
+                    retrying = retrying - platform,
+                ).let { it.copy(manual = it.manual && it.loading.isNotEmpty()) }
             return if (result is PlatformSlice.Failed && previous is PlatformSlice.Loaded &&
                 owners[platform] == owner
             ) {

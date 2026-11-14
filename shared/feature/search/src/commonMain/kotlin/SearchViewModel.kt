@@ -95,7 +95,10 @@ class SearchViewModel(
     private fun changeQuery(text: String) {
         core.update { now ->
             when {
-                text.trim() == now.query.trim() -> now.copy(query = text)
+                text.trim() == now.query.trim() -> {
+                    now.copy(query = text)
+                }
+
                 text.isBlank() -> {
                     now.copy(
                         query = text,

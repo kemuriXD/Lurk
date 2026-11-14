@@ -206,7 +206,16 @@ internal fun BannerCard(
             },
             action =
                 action.forPlatform(platform)?.let {
-                    { ErrorActionButton(it, platform, onRetry, filled = false, namesPlatform = true, retrying = retrying) }
+                    {
+                        ErrorActionButton(
+                            it,
+                            platform,
+                            onRetry,
+                            filled = false,
+                            namesPlatform = true,
+                            retrying = retrying,
+                        )
+                    }
                 },
             modifier = Modifier.weight(1f),
         )
@@ -289,9 +298,11 @@ private fun ErrorActionButton(
         }
     val loading = stringResource(R.string.loading)
     val buttonModifier =
-        Modifier.heightIn(min = 48.dp).then(
-            if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
-        ).then(if (busy) Modifier.semantics { stateDescription = loading } else Modifier)
+        Modifier
+            .heightIn(min = 48.dp)
+            .then(
+                if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
+            ).then(if (busy) Modifier.semantics { stateDescription = loading } else Modifier)
     val onClick = {
         handlers.perform(action, platform, onRetry)
         if (wait != null) tries++

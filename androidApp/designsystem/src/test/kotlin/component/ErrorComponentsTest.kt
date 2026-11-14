@@ -318,7 +318,14 @@ class ErrorComponentsTest {
     @Test
     fun errorStateRetryingDisablesRetryAndShowsProgressOnlyAfterTheDelay() {
         rule.mainClock.autoAdvance = false
-        show { ErrorState("Couldn’t load categories", LurkError.Offline, onRetry = { retries++ }, retrying = busy.value) }
+        show {
+            ErrorState(
+                "Couldn’t load categories",
+                LurkError.Offline,
+                onRetry = { retries++ },
+                retrying = busy.value,
+            )
+        }
 
         rule.onNodeWithText("Retry").assertIsNotEnabled()
         progress.assertCountEquals(0)

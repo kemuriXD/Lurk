@@ -123,12 +123,21 @@ class RetryFlashTest {
 
     @OptIn(ExperimentalTestApi::class)
     private fun awaitErrorState() {
-        compose.waitUntilAtLeastOneExists(androidx.compose.ui.test.hasTestTag(ErrorTags.STATE), timeoutMillis = 5_000)
+        compose.waitUntilAtLeastOneExists(
+            androidx.compose.ui.test
+                .hasTestTag(ErrorTags.STATE),
+            timeoutMillis = 5_000,
+        )
     }
 
     private fun skeletons() = compose.onAllNodesWithTag("stream_card_placeholder")
 
-    private fun retryButton() = compose.onNode(hasText("Retry") and androidx.compose.ui.test.hasClickAction())
+    private fun retryButton() =
+        compose.onNode(
+            hasText("Retry") and
+                androidx.compose.ui.test
+                    .hasClickAction(),
+        )
 
     /** Steps [frames] frames of 16 ms and runs [check] after each. */
     private fun steppingFrames(
@@ -209,7 +218,9 @@ class RetryFlashTest {
         for (platform in listOf(twitch, kick)) {
             platform.topLive = {
                 gate.await()
-                Outcome.Success(Page(listOf(testStream(platform.id, login = "streamer1", displayName = "Streamer One")), null))
+                Outcome.Success(
+                    Page(listOf(testStream(platform.id, login = "streamer1", displayName = "Streamer One")), null),
+                )
             }
         }
         retryButton().performScrollTo()
@@ -227,7 +238,12 @@ class RetryFlashTest {
 
     @Test
     fun retryFromABannerKeepsTheBannerAndTheListAbove() {
-        twitch.topLive = { Outcome.Success(Page(listOf(testStream(Platform.TWITCH, login = "streamer1", displayName = "Streamer One")), null)) }
+        twitch.topLive =
+            {
+                Outcome.Success(
+                    Page(listOf(testStream(Platform.TWITCH, login = "streamer1", displayName = "Streamer One")), null),
+                )
+            }
         kick.topLive = { Outcome.Failure(LurkError.Offline) }
         showShell()
         compose.waitUntil(timeoutMillis = 5_000) {
