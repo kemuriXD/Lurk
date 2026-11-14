@@ -1,8 +1,15 @@
 package io.github.kemurixd.lurk.featureui.search
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -98,6 +105,24 @@ class SearchLayoutTest {
     }
 
     @Test
+    @Config(qualifiers = "w800dp-h360dp")
+    fun theFiltersComeBackWhenACollapsedSearchFindsNothing() {
+        var state by mutableStateOf(results())
+        rule.setContent {
+            LurkTheme(dynamicColor = false) {
+                ErrorHost(ErrorHandlers()) {
+                    SearchScreen(state = state, onIntent = {}, onOpenChannel = {}, onOpenCategory = {})
+                }
+            }
+        }
+        rule.onNodeWithTag(SearchTestTags.LIST).performTouchInput { swipeUp() }
+        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).assertIsNotDisplayed()
+        state = SearchUiState(query = "zzqxv", phase = SearchPhase.NO_RESULTS)
+        rule.waitForIdle()
+        rule.onNodeWithTag(SearchTestTags.TYPE_ALL).assertIsDisplayed()
+    }
+
+    @Test
     fun inPortraitTheFiltersStayPinned() {
         show(results())
         rule.onNodeWithTag(SearchTestTags.LIST).performTouchInput { swipeUp() }
@@ -125,6 +150,64 @@ class SearchLayoutTest {
         val out = mutableListOf<TextLayoutResult>()
         fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(out)
         return out.first()
+    }
+
+    private fun segmentTops(): List<Float> =
+        listOf(SearchTestTags.TYPE_ALL, SearchTestTags.TYPE_CHANNELS, SearchTestTags.TYPE_CATEGORIES).map {
+            rule
+                .onNodeWithTag(it)
+                .fetchSemanticsNode()
+                .boundsInRoot.top
+        }
+
+    private fun assertStacked(stacked: Boolean) {
+        val tops = segmentTops()
+        assertEquals("segment tops $tops", if (stacked) 3 else 1, tops.distinct().size)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp")
+    fun threeSegmentsShareARowWhenTheirWordsFit() {
+        show(results(count = 3), fontScale = 1f)
+        assertStacked(false)
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h780dp")
+    fun threeSegmentsShareARowOnANarrowPhoneAtNormalType() {
+        show(results(count = 3), fontScale = 1f)
+        assertStacked(false)
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h780dp")
+    fun theSegmentsStackOnANarrowPhoneAtOneAndAFifthType() {
+        show(results(count = 3), fontScale = 1.15f)
+        assertStacked(true)
+    }
+
+    @Test
+    fun theSegmentsStackAtDoubleFont() {
+        show(results(count = 3), fontScale = 2f)
+        assertStacked(true)
+    }
+
+    @Test
+    fun stackedSegmentsStayOneRadioGroupOfThree() {
+        show(results(count = 3), fontScale = 2f)
+        val tags = listOf(SearchTestTags.TYPE_ALL, SearchTestTags.TYPE_CHANNELS, SearchTestTags.TYPE_CATEGORIES)
+        val group =
+            rule
+                .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup), useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .filter { it.config.contains(SemanticsProperties.CollectionInfo) }
+        assertEquals("one group holding the three segments", 1, group.size)
+        assertEquals(3, group.single().config[SemanticsProperties.CollectionInfo].rowCount)
+        tags.forEachIndexed { index, tag ->
+            val config = rule.onNodeWithTag(tag).fetchSemanticsNode().config
+            assertEquals(Role.RadioButton, config[SemanticsProperties.Role])
+            assertEquals(index, config[SemanticsProperties.CollectionItemInfo].rowIndex)
+        }
     }
 
     @Test

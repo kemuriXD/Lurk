@@ -160,6 +160,12 @@ fun SearchScreen(
             CollapsibleHeader(
                 collapsible = rememberCompactHeight(),
                 modifier = Modifier.weight(1f),
+                // The grid keeps its last size after it leaves, so an empty state is told apart by the phase.
+                canScroll = state.phase != SearchPhase.NO_RESULTS,
+                scrollRoom = {
+                    gridState.canScrollForward || gridState.canScrollBackward
+                },
+                resetKey = query,
                 header = { SearchFilters(state, onIntent) },
             ) {
                 if (state.phase == SearchPhase.NO_RESULTS) {
