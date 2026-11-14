@@ -104,7 +104,8 @@ class ChannelViewModel(
     private fun currentOwner(): String? = ownerOf(platform.id, accounts.states.value)
 
     private fun retry() {
-        loadChannel()
+        // A failure stays on screen while it is asked again, so the error never gives way to a skeleton and back.
+        loadChannel(keepFailure = data.value.slice is PlatformSlice.Failed)
         currentOwner()?.let(::loadFollowed)
     }
 
@@ -123,15 +124,15 @@ class ChannelViewModel(
         if (owner != null) loadFollowed(owner)
     }
 
-    private fun loadChannel() {
+    private fun loadChannel(keepFailure: Boolean = false) {
         channelJob?.cancel()
-        data.update { it.copy(slice = PlatformSlice.Loading) }
+        data.update { if (keepFailure) it.copy(retrying = true) else it.copy(slice = PlatformSlice.Loading, retrying = false) }
         val job =
             viewModelScope.launch(start = CoroutineStart.LAZY) {
                 val me = currentCoroutineContext().job
                 val result =
                     withContext(dispatchers.io) { loadBoth(listOf(platform)) { it.channel(ref) } }.getValue(platform.id)
-                if (channelJob === me) data.update { it.copy(slice = result) }
+                if (channelJob === me) data.update { it.copy(slice = result, retrying = false) }
             }
         channelJob = job
         job.start()
@@ -219,6 +220,7 @@ class ChannelViewModel(
         val membership: Boolean? = null,
         val checked: Boolean = false,
         val busy: Boolean? = null,
+        val retrying: Boolean = false,
     )
 
     private companion object {
@@ -251,7 +253,7 @@ class ChannelViewModel(
                     data.checked -> FollowState.Unknown
                     else -> FollowState.Checking
                 }
-            return ChannelUiState(load = data.slice, follow = follow)
+            return ChannelUiState(load = data.slice, follow = follow, retrying = data.retrying)
         }
     }
 }

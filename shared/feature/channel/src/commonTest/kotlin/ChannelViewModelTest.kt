@@ -444,4 +444,47 @@ class ChannelViewModelTest {
     private companion object {
         const val TOKEN = "stand-in-token"
     }
+
+    @Test
+    fun aRetryKeepsTheFailureOnScreenAndMarksItRetrying() =
+        runTest {
+            twitch.channel = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel(twitch, accounts())
+
+            vm.state.test {
+                awaitUntil { it.load is PlatformSlice.Failed }
+                val gate = CompletableDeferred<Unit>()
+                twitch.channel = {
+                    gate.await()
+                    Outcome.Failure(LurkError.Offline)
+                }
+
+                vm.onIntent(ChannelIntent.Retry)
+
+                val retrying = awaitUntil { it.retrying }
+                assertEquals(PlatformSlice.Failed(LurkError.Offline), retrying.load)
+                gate.complete(Unit)
+                val done = awaitUntil { !it.retrying }
+                assertEquals(PlatformSlice.Failed(LurkError.Offline), done.load)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun aRetryThatSucceedsShowsTheChannel() =
+        runTest {
+            twitch.channel = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel(twitch, accounts())
+
+            vm.state.test {
+                awaitUntil { it.load is PlatformSlice.Failed }
+                twitch.channel = { Outcome.Success(testChannel(Platform.TWITCH)) }
+
+                vm.onIntent(ChannelIntent.Retry)
+
+                val state = awaitUntil { it.loaded() }
+                assertTrue(!state.retrying)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 }
