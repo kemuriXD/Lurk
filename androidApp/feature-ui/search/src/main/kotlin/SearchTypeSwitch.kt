@@ -44,12 +44,22 @@ internal fun TypeSwitch(
     val measurer = rememberTextMeasurer()
     val style = MaterialTheme.typography.labelLarge
     val density = LocalDensity.current
-    // The widest word and a segment's own padding, against a third of the row. The check icon of the selected segment
-    // is left out so picking a segment never changes the layout.
-    val widest = with(density) { labels.maxOf { measurer.measure(it, style, maxLines = 1).size.width }.toDp() }
+    // Each segment's word and its own padding, plus the check icon on the selected one, against a third of the row:
+    // a word that fits until its segment is picked would otherwise lose its end to the icon ("Categor…").
+    val needed =
+        with(density) {
+            types.mapIndexed { index, type ->
+                val word =
+                    measurer
+                        .measure(labels[index], style, maxLines = 1)
+                        .size.width
+                        .toDp()
+                word + SegmentPadding + if (type == selected) CheckIconSpace else 0.dp
+            }
+        }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val row = maxWidth - SwitchInset * 2
-        val stacked = widest + SegmentPadding > row / types.size
+        val stacked = needed.any { it > row / types.size }
         val segment: @Composable SingleChoiceSegmentedButtonRowScope.(Int, SearchType) -> Unit = { index, type ->
             SegmentedButton(
                 selected = type == selected,
@@ -97,6 +107,9 @@ private val SwitchInset = 16.dp
 
 /** A segment's horizontal padding, both sides. */
 private val SegmentPadding = 24.dp
+
+/** The selected segment's check icon and the gap after it. */
+private val CheckIconSpace = SegmentedButtonDefaults.IconSize + 8.dp
 
 @StringRes
 private fun SearchType.label(): Int =

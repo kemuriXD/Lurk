@@ -1,9 +1,12 @@
 package io.github.kemurixd.lurk.featureui.search
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
@@ -25,6 +28,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
@@ -33,6 +37,7 @@ import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.search.SearchPhase
+import io.github.kemurixd.lurk.feature.search.SearchType
 import io.github.kemurixd.lurk.feature.search.SearchUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -228,5 +233,35 @@ class SearchLayoutTest {
                 segment.fetchSemanticsNode().boundsInRoot.height
             }
         assertEquals("segment heights $heights", 1, heights.distinct().size)
+    }
+
+    @Test
+    @Config(qualifiers = "w420dp-h780dp")
+    fun aSelectedCategoriesSegmentIsNeverCutOffWhereItsWordOnlyJustFits() {
+        var width by mutableStateOf(420.dp)
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.15f)) {
+                LurkTheme(dynamicColor = false) {
+                    Box(Modifier.width(width)) { TypeSwitch(selected = SearchType.CATEGORIES, onSelect = {}) }
+                }
+            }
+        }
+        // Down through the band where "Categories" fits but "Categories" and the check icon don't.
+        for (dp in 420 downTo 300 step 4) {
+            width = dp.dp
+            rule.waitForIdle()
+            val text =
+                rule.onNode(
+                    hasAnyAncestor(hasTestTag(SearchTestTags.TYPE_CATEGORIES)) and hasText("Categories"),
+                    useUnmergedTree = true,
+                )
+            val segment = rule.onNodeWithTag(SearchTestTags.TYPE_CATEGORIES).fetchSemanticsNode().boundsInRoot
+            val word = text.fetchSemanticsNode().boundsInRoot
+            assertTrue("Categories is cut off at $dp dp", !text.layout().isLineEllipsized(0))
+            // Clear of the check icon (12 dp padding, 18 dp icon, 8 dp gap) and of the border (12 dp), give or take 1 dp.
+            assertTrue("Categories crowds the check icon at $dp dp", word.left - segment.left >= 37f)
+            assertTrue("Categories touches the border at $dp dp", segment.right - word.right >= 11f)
+        }
     }
 }
