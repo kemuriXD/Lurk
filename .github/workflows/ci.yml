@@ -17,6 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Gradle daemon JDK, matching gradle/gradle-daemon-jvm.properties
+      - uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: 25
+      # Compile toolchain for build-logic and tools; set last so it stays JAVA_HOME
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
