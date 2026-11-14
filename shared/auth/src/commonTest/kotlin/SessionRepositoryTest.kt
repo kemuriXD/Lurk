@@ -27,8 +27,8 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionRepositoryTest {
     /**
-     * [putDelayMs] and [removeDelayMs] stand in for a slow disk: each change lands at once, then the call takes that long
-     * to return.
+     * [putDelayMs] and [removeDelayMs] stand in for a slow disk: each change lands at once, then the call takes that
+     * long to return.
      */
     private class FakeSecureStore(
         private val putDelayMs: Long = 0,

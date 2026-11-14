@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.browse
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,8 +28,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.ErrorFooter
 import io.github.kemurixd.lurk.designsystem.component.groupedByError
+import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import io.github.kemurixd.lurk.designsystem.R as DesignR
@@ -136,4 +139,30 @@ internal fun PullToRefresh(
         },
         content = content,
     )
+}
+
+/**
+ * When a reload failed over rows it kept ([shown]), the failure as a banner above them, titled [title], with Retry.
+ * Nothing otherwise: with no rows the list shows its full-screen error.
+ */
+internal fun LazyGridScope.failedReload(
+    shown: Boolean,
+    slice: PlatformSlice<Unit>,
+    @StringRes title: Int,
+    platform: Platform,
+    retrying: Boolean,
+    modifier: Modifier = Modifier,
+    onRetry: () -> Unit,
+) {
+    if (!shown || slice !is PlatformSlice.Failed) return
+    fullWidth("failed_reload") {
+        ErrorBanner(
+            title = stringResource(title),
+            error = slice.error,
+            onRetry = onRetry,
+            platform = platform,
+            modifier = modifier,
+            retrying = retrying,
+        )
+    }
 }

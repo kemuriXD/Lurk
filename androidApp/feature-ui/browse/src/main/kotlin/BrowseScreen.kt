@@ -39,7 +39,6 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.CollapsibleHeader
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
-import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.PlatformLogo
@@ -117,25 +116,7 @@ fun BrowseScreen(
         scrollRoom = { shown.canScrollForward || shown.canScrollBackward },
         modifier = modifier.fillMaxSize(),
         header = {
-            Column {
-                TabSwitch(tab, onSelect = { tab = it })
-                when (tab) {
-                    BrowseTab.TOP_LIVE -> {
-                        PlatformFilterChips(
-                            selected = topLive.filter,
-                            onSelect = { onTopLiveIntent(TopLiveIntent.SelectFilter(it)) },
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        )
-                    }
-
-                    BrowseTab.CATEGORIES -> {
-                        PlatformSwitch(
-                            selected = categories.platform,
-                            onSelect = { onCategoriesIntent(CategoriesIntent.SelectPlatform(it)) },
-                        )
-                    }
-                }
-            }
+            BrowseHeader(tab, onSelectTab = { tab = it }, topLive, onTopLiveIntent, categories, onCategoriesIntent)
         },
     ) {
         PullToRefresh(
@@ -167,6 +148,37 @@ fun BrowseScreen(
                         onOpenCategory = onOpenCategory,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** The Top Live / Categories switch, then the chips or the platform switch of the tab shown. */
+@Composable
+private fun BrowseHeader(
+    tab: BrowseTab,
+    onSelectTab: (BrowseTab) -> Unit,
+    topLive: TopLiveUiState,
+    onTopLiveIntent: (TopLiveIntent) -> Unit,
+    categories: CategoriesUiState,
+    onCategoriesIntent: (CategoriesIntent) -> Unit,
+) {
+    Column {
+        TabSwitch(tab, onSelect = onSelectTab)
+        when (tab) {
+            BrowseTab.TOP_LIVE -> {
+                PlatformFilterChips(
+                    selected = topLive.filter,
+                    onSelect = { onTopLiveIntent(TopLiveIntent.SelectFilter(it)) },
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
+
+            BrowseTab.CATEGORIES -> {
+                PlatformSwitch(
+                    selected = categories.platform,
+                    onSelect = { onCategoriesIntent(CategoriesIntent.SelectPlatform(it)) },
+                )
             }
         }
     }
@@ -331,18 +343,13 @@ private fun LazyGridScope.categoryContent(
     onOpenCategory: (Category) -> Unit,
 ) {
     val slice = state.slice
-    if (state.categories.isNotEmpty() && slice is PlatformSlice.Failed) {
-        // A reload that failed keeps the tiles; the failure sits above them.
-        fullWidth("failed_reload") {
-            ErrorBanner(
-                title = stringResource(R.string.categories_error_title),
-                error = slice.error,
-                onRetry = { onIntent(CategoriesIntent.Retry) },
-                platform = state.platform,
-                retrying = state.retrying,
-            )
-        }
-    }
+    failedReload(
+        shown = state.categories.isNotEmpty(),
+        slice = slice,
+        title = R.string.categories_error_title,
+        platform = state.platform,
+        retrying = state.retrying,
+    ) { onIntent(CategoriesIntent.Retry) }
     when {
         state.categories.isNotEmpty() -> {
             items(state.categories, key = { "${it.platform.name}:${it.id}" }) { category ->

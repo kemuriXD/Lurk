@@ -83,7 +83,7 @@ class GqlClient(
                 val integrity = solveIntegrity(token) ?: throw LurkException(LurkError.IntegrityRequired)
                 reply = send(body, token, integrity)
             }
-            withContext(dispatchers.default) { decodeReply(reply, decode) }
+            withContext(dispatchers.default) { decodeReply(dataOf(reply), decode) }
         }
 
     /**
@@ -114,7 +114,7 @@ class GqlClient(
                     break
                 }
             }
-            withContext(dispatchers.default) { decodeReply(reply, decode) }
+            withContext(dispatchers.default) { decodeReply(dataOf(reply), decode) }
         }
 
     private suspend fun awaitLoadMoreSlot(operation: String) {
@@ -209,18 +209,10 @@ class GqlClient(
  */
 @Suppress("TooGenericExceptionCaught")
 private fun <T> decodeReply(
-    reply: GqlReply,
+    data: GqlReply.Data,
     decode: (JsonObject) -> T,
-): T {
-    val data =
-        when (reply) {
-            is GqlReply.Data -> reply
-            GqlReply.AuthExpired -> throw LurkException(LurkError.AuthExpired)
-            GqlReply.IntegrityFailed -> throw LurkException(LurkError.IntegrityRequired)
-            GqlReply.ServerError -> throw LurkException(LurkError.Unexpected)
-            GqlReply.UnexpectedShape -> throw LurkException(LurkError.SchemaChanged)
-        }
-    return try {
+): T =
+    try {
         decode(data.data)
     } catch (e: CancellationException) {
         throw e
@@ -229,4 +221,13 @@ private fun <T> decodeReply(
     } catch (e: Exception) {
         throw LurkException(if (data.failed) LurkError.Unexpected else LurkError.SchemaChanged, e)
     }
-}
+
+/** The reply's data, or the failure a reply without usable data stands for. */
+private fun dataOf(reply: GqlReply): GqlReply.Data =
+    when (reply) {
+        is GqlReply.Data -> reply
+        GqlReply.AuthExpired -> throw LurkException(LurkError.AuthExpired)
+        GqlReply.IntegrityFailed -> throw LurkException(LurkError.IntegrityRequired)
+        GqlReply.ServerError -> throw LurkException(LurkError.Unexpected)
+        GqlReply.UnexpectedShape -> throw LurkException(LurkError.SchemaChanged)
+    }

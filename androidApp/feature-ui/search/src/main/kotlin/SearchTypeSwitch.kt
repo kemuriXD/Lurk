@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.collectionItemInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.feature.search.SearchType
 
@@ -41,22 +42,7 @@ internal fun TypeSwitch(
 ) {
     val types = SearchType.entries
     val labels = types.map { stringResource(it.label()) }
-    val measurer = rememberTextMeasurer()
-    val style = MaterialTheme.typography.labelLarge
-    val density = LocalDensity.current
-    // Each segment's word and its own padding, plus the check icon on the selected one, against a third of the row:
-    // a word that fits until its segment is picked would otherwise lose its end to the icon ("Categor…").
-    val needed =
-        with(density) {
-            types.mapIndexed { index, type ->
-                val word =
-                    measurer
-                        .measure(labels[index], style, maxLines = 1)
-                        .size.width
-                        .toDp()
-                word + SegmentPadding + if (type == selected) CheckIconSpace else 0.dp
-            }
-        }
+    val needed = segmentWidths(types, labels, selected)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val row = maxWidth - SwitchInset * 2
         val stacked = needed.any { it > row / types.size }
@@ -99,6 +85,30 @@ internal fun TypeSwitch(
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = SwitchInset, vertical = 4.dp)) {
                 types.forEachIndexed { index, type -> segment(index, type) }
             }
+        }
+    }
+}
+
+/**
+ * Each segment's word and its own padding, plus the check icon on the selected one, to hold against a third of the
+ * row: a word that fits until its segment is picked would otherwise lose its end to the icon ("Categor…").
+ */
+@Composable
+private fun segmentWidths(
+    types: List<SearchType>,
+    labels: List<String>,
+    selected: SearchType,
+): List<Dp> {
+    val measurer = rememberTextMeasurer()
+    val style = MaterialTheme.typography.labelLarge
+    return with(LocalDensity.current) {
+        types.mapIndexed { index, type ->
+            val word =
+                measurer
+                    .measure(labels[index], style, maxLines = 1)
+                    .size.width
+                    .toDp()
+            word + SegmentPadding + if (type == selected) CheckIconSpace else 0.dp
         }
     }
 }

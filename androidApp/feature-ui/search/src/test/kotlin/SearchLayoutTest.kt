@@ -261,7 +261,8 @@ class SearchLayoutTest {
             val segment = rule.onNodeWithTag(SearchTestTags.TYPE_CATEGORIES).fetchSemanticsNode().boundsInRoot
             val word = text.fetchSemanticsNode().boundsInRoot
             assertTrue("Categories is cut off at $dp dp", !text.layout().isLineEllipsized(0))
-            // Clear of the check icon (12 dp padding, 18 dp icon, 8 dp gap) and of the border (12 dp), give or take 1 dp.
+            // Clear of the check icon (12 dp padding, 18 dp icon, 8 dp gap) and of the border (12 dp),
+            // give or take 1 dp.
             assertTrue("Categories crowds the check icon at $dp dp", word.left - segment.left >= 37f)
             assertTrue("Categories touches the border at $dp dp", segment.right - word.right >= 11f)
         }

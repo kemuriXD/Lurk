@@ -37,7 +37,6 @@ import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
-import io.github.kemurixd.lurk.designsystem.component.ErrorBanner
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
@@ -189,19 +188,14 @@ private fun LazyGridScope.streamContent(
     onOpenChannel: (ChannelRef) -> Unit,
 ) {
     val slice = state.slice
-    if (state.streams.isNotEmpty() && slice is PlatformSlice.Failed) {
-        // A reload that failed keeps the rows; the failure sits above them.
-        fullWidth("failed_reload") {
-            ErrorBanner(
-                title = stringResource(R.string.category_error_title),
-                error = slice.error,
-                onRetry = { onIntent(CategoryStreamsIntent.Retry) },
-                platform = platform,
-                modifier = Modifier.padding(BannerPadding),
-                retrying = state.retrying,
-            )
-        }
-    }
+    failedReload(
+        shown = state.streams.isNotEmpty(),
+        slice = slice,
+        title = R.string.category_error_title,
+        platform = platform,
+        retrying = state.retrying,
+        modifier = Modifier.padding(BannerPadding),
+    ) { onIntent(CategoryStreamsIntent.Retry) }
     when {
         state.streams.isNotEmpty() -> {
             items(state.streams, key = { it.key }) { stream ->
