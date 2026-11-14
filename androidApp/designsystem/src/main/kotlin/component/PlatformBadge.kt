@@ -48,7 +48,7 @@ fun PlatformBadge(
     platform: Platform,
     modifier: Modifier = Modifier,
 ) {
-    PlatformMark(platform, modifier.testTag(PlatformTags.BADGE), BadgeSize, describe = true)
+    PlatformMark(platform, BadgeSize, describe = true, modifier = modifier.testTag(PlatformTags.BADGE))
 }
 
 /**
@@ -62,22 +62,25 @@ fun PlatformLogo(
     modifier: Modifier = Modifier,
     size: Dp = LogoSize,
 ) {
-    PlatformMark(platform, modifier.testTag(PlatformTags.logo(platform)), size, describe = false)
+    PlatformMark(platform, size, describe = false, modifier = modifier.testTag(PlatformTags.logo(platform)))
 }
 
 /** [PlatformLogo] at a button's icon size, with the gap a Material button leaves after its leading icon. */
 @Composable
-fun RowScope.PlatformLogoLeading(platform: Platform) {
-    PlatformLogo(platform, size = ButtonDefaults.IconSize)
+fun RowScope.PlatformLogoLeading(
+    platform: Platform,
+    modifier: Modifier = Modifier,
+) {
+    PlatformLogo(platform, modifier, size = ButtonDefaults.IconSize)
     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
 }
 
 @Composable
 private fun PlatformMark(
     platform: Platform,
-    modifier: Modifier,
     size: Dp,
     describe: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LurkTheme.platformColors
     val style =

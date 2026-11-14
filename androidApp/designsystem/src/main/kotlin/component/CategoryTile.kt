@@ -29,7 +29,10 @@ private val TextInset = 4.dp
 private const val ART_WIDTH = 116f
 private const val ART_HEIGHT = 155f
 
-/** A category with its box art, name and viewer count (Figma CategoryTile). The badge shows only with [showPlatform]. */
+/**
+ * A category with its box art, name and viewer count (Figma CategoryTile). The platform badge shows only with
+ * [showPlatform].
+ */
 @Composable
 fun CategoryTile(
     category: Category,

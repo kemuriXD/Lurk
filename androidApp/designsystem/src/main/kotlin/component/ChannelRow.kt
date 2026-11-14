@@ -25,8 +25,9 @@ private val RowPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 24.dp, 
 
 /**
  * One channel in a list (Figma ChannelRow). Shows the live dot and viewers while live, and a ring on the avatar
- * unless [showLiveRing] is off. The platform badge shows only while [showPlatform] is on. Offline, it says when the channel was last live, counted from [now]; without one,
- * it starts its own ticking clock. [now] is read only while offline, so a tick never recomposes a live row.
+ * unless [showLiveRing] is off. The platform badge shows only while [showPlatform] is on. Offline, it says when the
+ * channel was last live, counted from [now]; without one, it starts its own ticking clock. [now] is read only while
+ * offline, so a tick never recomposes a live row.
  */
 @Composable
 fun ChannelRow(

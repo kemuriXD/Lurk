@@ -1,5 +1,6 @@
 package io.github.kemurixd.lurk.featureui.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,14 +74,7 @@ internal fun AccountRowItem(
         val action = Modifier.testTag(SettingsTestTags.action(platform))
         when (row.status) {
             AccountStatus.SignedOut -> {
-                FilledTonalButton(
-                    onClick = { onIntent(AccountsIntent.SignIn(platform)) },
-                    modifier = action,
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-                ) {
-                    PlatformLogoLeading(platform)
-                    Text(stringResource(R.string.sign_in))
-                }
+                SignInButton(platform, R.string.sign_in, { onIntent(AccountsIntent.SignIn(platform)) }, action)
             }
 
             is AccountStatus.Expired -> {
@@ -91,14 +85,7 @@ internal fun AccountRowItem(
                 ) {
                     Text(stringResource(R.string.sign_out))
                 }
-                FilledTonalButton(
-                    onClick = { onIntent(AccountsIntent.SignIn(platform)) },
-                    modifier = action,
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-                ) {
-                    PlatformLogoLeading(platform)
-                    Text(stringResource(R.string.sign_in_again))
-                }
+                SignInButton(platform, R.string.sign_in_again, { onIntent(AccountsIntent.SignIn(platform)) }, action)
             }
 
             is AccountStatus.SignedIn -> {
@@ -107,6 +94,24 @@ internal fun AccountRowItem(
                 }
             }
         }
+    }
+}
+
+/** A tonal button that leads with the platform's logo before its [label]. */
+@Composable
+private fun SignInButton(
+    platform: Platform,
+    @StringRes label: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier,
+        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+    ) {
+        PlatformLogoLeading(platform)
+        Text(stringResource(label))
     }
 }
 

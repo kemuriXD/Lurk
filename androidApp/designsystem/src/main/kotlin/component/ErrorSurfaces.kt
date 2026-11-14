@@ -285,33 +285,15 @@ private fun ErrorActionButton(
         handlers.perform(action, platform, onRetry)
         if (wait != null) tries++
     }
-    // Sign in is for one platform, so its logo leads the label.
-    val logo = platform.takeIf { action is ErrorAction.SignIn }
-    val padding = if (logo != null) ButtonDefaults.ButtonWithIconContentPadding else ButtonDefaults.ContentPadding
-    if (filled) {
-        Button(onClick = onClick, enabled = !waiting, modifier = buttonModifier, contentPadding = padding) {
-            logo?.let { PlatformLogoLeading(it) }
-            Text(label)
-        }
-    } else {
-        TextButton(
-            onClick = onClick,
-            enabled = !waiting,
-            modifier = buttonModifier,
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-            contentPadding =
-                if (logo !=
-                    null
-                ) {
-                    ButtonDefaults.TextButtonWithIconContentPadding
-                } else {
-                    ButtonDefaults.TextButtonContentPadding
-                },
-        ) {
-            logo?.let { PlatformLogoLeading(it) }
-            Text(label)
-        }
-    }
+    LogoActionButton(
+        label = label,
+        // Sign in is for one platform, so its logo leads the label.
+        logo = platform.takeIf { action is ErrorAction.SignIn },
+        filled = filled,
+        enabled = !waiting,
+        onClick = onClick,
+        modifier = buttonModifier,
+    )
 }
 
 private fun ErrorAction.isReadyRetry(waiting: Boolean): Boolean = this is ErrorAction.Retry && !waiting
