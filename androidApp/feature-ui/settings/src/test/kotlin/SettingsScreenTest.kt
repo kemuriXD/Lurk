@@ -1,6 +1,7 @@
 package io.github.kemurixd.lurk.featureui.settings
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
@@ -15,6 +16,7 @@ import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
 import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.component.ErrorTags
+import io.github.kemurixd.lurk.designsystem.component.PlatformTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.accounts.AccountRow
 import io.github.kemurixd.lurk.feature.accounts.AccountStatus
@@ -76,6 +78,27 @@ class SettingsScreenTest {
     ): String = rule.activity.getString(id, *args)
 
     private fun action(platform: Platform) = rule.onNodeWithTag(SettingsTestTags.action(platform))
+
+    private fun logoInAction(platform: Platform) =
+        rule.onAllNodes(
+            hasTestTag(PlatformTags.logo(platform)) and hasAnyAncestor(hasTestTag(SettingsTestTags.action(platform))),
+            useUnmergedTree = true,
+        )
+
+    @Test
+    fun signInButtonsLeadWithThePlatformLogo() {
+        show(twitch = AccountStatus.SignedOut, kick = AccountStatus.Expired("Streamer One"))
+
+        logoInAction(Platform.TWITCH).assertCountEquals(1)
+        logoInAction(Platform.KICK).assertCountEquals(1)
+    }
+
+    @Test
+    fun signOutButtonHasNoLogo() {
+        show(twitch = AccountStatus.SignedIn("Streamer One", null), kick = AccountStatus.SignedIn("Streamer Two", null))
+
+        logoInAction(Platform.TWITCH).assertCountEquals(0)
+    }
 
     @Test
     fun signInButtonOpensLogin() {

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.LurkAvatar
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
+import io.github.kemurixd.lurk.designsystem.component.PlatformLogoLeading
 import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.feature.accounts.AccountRow
 import io.github.kemurixd.lurk.feature.accounts.AccountStatus
@@ -71,7 +73,12 @@ internal fun AccountRowItem(
         val action = Modifier.testTag(SettingsTestTags.action(platform))
         when (row.status) {
             AccountStatus.SignedOut -> {
-                FilledTonalButton(onClick = { onIntent(AccountsIntent.SignIn(platform)) }, modifier = action) {
+                FilledTonalButton(
+                    onClick = { onIntent(AccountsIntent.SignIn(platform)) },
+                    modifier = action,
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    PlatformLogoLeading(platform)
                     Text(stringResource(R.string.sign_in))
                 }
             }
@@ -84,7 +91,12 @@ internal fun AccountRowItem(
                 ) {
                     Text(stringResource(R.string.sign_out))
                 }
-                FilledTonalButton(onClick = { onIntent(AccountsIntent.SignIn(platform)) }, modifier = action) {
+                FilledTonalButton(
+                    onClick = { onIntent(AccountsIntent.SignIn(platform)) },
+                    modifier = action,
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    PlatformLogoLeading(platform)
                     Text(stringResource(R.string.sign_in_again))
                 }
             }
