@@ -185,6 +185,8 @@ class LurkAppTest {
     }
 
     @Test
+    // A phone wide enough for row cards, so the footer under the first page is composed without scrolling.
+    @Config(qualifiers = "w360dp-h780dp")
     fun signedOutLoadMoreSignInOpensThatPlatformsLogin() {
         kick.topLive = { cursor ->
             if (cursor == null) {
