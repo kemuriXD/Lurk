@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -33,7 +35,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.PlatformContext
@@ -147,19 +151,29 @@ fun StreamThumbnail(
             size = 10.dp,
             describe = false,
         )
-        Text(
-            text = stringResource(R.string.viewers_count, viewers),
-            style = MaterialTheme.typography.labelSmall,
-            color = PlayerColors.onScrim,
-            modifier =
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(overlayInset)
-                    .clip(RoundedCornerShape(LurkRadius.xs))
-                    .background(PlayerColors.scrim)
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                    .clearAndSetSemantics {},
-        )
+        // One line whatever the font size: the badge grows with the text up to 1.3x, then stops, so it never wraps over
+        // the picture.
+        val density = LocalDensity.current
+        CompositionLocalProvider(
+            LocalDensity provides Density(density.density, density.fontScale.coerceAtMost(BADGE_MAX_FONT_SCALE)),
+        ) {
+            Text(
+                text = stringResource(R.string.viewers_count, viewers),
+                style = MaterialTheme.typography.labelSmall,
+                color = PlayerColors.onScrim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(overlayInset)
+                        .clip(RoundedCornerShape(LurkRadius.xs))
+                        .background(PlayerColors.scrim)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        // The dot already says "Live, 12.4K viewers", so screen readers skip the count.
+                        .clearAndSetSemantics { testTag = StreamCardTags.VIEWERS },
+            )
+        }
         content()
     }
 }
@@ -262,4 +276,11 @@ private fun Bone(
             .clip(RoundedCornerShape(LurkRadius.xs))
             .background(color),
     )
+}
+
+private const val BADGE_MAX_FONT_SCALE = 1.3f
+
+object StreamCardTags {
+    /** The "12.4K viewers" badge over a thumbnail. */
+    const val VIEWERS = "stream_viewers_badge"
 }

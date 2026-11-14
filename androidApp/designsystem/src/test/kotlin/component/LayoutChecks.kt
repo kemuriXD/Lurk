@@ -9,7 +9,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,4 +61,25 @@ internal fun assertInsideRounded(
     val corners = listOf(inner.topLeft, inner.topRight, inner.bottomLeft, inner.bottomRight)
     val outside = corners.filterNot { insideRounded(it, outer, radius) }
     assertTrue("$what $inner pokes out of $outer (corner radius $radius): $outside", outside.isEmpty())
+}
+
+/** The text layout of a node that shows text (the unmerged node of a `Text`). */
+internal fun SemanticsNodeInteraction.textLayout(): TextLayoutResult {
+    val layouts = mutableListOf<TextLayoutResult>()
+    fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+    return layouts.first()
+}
+
+/** Asserts [layout] shows all its text, and that no line ends inside a word. */
+internal fun assertWrapsWholeWords(
+    what: String,
+    layout: TextLayoutResult,
+) {
+    val text = layout.layoutInput.text.text
+    assertTrue("$what is cut off: ${layout.lineCount} lines of \"$text\"", !layout.hasVisualOverflow)
+    for (line in 0 until layout.lineCount) {
+        val end = layout.getLineEnd(line, visibleEnd = true)
+        val atWordEdge = end >= text.length || text[end - 1] == ' ' || text[end] == ' '
+        assertTrue("$what breaks inside a word at line $line of \"$text\"", atWordEdge)
+    }
 }
