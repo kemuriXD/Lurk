@@ -34,6 +34,9 @@ import io.github.kemurixd.lurk.feature.search.SearchType
  * All / Channels / Categories, in the same segmented style as Browse's Top Live / Categories switch. When the three
  * words can't sit on one row at this width and type size, each segment gets a row of its own: all the same height,
  * never broken mid-word. The three rows stay one radio group of three for screen readers.
+ *
+ * The selected segment shows no check icon, like the platform chips: its container colour and its selected state say
+ * which it is. So every segment needs the same room, and picking one never changes the layout.
  */
 @Composable
 internal fun TypeSwitch(
@@ -42,10 +45,10 @@ internal fun TypeSwitch(
 ) {
     val types = SearchType.entries
     val labels = types.map { stringResource(it.label()) }
-    val needed = segmentWidths(types, labels, selected)
+    val widest = widestLabel(labels)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val row = maxWidth - SwitchInset * 2
-        val stacked = needed.any { it > row / types.size }
+        val stacked = widest + SegmentPadding > row / types.size
         val segment: @Composable SingleChoiceSegmentedButtonRowScope.(Int, SearchType) -> Unit = { index, type ->
             SegmentedButton(
                 selected = type == selected,
@@ -64,6 +67,8 @@ internal fun TypeSwitch(
                                 Modifier
                             },
                         ),
+                // No check icon: the label keeps the whole segment.
+                icon = {},
             ) {
                 Text(text = labels[index], maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -89,27 +94,13 @@ internal fun TypeSwitch(
     }
 }
 
-/**
- * Each segment's word and its own padding, plus the check icon on the selected one, to hold against a third of the
- * row: a word that fits until its segment is picked would otherwise lose its end to the icon ("Categor…").
- */
+/** The widest of the [labels] on one line, in the segment's type. */
 @Composable
-private fun segmentWidths(
-    types: List<SearchType>,
-    labels: List<String>,
-    selected: SearchType,
-): List<Dp> {
+private fun widestLabel(labels: List<String>): Dp {
     val measurer = rememberTextMeasurer()
     val style = MaterialTheme.typography.labelLarge
     return with(LocalDensity.current) {
-        types.mapIndexed { index, type ->
-            val word =
-                measurer
-                    .measure(labels[index], style, maxLines = 1)
-                    .size.width
-                    .toDp()
-            word + SegmentPadding + if (type == selected) CheckIconSpace else 0.dp
-        }
+        labels.maxOf { measurer.measure(it, style, maxLines = 1).size.width }.toDp()
     }
 }
 
@@ -117,9 +108,6 @@ private val SwitchInset = 16.dp
 
 /** A segment's horizontal padding, both sides. */
 private val SegmentPadding = 24.dp
-
-/** The selected segment's check icon and the gap after it. */
-private val CheckIconSpace = SegmentedButtonDefaults.IconSize + 8.dp
 
 @StringRes
 private fun SearchType.label(): Int =

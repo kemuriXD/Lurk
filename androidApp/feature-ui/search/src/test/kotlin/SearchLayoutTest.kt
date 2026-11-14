@@ -261,10 +261,9 @@ class SearchLayoutTest {
             val segment = rule.onNodeWithTag(SearchTestTags.TYPE_CATEGORIES).fetchSemanticsNode().boundsInRoot
             val word = text.fetchSemanticsNode().boundsInRoot
             assertTrue("Categories is cut off at $dp dp", !text.layout().isLineEllipsized(0))
-            // Clear of the check icon (12 dp padding, 18 dp icon, 8 dp gap) and of the border (12 dp),
-            // give or take 1 dp.
-            assertTrue("Categories crowds the check icon at $dp dp", word.left - segment.left >= 37f)
-            assertTrue("Categories touches the border at $dp dp", segment.right - word.right >= 11f)
+            // Clear of the border on both sides (12 dp padding), give or take 1 dp.
+            assertTrue("Categories touches the start border at $dp dp", word.left - segment.left >= 11f)
+            assertTrue("Categories touches the end border at $dp dp", segment.right - word.right >= 11f)
         }
     }
 
@@ -284,5 +283,34 @@ class SearchLayoutTest {
             assertTrue("$line starts at ${bounds.top}, above the window", bounds.top >= root.top)
         }
         rule.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
+    }
+
+    private fun showSwitch(selected: SearchType) {
+        rule.setContent {
+            LurkTheme(dynamicColor = false) { TypeSwitch(selected = selected, onSelect = {}) }
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp")
+    fun pickingCategoriesOnA360dpPhoneKeepsTheSegmentsOnOneRow() {
+        showSwitch(SearchType.CATEGORIES)
+        assertStacked(false)
+    }
+
+    @Test
+    fun theSelectedSegmentIsStillAnnouncedAsSelected() {
+        showSwitch(SearchType.CATEGORIES)
+        val tags =
+            mapOf(
+                SearchTestTags.TYPE_ALL to false,
+                SearchTestTags.TYPE_CHANNELS to false,
+                SearchTestTags.TYPE_CATEGORIES to true,
+            )
+        tags.forEach { (tag, selected) ->
+            val config = rule.onNodeWithTag(tag).fetchSemanticsNode().config
+            assertEquals(tag, Role.RadioButton, config[SemanticsProperties.Role])
+            assertEquals(tag, selected, config[SemanticsProperties.Selected])
+        }
     }
 }
