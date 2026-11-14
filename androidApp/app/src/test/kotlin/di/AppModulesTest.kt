@@ -16,7 +16,9 @@ import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.common.commonModule
 import io.github.kemurixd.lurk.core.config.configModule
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.network.AlwaysOnline
 import io.github.kemurixd.lurk.core.network.ChallengeSolver
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.WebSocketConnector
 import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.CacheStore
@@ -101,6 +103,7 @@ class AppModulesTest {
     private val platformExtraTypes =
         listOf(
             HttpClient::class,
+            NetworkStatus::class,
             WebSocketConnector::class,
             SecureStore::class,
             DispatcherProvider::class,
@@ -135,6 +138,7 @@ class AppModulesTest {
                         )
                     }
                     single<Clock> { Clock.System }
+                    single<NetworkStatus> { AlwaysOnline }
                 },
             )
         }
@@ -147,7 +151,10 @@ class AppModulesTest {
     @Test
     fun networkModuleIsComplete() {
         // Koin inspects constructor parameters, which the factory and the monotonic clock fill in.
-        networkModule.verify(extraTypes = listOf(HttpClientEngine::class, TimeSource.WithComparableMarks::class))
+        networkModule.verify(
+            extraTypes =
+                listOf(HttpClientEngine::class, TimeSource.WithComparableMarks::class, NetworkStatus::class),
+        )
     }
 
     @Test
@@ -168,7 +175,7 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(20, modules.size)
+        assertEquals(21, modules.size)
         assertTrue(accountsModule in modules)
         assertTrue(loginModule in modules)
         assertTrue(featureCommonModule in modules)

@@ -6,9 +6,11 @@ import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.common.outcomeOf
 import io.github.kemurixd.lurk.core.config.RemoteConfig
+import io.github.kemurixd.lurk.core.network.AlwaysOnline
 import io.github.kemurixd.lurk.core.network.ChallengeKind
 import io.github.kemurixd.lurk.core.network.ChallengeResult
 import io.github.kemurixd.lurk.core.network.ChallengeSolver
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -60,6 +62,7 @@ class GqlClient(
     private val dispatchers: DispatcherProvider,
     private val solver: ChallengeSolver?,
     private val timeSource: TimeSource = TimeSource.Monotonic,
+    private val network: NetworkStatus = AlwaysOnline,
 ) {
     private val workingDiscoveryId = MutableStateFlow<String?>(null)
     private val pacing = Mutex()
@@ -135,6 +138,8 @@ class GqlClient(
                 return send(body, token = null, integrity = null, clientId = clientId)
             } catch (e: LurkException) {
                 val wait = retryDelay(e.error, attempt) ?: throw e
+                // A retry waits for a server that may answer; with the network gone nobody will.
+                if (!network.isOnline.value) throw LurkException(LurkError.Offline, e)
                 delay(wait)
                 attempt++
             }

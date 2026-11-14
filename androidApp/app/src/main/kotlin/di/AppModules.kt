@@ -6,6 +6,7 @@ import io.github.kemurixd.lurk.auth.authModule
 import io.github.kemurixd.lurk.chat.chatModule
 import io.github.kemurixd.lurk.core.common.commonModule
 import io.github.kemurixd.lurk.core.config.configModule
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.storageModule
@@ -18,6 +19,7 @@ import io.github.kemurixd.lurk.feature.following.followingModule
 import io.github.kemurixd.lurk.feature.search.searchModule
 import io.github.kemurixd.lurk.login.AndroidCookieJar
 import io.github.kemurixd.lurk.login.CookieJar
+import io.github.kemurixd.lurk.network.AndroidNetworkStatus
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
@@ -51,6 +53,12 @@ val platformsModule: Module =
         single<List<StreamingPlatform>> { getAll() }
     }
 
+/** What the HTTP client consults before sending: the device's connectivity. */
+fun androidNetworkModule(context: Context): Module =
+    module {
+        single<NetworkStatus> { AndroidNetworkStatus(context) }
+    }
+
 /** The login WebView's cookie store. */
 val loginModule: Module =
     module {
@@ -62,6 +70,7 @@ fun appModules(context: Context): List<Module> =
     listOf(
         commonModule,
         networkModule,
+        androidNetworkModule(context),
         storageModule,
         androidStorageModule(context),
         configModule,

@@ -8,6 +8,8 @@ import io.github.kemurixd.lurk.core.config.KickConfig
 import io.github.kemurixd.lurk.core.config.RemoteConfig
 import io.github.kemurixd.lurk.core.config.SUPPORTED_SCHEMA
 import io.github.kemurixd.lurk.core.config.TwitchConfig
+import io.github.kemurixd.lurk.core.network.AlwaysOnline
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.createHttpClient
 import io.github.kemurixd.lurk.core.storage.SecureStore
 import io.github.kemurixd.lurk.platform.twitch.fixture
@@ -99,6 +101,7 @@ class GqlDiscoveryTest {
 
     private fun TestScope.rig(
         ids: List<String> = listOf("android-id", "tv-id"),
+        network: NetworkStatus = AlwaysOnline,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): Rig {
         val seen = mutableListOf<HttpRequestData>()
@@ -117,12 +120,13 @@ class GqlDiscoveryTest {
             )
         val gql =
             GqlClient(
-                createHttpClient(engine),
+                createHttpClient(engine, network = network),
                 config(ids),
                 DeviceId(MemoryStore()),
                 TestDispatchers(dispatcher),
                 null,
                 testScheduler.timeSource,
+                network,
             )
         return Rig(gql, seen, times)
     }
@@ -162,6 +166,34 @@ class GqlDiscoveryTest {
                         .orEmpty(),
                 ),
             )
+        }
+
+    private class Switch(
+        online: Boolean,
+    ) : NetworkStatus {
+        override val isOnline = MutableStateFlow(online)
+    }
+
+    @Test
+    fun noNetworkFailsAsOfflineWithoutSendingAnything() =
+        runTest {
+            val r = rig(network = Switch(online = false)) { reply(ok) }
+            assertEquals(Outcome.Failure(LurkError.Offline), r.gql.discover())
+            assertEquals(0, r.seen.size)
+        }
+
+    @Test
+    fun aServerErrorIsNotRetriedOnceTheNetworkIsGone() =
+        runTest {
+            val network = Switch(online = true)
+            val r =
+                rig(network = network) {
+                    network.isOnline.value = false
+                    reply("", HttpStatusCode.ServiceUnavailable)
+                }
+            assertEquals(Outcome.Failure(LurkError.Offline), r.gql.discover())
+            assertEquals(1, r.seen.size)
+            assertEquals(0L, testScheduler.currentTime)
         }
 
     @Test
