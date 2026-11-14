@@ -37,6 +37,7 @@ import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
+import io.github.kemurixd.lurk.designsystem.component.CollapsibleHeader
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
@@ -45,6 +46,7 @@ import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.component.platformErrors
+import io.github.kemurixd.lurk.designsystem.component.rememberCompactHeight
 import io.github.kemurixd.lurk.feature.browse.CategoriesIntent
 import io.github.kemurixd.lurk.feature.browse.CategoriesUiState
 import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
@@ -107,35 +109,52 @@ fun BrowseScreen(
     var tab by rememberSaveable { mutableStateOf(BrowseTab.TOP_LIVE) }
     val topLiveGrid = rememberLazyGridState()
     val categoriesGrid = rememberLazyGridState()
-    Column(modifier.fillMaxSize()) {
-        TabSwitch(tab, onSelect = { tab = it })
-        when (tab) {
-            BrowseTab.TOP_LIVE -> {
-                PlatformFilterChips(
-                    selected = topLive.filter,
-                    onSelect = { onTopLiveIntent(TopLiveIntent.SelectFilter(it)) },
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
-                TopLiveGrid(
-                    state = topLive,
-                    gridState = topLiveGrid,
-                    onIntent = onTopLiveIntent,
-                    onOpenPlayer = onOpenPlayer,
-                    onOpenChannel = onOpenChannel,
-                )
-            }
+    // In a landscape phone the switch and chips scroll away with the list, so it gets the whole height.
+    CollapsibleHeader(
+        collapsible = rememberCompactHeight(),
+        modifier = modifier.fillMaxSize(),
+        header = {
+            Column {
+                TabSwitch(tab, onSelect = { tab = it })
+                when (tab) {
+                    BrowseTab.TOP_LIVE -> {
+                        PlatformFilterChips(
+                            selected = topLive.filter,
+                            onSelect = { onTopLiveIntent(TopLiveIntent.SelectFilter(it)) },
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
 
-            BrowseTab.CATEGORIES -> {
-                PlatformSwitch(
-                    selected = categories.platform,
-                    onSelect = { onCategoriesIntent(CategoriesIntent.SelectPlatform(it)) },
-                )
-                CategoriesGrid(
-                    state = categories,
-                    gridState = categoriesGrid,
-                    onIntent = onCategoriesIntent,
-                    onOpenCategory = onOpenCategory,
-                )
+                    BrowseTab.CATEGORIES -> {
+                        PlatformSwitch(
+                            selected = categories.platform,
+                            onSelect = { onCategoriesIntent(CategoriesIntent.SelectPlatform(it)) },
+                        )
+                    }
+                }
+            }
+        },
+    ) {
+        Box(Modifier.weight(1f)) {
+            when (tab) {
+                BrowseTab.TOP_LIVE -> {
+                    TopLiveGrid(
+                        state = topLive,
+                        gridState = topLiveGrid,
+                        onIntent = onTopLiveIntent,
+                        onOpenPlayer = onOpenPlayer,
+                        onOpenChannel = onOpenChannel,
+                    )
+                }
+
+                BrowseTab.CATEGORIES -> {
+                    CategoriesGrid(
+                        state = categories,
+                        gridState = categoriesGrid,
+                        onIntent = onCategoriesIntent,
+                        onOpenCategory = onOpenCategory,
+                    )
+                }
             }
         }
     }
