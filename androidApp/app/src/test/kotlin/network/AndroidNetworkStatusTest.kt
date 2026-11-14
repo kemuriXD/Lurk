@@ -45,23 +45,52 @@ class AndroidNetworkStatusTest {
     }
 
     @Test
-    fun startsOfflineWhenTheNetworkIsNotValidated() {
+    fun anUnvalidatedNetworkStillCountsAsOnline() {
         shadow.setNetworkCapabilities(manager.activeNetwork, capabilities(validated = false))
+        assertTrue(AndroidNetworkStatus(context).isOnline.value)
+    }
+
+    @Test
+    fun startsOfflineWhenTheNetworkHasNoInternetCapability() {
+        shadow.setNetworkCapabilities(manager.activeNetwork, ShadowNetworkCapabilities.newInstance())
         assertFalse(AndroidNetworkStatus(context).isOnline.value)
     }
 
     @Test
+    fun losingTheOldNetworkDuringAHandoverStaysOnline() {
+        val old = manager.activeNetwork!!
+        shadow.setNetworkCapabilities(old, capabilities(validated = true))
+        val status = AndroidNetworkStatus(context)
+        // The new default network is already active when the old one is reported lost.
+        callback().onLost(old)
+        assertTrue(status.isOnline.value)
+    }
+
+    @Test
+    fun losingTheOnlyNetworkGoesOffline() {
+        val only = manager.activeNetwork!!
+        shadow.setNetworkCapabilities(only, capabilities(validated = true))
+        val status = AndroidNetworkStatus(context)
+        shadow.setDefaultNetworkActive(false)
+        shadow.setActiveNetworkInfo(null)
+        callback().onLost(only)
+        assertFalse(status.isOnline.value)
+    }
+
+    @Test
     fun followsTheNetworkAsItComesAndGoes() {
-        shadow.setNetworkCapabilities(manager.activeNetwork, capabilities(validated = false))
+        shadow.setNetworkCapabilities(manager.activeNetwork, ShadowNetworkCapabilities.newInstance())
         val status = AndroidNetworkStatus(context)
         val network: Network = manager.activeNetwork!!
         callback().onCapabilitiesChanged(network, capabilities(validated = true))
         assertTrue(status.isOnline.value)
+        shadow.setDefaultNetworkActive(false)
+        shadow.setActiveNetworkInfo(null)
         callback().onLost(network)
         assertFalse(status.isOnline.value)
-        callback().onCapabilitiesChanged(network, capabilities(validated = false))
+        callback().onCapabilitiesChanged(network, ShadowNetworkCapabilities.newInstance())
         assertFalse(status.isOnline.value)
-        callback().onCapabilitiesChanged(network, capabilities(validated = true))
+        callback().onCapabilitiesChanged(network, capabilities(validated = false))
         assertTrue(status.isOnline.value)
     }
 }

@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.playback.proxy
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.network.EngineProxy
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.createHttpClient
 import io.github.kemurixd.lurk.playback.ProxyCredentials
 import io.github.kemurixd.lurk.playback.ProxyEndpoint
@@ -11,6 +12,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respondOk
 import io.ktor.client.request.get
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -63,6 +65,21 @@ class RouteClientsTest {
         clients.close()
         assertEquals(listOf(1, 1), engines.map { it.closeCount })
     }
+
+    @Test
+    fun proxiedClientsFailFastWithoutANetwork() =
+        runTest {
+            var sent = 0
+            val offline =
+                object : NetworkStatus {
+                    override val isOnline = MutableStateFlow(false)
+                }
+            val clients = DefaultRouteClients(direct, engineFactory { sent++ }, network = offline)
+            val client = clients.clientFor(Route.ViaProxy(ProxyEndpoint.Http("127.0.0.1", 4)))
+            val failure = assertFailsWith<LurkException> { client.get("https://target.example/x.m3u8") }
+            assertEquals(LurkError.Offline, failure.error)
+            assertEquals(0, sent)
+        }
 
     @Test
     fun directAndUrlTemplateUseTheDirectClient() {

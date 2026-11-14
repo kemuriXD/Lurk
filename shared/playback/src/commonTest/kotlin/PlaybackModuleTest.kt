@@ -6,6 +6,8 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.config.RemoteConfigRepository
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.network.AlwaysOnline
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.createHttpClient
 import io.github.kemurixd.lurk.playback.ads.AdDetector
 import io.github.kemurixd.lurk.playback.proxy.ProxyChain
@@ -34,6 +36,7 @@ class PlaybackModuleTest {
         module {
             single<DispatcherProvider> { DefaultDispatchers }
             single<HttpClient> { createHttpClient(MockEngine { respond("", HttpStatusCode.NotFound) }) }
+            single<NetworkStatus> { AlwaysOnline }
         }
 
     @Test

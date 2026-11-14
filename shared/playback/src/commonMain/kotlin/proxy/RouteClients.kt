@@ -2,7 +2,9 @@ package io.github.kemurixd.lurk.playback.proxy
 
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.common.outcomeOf
+import io.github.kemurixd.lurk.core.network.AlwaysOnline
 import io.github.kemurixd.lurk.core.network.EngineProxy
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.createHttpClient
 import io.github.kemurixd.lurk.core.network.proxiedEngine
 import io.github.kemurixd.lurk.playback.ProxyEndpoint
@@ -64,6 +66,7 @@ internal class DefaultRouteClients(
     private val direct: HttpClient,
     private val engineFor: (EngineProxy.Http) -> HttpClientEngine = ::proxiedEngine,
     private val requestTimeoutMillis: Long = PROXY_REQUEST_TIMEOUT_MS,
+    private val network: NetworkStatus = AlwaysOnline,
 ) : RouteClients {
     private val proxied = AtomicReference<Map<ProxyEndpoint, Entry>>(emptyMap())
 
@@ -85,7 +88,11 @@ internal class DefaultRouteClients(
             val existing = current[endpoint]
             if (existing != null) return existing.client
             val engine = engineFor(engineProxy)
-            val created = Entry(engine, createHttpClient(engine = engine, requestTimeoutMs = requestTimeoutMillis))
+            val created =
+                Entry(
+                    engine,
+                    createHttpClient(engine = engine, requestTimeoutMs = requestTimeoutMillis, network = network),
+                )
             if (proxied.compareAndSet(current, current + (endpoint to created))) return created.client
             created.close()
         }

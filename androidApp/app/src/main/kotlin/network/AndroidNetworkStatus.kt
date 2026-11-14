@@ -10,15 +10,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Online while the default network has a validated route to the internet. The first value is read from the active
- * network at once, so a request in the first milliseconds of a launch is judged by the real state, not a default.
- * The callback lives as long as the app.
+ * Online while a default network with an internet capability exists. Android's own reachability probe is left out of
+ * the decision on purpose: a VPN, an enterprise Wi-Fi or a device without Google services can fail the probe on a
+ * network that works. The first value is read from the active network at once, so a request in the first
+ * milliseconds of a launch is judged by the real state. The callback lives as long as the app.
  */
 class AndroidNetworkStatus(
     context: Context,
 ) : NetworkStatus {
     private val manager = context.getSystemService(ConnectivityManager::class.java)
-    private val online = MutableStateFlow(isValidated(manager.activeNetwork?.let(manager::getNetworkCapabilities)))
+    private val online = MutableStateFlow(currentlyOnline())
 
     override val isOnline: StateFlow<Boolean> = online.asStateFlow()
 
@@ -29,18 +30,20 @@ class AndroidNetworkStatus(
                     network: Network,
                     capabilities: NetworkCapabilities,
                 ) {
-                    online.value = isValidated(capabilities)
+                    online.value = hasInternet(capabilities)
                 }
 
+                // On a handover the old network may be reported lost after the new one is the default, so ask what
+                // the default is now instead of assuming nothing is left.
                 override fun onLost(network: Network) {
-                    online.value = false
+                    online.value = currentlyOnline()
                 }
             },
         )
     }
 
-    private fun isValidated(capabilities: NetworkCapabilities?): Boolean =
-        capabilities != null &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    private fun currentlyOnline(): Boolean = hasInternet(manager.activeNetwork?.let(manager::getNetworkCapabilities))
+
+    private fun hasInternet(capabilities: NetworkCapabilities?): Boolean =
+        capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
 }
