@@ -31,7 +31,10 @@ private fun offlineGuard(network: NetworkStatus) =
         onRequest { _, _ -> if (!network.isOnline.value) throw LurkException(LurkError.Offline) }
     }
 
-/** Builds the shared client. Error responses and transport failures surface as [LurkException]; with no network every request fails fast as Offline. */
+/**
+ * Builds the shared client. Error responses and transport failures surface as [LurkException], and with no network
+ * every request fails fast as Offline.
+ */
 fun createHttpClient(
     engine: HttpClientEngine = defaultEngine(),
     cookies: CookiesStorage = AcceptAllCookiesStorage(),
