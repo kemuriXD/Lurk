@@ -3,9 +3,12 @@ import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.getByType
+import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
 
 /**
@@ -36,6 +39,15 @@ class LurkAndroidLibraryPlugin : Plugin<Project> {
                 jvmToolchain(LurkSdk.JDK)
             }
 
+            // The screenshot baselines are inputs of the unit tests: changing one must rerun the check, never reuse an
+            // earlier pass.
+            tasks.withType<Test>().configureEach {
+                inputs
+                    .files(fileTree("src/test/snapshots"))
+                    .withPropertyName("screenshotBaselines")
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            }
+
             dependencies {
                 val bom = libs.findLibrary("compose-bom").get()
                 add("implementation", platform(bom))
@@ -47,6 +59,7 @@ class LurkAndroidLibraryPlugin : Plugin<Project> {
                 add("testImplementation", libs.findLibrary("junit").get())
                 add("testImplementation", libs.findLibrary("robolectric").get())
                 add("testImplementation", libs.findLibrary("compose-ui-test-junit4").get())
+                add("testImplementation", libs.findLibrary("roborazzi").get())
                 add("testImplementation", libs.findLibrary("roborazzi-compose").get())
                 add("testImplementation", libs.findLibrary("roborazzi-junit-rule").get())
                 add("debugImplementation", platform(bom))

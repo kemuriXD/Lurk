@@ -88,6 +88,7 @@ splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "spla
 webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 browser-customtabs = { module = "androidx.browser:browser", version.ref = "browser" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
 compose-rules-detekt = { module = "io.nlopez.compose.rules:detekt", version.ref = "composeRules" }
