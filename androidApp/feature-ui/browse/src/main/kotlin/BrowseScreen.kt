@@ -109,9 +109,11 @@ fun BrowseScreen(
     var tab by rememberSaveable { mutableStateOf(BrowseTab.TOP_LIVE) }
     val topLiveGrid = rememberLazyGridState()
     val categoriesGrid = rememberLazyGridState()
+    val shown = if (tab == BrowseTab.TOP_LIVE) topLiveGrid else categoriesGrid
     // In a landscape phone the switch and chips scroll away with the list, so it gets the whole height.
     CollapsibleHeader(
         collapsible = rememberCompactHeight(),
+        scrollRoom = { shown.canScrollForward || shown.canScrollBackward },
         modifier = modifier.fillMaxSize(),
         header = {
             Column {
