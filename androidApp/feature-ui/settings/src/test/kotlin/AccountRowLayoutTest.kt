@@ -8,7 +8,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
@@ -82,5 +84,26 @@ class AccountRowLayoutTest {
         assertEquals(1, rule.onNodeWithText("Streamer One").layout().lineCount)
         assertWhole("Session expired", 1f)
         assertEquals(1, rule.onNodeWithText("Session expired").layout().lineCount)
+    }
+
+    @Test
+    fun anExpiredRowPutsBothButtonsBelowTheTextWithFullSizeTargets() {
+        rule.setContent {
+            LurkTheme(dynamicColor = false) {
+                Box(Modifier.width(360.dp)) {
+                    AccountRowItem(AccountRow(Platform.KICK, AccountStatus.Expired("Streamer One")), onIntent = {})
+                }
+            }
+        }
+        val textBottom =
+            rule
+                .onNodeWithText("Session expired")
+                .fetchSemanticsNode()
+                .boundsInRoot.bottom
+        for (tag in listOf(SettingsTestTags.signOut(Platform.KICK), SettingsTestTags.action(Platform.KICK))) {
+            val box = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            assertTrue("$tag $box is not below the text ending at $textBottom", box.top >= textBottom)
+            rule.onNodeWithTag(tag, useUnmergedTree = true).assertTouchHeightIsEqualTo(48.dp)
+        }
     }
 }
