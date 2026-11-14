@@ -241,4 +241,14 @@ class ChannelScreenTest {
         assertEquals(1, errorBacks)
         assertEquals(emptyList<ChannelIntent>(), intents)
     }
+
+    @Test
+    fun aRetryingErrorStateStaysAndItsRetryIsOff() {
+        show(
+            ChannelUiState(PlatformSlice.Failed(LurkError.Offline), FollowState.Hidden, retrying = true),
+        )
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        rule.onNodeWithContentDescription("Loading").assertDoesNotExist()
+    }
 }

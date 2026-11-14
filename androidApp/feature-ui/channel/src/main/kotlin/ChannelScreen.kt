@@ -177,6 +177,7 @@ fun ChannelScreen(
                             error = load.error,
                             onRetry = { onIntent(ChannelIntent.Retry) },
                             platform = ref.platform,
+                            retrying = state.retrying,
                         )
                     }
 
