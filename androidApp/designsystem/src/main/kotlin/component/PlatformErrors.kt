@@ -14,7 +14,9 @@ import io.github.kemurixd.lurk.designsystem.R
 /**
  * The placement rule for first-page failures in a list fed by several platforms. When [nothingElse] is true (every
  * platform failed and nothing shows), one full-width [ErrorState] titled [allFailedTitle], whose Retry asks each failed
- * platform again. Otherwise one [ErrorBanner] per failed platform, at the top of the list. [onRetry] asks one again.
+ * platform again. Otherwise one [ErrorBanner] per distinct failure, at the top of the list: platforms that failed the
+ * same way share one banner ("Couldn’t load Twitch or Kick") whose Retry asks each; a sign-in error stays per platform.
+ * [onRetry] asks one platform again.
  */
 fun LazyGridScope.platformErrors(
     failures: List<Pair<Platform, LurkError>>,
@@ -35,12 +37,17 @@ fun LazyGridScope.platformErrors(
         }
         return
     }
-    failures.forEach { (platform, error) ->
-        item(key = "error:${platform.name}", span = { GridItemSpan(maxLineSpan) }, contentType = "error") {
+    failures.groupedByError().forEach { (platforms, error) ->
+        val platform = platforms.singleOrNull()
+        item(
+            key = "error:${platforms.joinToString { it.name }}",
+            span = { GridItemSpan(maxLineSpan) },
+            contentType = "error",
+        ) {
             ErrorBanner(
-                title = stringResource(R.string.error_load_platform, stringResource(platform.labelRes)),
+                title = stringResource(R.string.error_load_platform, platformNames(platforms)),
                 error = error,
-                onRetry = { onRetry(platform) },
+                onRetry = { platforms.forEach(onRetry) },
                 platform = platform,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )

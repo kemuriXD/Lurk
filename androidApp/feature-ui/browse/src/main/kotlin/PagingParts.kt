@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.ErrorFooter
+import io.github.kemurixd.lurk.designsystem.component.groupedByError
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import io.github.kemurixd.lurk.designsystem.R as DesignR
@@ -64,18 +65,21 @@ internal fun LazyGridScope.fullWidth(
     item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
 }
 
-/** One error footer for each platform whose next page failed, then the spinner while the next page loads. */
+/**
+ * One error footer for each distinct failure of a next page, then the spinner while the next page loads. Platforms
+ * whose next page failed the same way share one footer, and its Retry asks each. Sign-in errors stay per platform.
+ */
 internal fun LazyGridScope.pagingFooter(
     loadingMore: Boolean,
     errors: Map<Platform, LurkError>,
     onRetry: (Platform) -> Unit,
 ) {
-    errors.forEach { (platform, error) ->
-        fullWidth("more_error:${platform.name}") {
+    errors.toList().groupedByError().forEach { (platforms, error) ->
+        fullWidth("more_error:${platforms.joinToString { it.name }}") {
             ErrorFooter(
-                platform = platform,
+                platforms = platforms,
                 error = error,
-                onRetry = { onRetry(platform) },
+                onRetry = { platforms.forEach(onRetry) },
                 modifier = Modifier.padding(BannerPadding),
             )
         }

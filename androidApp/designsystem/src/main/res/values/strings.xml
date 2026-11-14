@@ -70,6 +70,8 @@
     <string name="error_retry_cd">Retry loading %1$s</string>
     <string name="error_load_platform">Couldn’t load %1$s</string>
     <string name="error_snackbar_message">%1$s. %2$s</string>
+    <string name="error_list_join">%1$s, %2$s</string>
+    <string name="error_list_last">%1$s or %2$s</string>
     <string name="error_load_more">Couldn’t load more from %1$s</string>
 
     <string name="error_offline">You’re offline. Check your connection.</string>

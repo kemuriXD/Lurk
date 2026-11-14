@@ -162,6 +162,41 @@ fun ErrorFooter(
     )
 }
 
+/**
+ * The footer for several platforms whose next page failed the same way: one banner naming them all, whose [onRetry]
+ * asks each again. A sign-in action is per platform, so it never shows here.
+ */
+@Composable
+fun ErrorFooter(
+    platforms: List<Platform>,
+    error: LurkError,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    action: ErrorAction? = error.action(),
+) {
+    BannerCard(
+        title = stringResource(R.string.error_load_more, platformNames(platforms)),
+        reason = stringResource(error.messageRes()),
+        error = error,
+        action = action,
+        platform = platforms.singleOrNull(),
+        onRetry = onRetry,
+        modifier = modifier.testTag(ErrorTags.FOOTER),
+    )
+}
+
+/** The platforms' names as one phrase: "Twitch", "Twitch or Kick", "Twitch, Kick or X". */
+@Composable
+internal fun platformNames(platforms: List<Platform>): String =
+    platformList(platforms.map { stringResource(it.labelRes) })
+
+@Composable
+internal fun platformList(names: List<String>): String {
+    if (names.size < 2) return names.firstOrNull().orEmpty()
+    val head = names.dropLast(1).reduce { all, name -> stringResource(R.string.error_list_join, all, name) }
+    return stringResource(R.string.error_list_last, head, names.last())
+}
+
 @Composable
 private fun BannerCard(
     title: String,

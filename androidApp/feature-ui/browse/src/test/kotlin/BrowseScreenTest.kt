@@ -143,6 +143,68 @@ class BrowseScreenTest {
     }
 
     @Test
+    fun sameLoadMoreErrorOnBothPlatformsIsOneFooterThatRetriesBoth() {
+        show(
+            topLive =
+                topLiveState(
+                    loadMoreErrors = mapOf(Platform.TWITCH to LurkError.Timeout, Platform.KICK to LurkError.Timeout),
+                ),
+        )
+        rule.onAllNodesWithTag(ErrorTags.FOOTER).assertCountEquals(1)
+        rule.onNodeWithText("Couldn’t load more from Twitch or Kick").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(
+            listOf<TopLiveIntent>(TopLiveIntent.Retry(Platform.TWITCH), TopLiveIntent.Retry(Platform.KICK)),
+            topLiveIntents,
+        )
+    }
+
+    @Test
+    fun differentLoadMoreErrorsKeepSeparateFooters() {
+        show(
+            topLive =
+                topLiveState(
+                    loadMoreErrors = mapOf(Platform.TWITCH to LurkError.Timeout, Platform.KICK to LurkError.Offline),
+                ),
+        )
+        rule.onAllNodesWithTag(ErrorTags.FOOTER).assertCountEquals(2)
+    }
+
+    @Test
+    fun signInFootersAreNeverMerged() {
+        show(
+            topLive =
+                topLiveState(
+                    loadMoreErrors =
+                        mapOf(Platform.TWITCH to LurkError.NotSignedIn, Platform.KICK to LurkError.NotSignedIn),
+                ),
+        )
+        rule.onAllNodesWithTag(ErrorTags.FOOTER).assertCountEquals(2)
+    }
+
+    @Test
+    fun sameFirstPageErrorOnBothPlatformsIsOneBannerThatRetriesBoth() {
+        show(
+            topLive =
+                topLiveState(
+                    slices =
+                        mapOf(
+                            Platform.TWITCH to PlatformSlice.Failed(LurkError.Timeout),
+                            Platform.KICK to PlatformSlice.Failed(LurkError.Timeout),
+                        ),
+                    streams = listOf(stream()),
+                ),
+        )
+        rule.onAllNodesWithTag(ErrorTags.BANNER).assertCountEquals(1)
+        rule.onNodeWithText("Couldn’t load Twitch or Kick").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(
+            listOf<TopLiveIntent>(TopLiveIntent.Retry(Platform.TWITCH), TopLiveIntent.Retry(Platform.KICK)),
+            topLiveIntents,
+        )
+    }
+
+    @Test
     fun loadMoreFooterRetriesWhenRetryingCanHelp() {
         show(topLive = topLiveState(loadMoreErrors = mapOf(Platform.TWITCH to LurkError.Timeout)))
         rule.onNodeWithContentDescription("Retry loading Twitch").performClick()
