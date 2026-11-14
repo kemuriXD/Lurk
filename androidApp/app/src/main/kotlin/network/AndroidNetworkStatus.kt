@@ -33,10 +33,11 @@ class AndroidNetworkStatus(
                     online.value = hasInternet(capabilities)
                 }
 
-                // On a handover the old network may be reported lost after the new one is the default, so ask what
-                // the default is now instead of assuming nothing is left.
+                // On a handover the old network may be reported lost after the new one is the default, so a loss of
+                // some other network says nothing: ask what the default is now. When activeNetwork still names the
+                // lost one it hasn't been updated yet, and nothing is left.
                 override fun onLost(network: Network) {
-                    online.value = currentlyOnline()
+                    online.value = manager.activeNetwork != network && currentlyOnline()
                 }
             },
         )

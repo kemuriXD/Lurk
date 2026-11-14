@@ -11,6 +11,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowNetwork
 import org.robolectric.shadows.ShadowNetworkCapabilities
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -18,6 +19,10 @@ import kotlin.test.assertTrue
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class AndroidNetworkStatusTest {
+    private companion object {
+        const val LOST_NET_ID = 4242
+    }
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val manager = context.getSystemService(ConnectivityManager::class.java)
     private val shadow = shadowOf(manager)
@@ -58,12 +63,22 @@ class AndroidNetworkStatusTest {
 
     @Test
     fun losingTheOldNetworkDuringAHandoverStaysOnline() {
-        val old = manager.activeNetwork!!
-        shadow.setNetworkCapabilities(old, capabilities(validated = true))
+        val current = manager.activeNetwork!!
+        shadow.setNetworkCapabilities(current, capabilities(validated = true))
         val status = AndroidNetworkStatus(context)
-        // The new default network is already active when the old one is reported lost.
-        callback().onLost(old)
+        // The new default network is already active when a different, older one is reported lost.
+        callback().onLost(ShadowNetwork.newInstance(LOST_NET_ID))
         assertTrue(status.isOnline.value)
+    }
+
+    @Test
+    fun losingTheNetworkThatIsStillReportedActiveGoesOffline() {
+        val lost = manager.activeNetwork!!
+        shadow.setNetworkCapabilities(lost, capabilities(validated = true))
+        val status = AndroidNetworkStatus(context)
+        // activeNetwork may still name the network being lost while onLost runs.
+        callback().onLost(lost)
+        assertFalse(status.isOnline.value)
     }
 
     @Test
