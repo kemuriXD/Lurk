@@ -248,6 +248,8 @@ class ChannelScreenTest {
             ChannelUiState(PlatformSlice.Failed(LurkError.Offline), FollowState.Hidden, retrying = true),
         )
         rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
         rule.onNodeWithContentDescription("Loading").assertDoesNotExist()
     }

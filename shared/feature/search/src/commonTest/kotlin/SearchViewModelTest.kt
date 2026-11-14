@@ -606,7 +606,10 @@ class SearchViewModelTest {
             backgroundScope.launch { vm.state.collect {} }
             runCurrent()
 
-            assertTrue(vm.state.value.retrying.isEmpty())
+            assertTrue(
+                vm.state.value.retrying
+                    .isEmpty(),
+            )
             assertEquals(PlatformSlice.Failed(LurkError.Offline), vm.state.value.slices[Platform.TWITCH])
         }
 

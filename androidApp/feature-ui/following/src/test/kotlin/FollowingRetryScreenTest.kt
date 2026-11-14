@@ -98,6 +98,8 @@ class FollowingRetryScreenTest {
         rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
         rule.onAllNodesWithTag(ExpandedStreamCardTags.CARD).assertCountEquals(1)
         rule.onAllNodesWithTag(ExpandedStreamCardTags.PLACEHOLDER).assertCountEquals(0)
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithContentDescription("Retry loading Kick").assertIsNotEnabled()
     }
 
@@ -124,6 +126,8 @@ class FollowingRetryScreenTest {
             ).copy(retrying = setOf(Platform.TWITCH, Platform.KICK), refreshing = true),
         )
         rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
         rule.onAllNodesWithTag(ExpandedStreamCardTags.PLACEHOLDER).assertCountEquals(0)
     }

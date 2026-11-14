@@ -533,6 +533,8 @@ class SearchScreenTest {
             ).copy(retrying = setOf(Platform.TWITCH)),
         )
         rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithContentDescription("Retry loading Twitch").assertIsNotEnabled()
         rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
     }
@@ -549,6 +551,8 @@ class SearchScreenTest {
             ).copy(retrying = setOf(Platform.TWITCH, Platform.KICK)),
         )
         rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
     }
 }

@@ -234,7 +234,8 @@ class FollowingRetryViewModelTest {
 
                 sessions.signOut(Platform.KICK)
 
-                val state = awaitUntil { it.slices[Platform.KICK] == PlatformSlice.NotSignedIn && it.retrying.isEmpty() }
+                val state =
+                    awaitUntil { it.slices[Platform.KICK] == PlatformSlice.NotSignedIn && it.retrying.isEmpty() }
                 assertTrue(state.retrying.isEmpty())
                 cancelAndIgnoreRemainingEvents()
             }

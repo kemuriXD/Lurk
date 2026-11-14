@@ -256,9 +256,10 @@ private fun TextBesideOrAboveAction(
 /**
  * The action's button. Retry with a known wait counts the seconds down and stays off until they run out, and counts
  * down again after each try, since an equal failure would not change the action. With [namesPlatform], Retry names the
- * platform for screen readers ("Retry loading Kick"). While [retrying] a Retry stays on screen but is off, and a small
- * spinner leads its label once the retry has run [RETRY_PROGRESS_DELAY_MILLIS]: a retry that answers sooner shows no
- * progress at all, so a quick failure while offline never flashes.
+ * platform for screen readers ("Retry loading Kick"). While [retrying] a Retry stays on screen and ignores taps. For
+ * the first [RETRY_PROGRESS_DELAY_MILLIS] it looks as usual; after that a small spinner takes the label's place and the
+ * button turns off. A retry that answers sooner changes nothing on screen, so a quick failure while offline never
+ * flashes or dims.
  */
 @Composable
 private fun ErrorActionButton(
@@ -302,17 +303,20 @@ private fun ErrorActionButton(
             .heightIn(min = 48.dp)
             .then(
                 if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
-            ).then(if (busy) Modifier.semantics { stateDescription = loading } else Modifier)
+            ).then(if (showProgress) Modifier.semantics { stateDescription = loading } else Modifier)
     val onClick = {
-        handlers.perform(action, platform, onRetry)
-        if (wait != null) tries++
+        // A retry already running ignores taps, without the button changing its look.
+        if (!busy) {
+            handlers.perform(action, platform, onRetry)
+            if (wait != null) tries++
+        }
     }
     LogoActionButton(
         label = label,
         // Sign in is for one platform, so its logo leads the label.
         logo = platform.takeIf { action is ErrorAction.SignIn },
         filled = filled,
-        enabled = !waiting && !busy,
+        enabled = !waiting && !showProgress,
         onClick = onClick,
         modifier = buttonModifier,
         progress = showProgress,

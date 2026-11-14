@@ -1,6 +1,6 @@
 package io.github.kemurixd.lurk.designsystem.component
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -10,7 +10,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.model.Platform
@@ -41,8 +43,7 @@ internal fun LogoActionButton(
                 },
         ) {
             logo?.let { PlatformLogoLeading(it) }
-            if (progress) RetryProgress()
-            Text(label)
+            LabelOrProgress(label, progress)
         }
     } else {
         TextButton(
@@ -58,18 +59,28 @@ internal fun LogoActionButton(
                 },
         ) {
             logo?.let { PlatformLogoLeading(it) }
-            if (progress) RetryProgress()
-            Text(label)
+            LabelOrProgress(label, progress)
         }
     }
 }
 
-/** The small spinner that leads a Retry label while the retry runs. */
+/**
+ * The label, or while [progress] a small spinner in its place. The label stays in the layout, invisible, so the button
+ * keeps its width and nothing around it reflows.
+ */
 @Composable
-private fun RetryProgress() {
-    CircularProgressIndicator(
-        modifier = Modifier.padding(end = 8.dp).size(16.dp).testTag(ErrorTags.RETRY_PROGRESS),
-        color = LocalContentColor.current,
-        strokeWidth = 2.dp,
-    )
+private fun LabelOrProgress(
+    label: String,
+    progress: Boolean,
+) {
+    Box(contentAlignment = Alignment.Center) {
+        Text(label, modifier = Modifier.alpha(if (progress) 0f else 1f))
+        if (progress) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp).testTag(ErrorTags.RETRY_PROGRESS),
+                color = LocalContentColor.current,
+                strokeWidth = 2.dp,
+            )
+        }
+    }
 }

@@ -537,7 +537,10 @@ class ChannelViewModelTest {
                 runCurrent()
                 gate.complete(Unit)
                 runCurrent()
-                seen += cancelAndConsumeRemainingEvents().filterIsInstance<app.cash.turbine.Event.Item<ChannelUiState>>().map { it.value }
+                seen +=
+                    cancelAndConsumeRemainingEvents()
+                        .filterIsInstance<app.cash.turbine.Event.Item<ChannelUiState>>()
+                        .map { it.value }
                 assertTrue(seen.none { it.load == PlatformSlice.Loading }, "saw Loading: $seen")
             }
         }

@@ -178,10 +178,10 @@ class RetryFlashTest {
         compose.mainClock.autoAdvance = false
 
         retryButton().performClick()
-        // The request is still out: the error stays, the button is off.
+        // The request is still out: the error stays and the button keeps its live look for the first 300 ms.
         steppingFrames(8) {
             theErrorStateStaysWithoutASkeleton()
-            retryButton().assertIsNotEnabled()
+            retryButton().assertIsEnabled()
         }
         compose.runOnIdle { gate.complete(Unit) }
         // It fails again: still no skeleton, in any frame.
@@ -262,7 +262,7 @@ class RetryFlashTest {
             skeletons().assertCountEquals(0)
             compose.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
             compose.onNodeWithText("Streamer One").assertExists()
-            retryButton().assertIsNotEnabled()
+            retryButton().assertIsEnabled()
         }
         compose.runOnIdle { gate.complete(Unit) }
         steppingFrames(8) {

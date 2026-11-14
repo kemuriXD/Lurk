@@ -226,6 +226,8 @@ class CategoryScreenTest {
     fun aRetryingErrorStateStaysAndItsRetryIsOff() {
         show(state(slice = PlatformSlice.Failed(LurkError.Offline)).copy(retrying = true))
         rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
         rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
     }
@@ -236,6 +238,8 @@ class CategoryScreenTest {
             state(streams = listOf(stream()), loadMoreError = LurkError.Timeout).copy(retrying = true),
         )
         rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
     }
 }

@@ -404,6 +404,8 @@ class BrowseScreenTest {
         )
         rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
         rule.onNodeWithText("Streamer One").assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithContentDescription("Retry loading Kick").assertIsNotEnabled()
         rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
     }
@@ -416,6 +418,8 @@ class BrowseScreenTest {
                     .copy(retrying = setOf(Platform.TWITCH)),
         )
         rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithContentDescription("Retry loading Twitch").assertIsNotEnabled()
     }
 
@@ -433,6 +437,8 @@ class BrowseScreenTest {
                 ).copy(retrying = setOf(Platform.TWITCH, Platform.KICK)),
         )
         rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
         rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
     }
@@ -442,6 +448,8 @@ class BrowseScreenTest {
         show(categories = categoriesState(slice = PlatformSlice.Failed(LurkError.Offline)).copy(retrying = true))
         rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
         rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
     }
 
@@ -454,6 +462,8 @@ class BrowseScreenTest {
         )
         rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
         rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        // The spinner state, and the off button, come after the delay.
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
     }
 }

@@ -13,6 +13,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -327,14 +329,34 @@ class ErrorComponentsTest {
             )
         }
 
-        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        // A fast failure must not dim the button: it looks live and ignores taps for the first 300 ms.
+        rule.onNodeWithText("Retry").assertIsEnabled()
+        rule.onNodeWithText("Retry").performClick()
+        assertEquals(0, retries)
         progress.assertCountEquals(0)
         rule.mainClock.advanceTimeBy(250)
         progress.assertCountEquals(0)
+        rule.onNodeWithText("Retry").assertIsEnabled()
         rule.mainClock.advanceTimeBy(150)
         progress.assertCountEquals(1)
         rule.onNodeWithText("Retry").assertIsNotEnabled()
         assertEquals(0, retries)
+    }
+
+    @Test
+    fun theSpinnerTakesTheLabelsPlaceAndTheButtonKeepsItsWidth() {
+        rule.mainClock.autoAdvance = false
+        show { ErrorBanner("Couldn’t load Kick", LurkError.Timeout, onRetry = {}, retrying = busy.value) }
+        val button = rule.onNode(hasText("Retry") and hasClickAction())
+        val before = button.getBoundsInRoot()
+
+        rule.mainClock.advanceTimeBy(400)
+
+        progress.assertCountEquals(1)
+        val after = button.getBoundsInRoot()
+        assertEquals(before.right - before.left, after.right - after.left)
+        assertEquals(before.bottom - before.top, after.bottom - after.top)
+        assertEquals(before.left, after.left)
     }
 
     @Test

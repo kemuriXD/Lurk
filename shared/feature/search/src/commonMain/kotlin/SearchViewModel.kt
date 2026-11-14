@@ -138,11 +138,10 @@ class SearchViewModel(
     }
 
     private fun retry(platform: Platform) {
-        val target = platforms.firstOrNull { it.id == platform } ?: return
-        // A retry already running is not started again.
-        if (platform in core.value.retrying) return
+        val target = platforms.firstOrNull { it.id == platform }
         val query = core.value.query.trim()
-        if (query.isEmpty()) return
+        // A retry already running is not started again.
+        if (target == null || query.isEmpty() || platform in core.value.retrying) return
         retries.remove(platform)?.cancel()
         // A failure stays on screen while it is asked again, so the banner never gives way to a skeleton and back.
         core.update {
