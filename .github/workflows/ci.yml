@@ -25,6 +25,8 @@ jobs:
       - name: Build-logic tests
         run: ./gradlew -p build-logic :convention:test --stacktrace
       - name: Lint, test and assemble
+        # One invocation: the unit tests run once, and with verifyRoborazziDebug in the graph the same run also checks
+        # the screenshots.
         run: ./gradlew spotlessCheck detekt checkModuleBoundaries checkPackageLayout allTests testDebugUnitTest verifyRoborazziDebug :androidApp:app:assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
