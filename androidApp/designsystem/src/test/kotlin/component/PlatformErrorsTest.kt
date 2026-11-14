@@ -4,6 +4,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -135,5 +136,54 @@ class PlatformErrorsTest {
         rule.setContent { text = platformList(listOf("Twitch", "Kick", "X")) }
         rule.waitForIdle()
         assertEquals("Twitch, Kick or X", text)
+    }
+
+    @Test
+    fun aRetryingPlatformKeepsItsBannerAndDisablesItsRetry() {
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            LurkTheme(dynamicColor = false) {
+                ErrorHost(handlers) {
+                    LazyVerticalGrid(GridCells.Fixed(1)) {
+                        platformErrors(
+                            failures = both,
+                            nothingElse = false,
+                            allFailedTitle = R.string.error_load_platform,
+                            onRetry = { retried += it },
+                            retrying = setOf(Platform.TWITCH, Platform.KICK),
+                        )
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(400)
+
+        rule.onAllNodesWithTag(ErrorTags.BANNER).assertCountEquals(1)
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        rule.onAllNodesWithTag(ErrorTags.RETRY_PROGRESS).assertCountEquals(1)
+    }
+
+    @Test
+    fun theAllFailedStateKeepsItselfWhileAnyFailedPlatformRetries() {
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            LurkTheme(dynamicColor = false) {
+                ErrorHost(handlers) {
+                    LazyVerticalGrid(GridCells.Fixed(1)) {
+                        platformErrors(
+                            failures = both,
+                            nothingElse = true,
+                            allFailedTitle = R.string.error_load_platform,
+                            onRetry = { retried += it },
+                            retrying = setOf(Platform.KICK),
+                        )
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(400)
+
+        rule.onAllNodesWithTag(ErrorTags.STATE).assertCountEquals(1)
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -308,5 +310,91 @@ class ErrorComponentsTest {
         rule.onNodeWithText("fail").performClick()
         rule.onNodeWithText(text(R.string.error_unexpected)).assertIsDisplayed()
         rule.onNodeWithText("Retry").assertDoesNotExist()
+    }
+
+    private val busy = mutableStateOf(true)
+    private val progress get() = rule.onAllNodesWithTag(ErrorTags.RETRY_PROGRESS)
+
+    @Test
+    fun errorStateRetryingDisablesRetryAndShowsProgressOnlyAfterTheDelay() {
+        rule.mainClock.autoAdvance = false
+        show { ErrorState("Couldn’t load categories", LurkError.Offline, onRetry = { retries++ }, retrying = busy.value) }
+
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        progress.assertCountEquals(0)
+        rule.mainClock.advanceTimeBy(250)
+        progress.assertCountEquals(0)
+        rule.mainClock.advanceTimeBy(150)
+        progress.assertCountEquals(1)
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        assertEquals(0, retries)
+    }
+
+    @Test
+    fun aRetryThatEndsBeforeTheDelayNeverShowsProgress() {
+        rule.mainClock.autoAdvance = false
+        show { ErrorState("Couldn’t load categories", LurkError.Offline, onRetry = {}, retrying = busy.value) }
+
+        repeat(8) {
+            progress.assertCountEquals(0)
+            rule.mainClock.advanceTimeBy(16)
+        }
+        busy.value = false
+        rule.mainClock.advanceTimeBy(1_000)
+
+        progress.assertCountEquals(0)
+        rule.onNodeWithText("Retry").assertIsEnabled()
+    }
+
+    @Test
+    fun progressGoesWhenTheRetryEnds() {
+        rule.mainClock.autoAdvance = false
+        show { ErrorState("Couldn’t load categories", LurkError.Offline, onRetry = {}, retrying = busy.value) }
+        rule.mainClock.advanceTimeBy(400)
+        progress.assertCountEquals(1)
+
+        busy.value = false
+        rule.mainClock.advanceTimeBy(32)
+
+        progress.assertCountEquals(0)
+        rule.onNodeWithText("Retry").assertIsEnabled()
+    }
+
+    @Test
+    fun bannerRetryingKeepsTheBannerAndDisablesItsAction() {
+        rule.mainClock.autoAdvance = false
+        show {
+            ErrorBanner(
+                "Couldn’t load Kick",
+                LurkError.Timeout,
+                onRetry = { retries++ },
+                platform = Platform.KICK,
+                retrying = busy.value,
+            )
+        }
+        rule.mainClock.advanceTimeBy(400)
+
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithText("Couldn’t load Kick").assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        progress.assertCountEquals(1)
+    }
+
+    @Test
+    fun footerRetryingKeepsTheFooterAndDisablesItsAction() {
+        rule.mainClock.autoAdvance = false
+        show { ErrorFooter(Platform.TWITCH, LurkError.Timeout, onRetry = { retries++ }, retrying = busy.value) }
+        rule.mainClock.advanceTimeBy(400)
+
+        rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        progress.assertCountEquals(1)
+    }
+
+    @Test
+    fun retryingLeavesOtherActionsAlone() {
+        show { ErrorState("Couldn’t load this category", LurkError.NotFound, onRetry = {}, retrying = true) }
+        rule.onNodeWithText("Go back").assertIsEnabled()
+        progress.assertCountEquals(0)
     }
 }

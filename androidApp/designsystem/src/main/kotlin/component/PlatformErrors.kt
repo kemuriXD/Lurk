@@ -16,12 +16,14 @@ import io.github.kemurixd.lurk.designsystem.R
  * platform failed and nothing shows), one full-width [ErrorState] titled [allFailedTitle], whose Retry asks each failed
  * platform again. Otherwise one [ErrorBanner] per distinct failure, at the top of the list: platforms that failed the
  * same way share one banner ("Couldn’t load Twitch or Kick") whose Retry asks each; a sign-in error stays per platform.
- * [onRetry] asks one platform again.
+ * [onRetry] asks one platform again. A platform in [retrying] is being asked again: its surface stays where it is, with
+ * its Retry off, and a merged banner counts as retrying when any of its platforms does.
  */
 fun LazyGridScope.platformErrors(
     failures: List<Pair<Platform, LurkError>>,
     nothingElse: Boolean,
     @StringRes allFailedTitle: Int,
+    retrying: Set<Platform> = emptySet(),
     onRetry: (Platform) -> Unit,
 ) {
     if (failures.isEmpty()) return
@@ -33,6 +35,7 @@ fun LazyGridScope.platformErrors(
                 error = error,
                 onRetry = { failures.forEach { (failed, _) -> onRetry(failed) } },
                 platform = platform,
+                retrying = failures.any { (failed, _) -> failed in retrying },
             )
         }
         return
@@ -50,6 +53,7 @@ fun LazyGridScope.platformErrors(
                 onRetry = { platforms.forEach(onRetry) },
                 platform = platform,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                retrying = platforms.any { it in retrying },
             )
         }
     }

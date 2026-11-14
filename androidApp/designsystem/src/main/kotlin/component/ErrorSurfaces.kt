@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -53,6 +55,12 @@ import kotlin.math.ceil
 
 private const val SECOND_MILLIS = 1_000L
 
+/**
+ * How long a retry runs before its button shows a spinner. A retry that answers sooner (a request that fails at once
+ * while offline) shows no progress at all, which keeps the screen still instead of flashing a spinner.
+ */
+internal const val RETRY_PROGRESS_DELAY_MILLIS = 300L
+
 /** The share of the banner's text width the action may take and still sit beside the text. */
 private const val ACTION_BESIDE_SHARE = 0.4f
 
@@ -62,6 +70,7 @@ private val BannerPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 8.dp,
 /**
  * Full-screen failure, for a first load with nothing else to show: a tonal circle with the error's icon, [title]
  * ("Couldn't load categories"), the reason, and one filled button for [action]. [platform] is the one Sign in opens.
+ * While [retrying], the Retry button stays, disabled, and shows a small spinner once the retry has run a moment.
  */
 @Composable
 fun ErrorState(
@@ -71,6 +80,7 @@ fun ErrorState(
     modifier: Modifier = Modifier,
     platform: Platform? = null,
     action: ErrorAction? = error.action(firstPage = true),
+    retrying: Boolean = false,
 ) {
     val tone = error.tone()
     Column(
@@ -108,7 +118,7 @@ fun ErrorState(
         // The full screen's title already says what failed, and its Retry may ask several platforms, so the button
         // keeps its plain label.
         action.forPlatform(platform)?.let {
-            ErrorActionButton(it, platform, onRetry, filled = true, namesPlatform = false)
+            ErrorActionButton(it, platform, onRetry, filled = true, namesPlatform = false, retrying = retrying)
         }
     }
 }
@@ -116,7 +126,8 @@ fun ErrorState(
 /**
  * Inline failure at the top of a list that still shows something (Figma Banner): a full-width rounded card with the
  * error's icon, [title], one line of reason and a text action at the right. [reason] replaces the error's own copy
- * where the screen knows better.
+ * where the screen knows better. While [retrying], the action stays, disabled, and shows a small spinner once the retry
+ * has run a moment.
  */
 @Composable
 fun ErrorBanner(
@@ -127,6 +138,7 @@ fun ErrorBanner(
     platform: Platform? = null,
     action: ErrorAction? = error.action(firstPage = true),
     reason: String? = null,
+    retrying: Boolean = false,
 ) {
     BannerCard(
         title = title,
@@ -136,6 +148,7 @@ fun ErrorBanner(
         platform = platform,
         onRetry = onRetry,
         modifier = modifier.testTag(ErrorTags.BANNER),
+        retrying = retrying,
     )
 }
 
@@ -150,7 +163,8 @@ fun ErrorFooter(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     action: ErrorAction? = error.action(),
-) = ErrorFooter(listOf(platform), error, onRetry, modifier, action)
+    retrying: Boolean = false,
+) = ErrorFooter(listOf(platform), error, onRetry, modifier, action, retrying)
 
 @Composable
 internal fun BannerCard(
@@ -161,6 +175,7 @@ internal fun BannerCard(
     platform: Platform?,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    retrying: Boolean = false,
 ) {
     val tone = error.tone()
     val onContainer = tone.onContainer()
@@ -191,7 +206,7 @@ internal fun BannerCard(
             },
             action =
                 action.forPlatform(platform)?.let {
-                    { ErrorActionButton(it, platform, onRetry, filled = false, namesPlatform = true) }
+                    { ErrorActionButton(it, platform, onRetry, filled = false, namesPlatform = true, retrying = retrying) }
                 },
             modifier = Modifier.weight(1f),
         )
@@ -232,7 +247,9 @@ private fun TextBesideOrAboveAction(
 /**
  * The action's button. Retry with a known wait counts the seconds down and stays off until they run out, and counts
  * down again after each try, since an equal failure would not change the action. With [namesPlatform], Retry names the
- * platform for screen readers ("Retry loading Kick").
+ * platform for screen readers ("Retry loading Kick"). While [retrying] a Retry stays on screen but is off, and a small
+ * spinner leads its label once the retry has run [RETRY_PROGRESS_DELAY_MILLIS]: a retry that answers sooner shows no
+ * progress at all, so a quick failure while offline never flashes.
  */
 @Composable
 private fun ErrorActionButton(
@@ -241,8 +258,11 @@ private fun ErrorActionButton(
     onRetry: () -> Unit,
     filled: Boolean,
     namesPlatform: Boolean,
+    retrying: Boolean = false,
 ) {
     val handlers = LocalErrorHandlers.current
+    val busy = retrying && action is ErrorAction.Retry
+    val showProgress = rememberDelayed(busy, RETRY_PROGRESS_DELAY_MILLIS)
     val wait = (action as? ErrorAction.Retry)?.after
     var tries by remember(action) { mutableIntStateOf(0) }
     var secondsLeft by remember(action, tries) {
@@ -267,10 +287,11 @@ private fun ErrorActionButton(
         } else {
             null
         }
+    val loading = stringResource(R.string.loading)
     val buttonModifier =
         Modifier.heightIn(min = 48.dp).then(
             if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
-        )
+        ).then(if (busy) Modifier.semantics { stateDescription = loading } else Modifier)
     val onClick = {
         handlers.perform(action, platform, onRetry)
         if (wait != null) tries++
@@ -280,10 +301,29 @@ private fun ErrorActionButton(
         // Sign in is for one platform, so its logo leads the label.
         logo = platform.takeIf { action is ErrorAction.SignIn },
         filled = filled,
-        enabled = !waiting,
+        enabled = !waiting && !busy,
         onClick = onClick,
         modifier = buttonModifier,
+        progress = showProgress,
     )
+}
+
+/** True once [active] has held for [delayMillis]; false the moment it ends, and never at all for a shorter hold. */
+@Composable
+private fun rememberDelayed(
+    active: Boolean,
+    delayMillis: Long,
+): Boolean {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        if (active) {
+            delay(delayMillis)
+            shown = true
+        } else {
+            shown = false
+        }
+    }
+    return shown && active
 }
 
 private fun ErrorAction.isReadyRetry(waiting: Boolean): Boolean = this is ErrorAction.Retry && !waiting

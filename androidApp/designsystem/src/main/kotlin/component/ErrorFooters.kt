@@ -14,7 +14,7 @@ import io.github.kemurixd.lurk.designsystem.messageRes
 
 /**
  * The footer for several platforms whose next page failed the same way: one banner naming them all, whose [onRetry]
- * asks each again. A sign-in action is per platform, so it never shows here.
+ * asks each again. A sign-in action is per platform, so it never shows here. [retrying] is as for [ErrorBanner].
  */
 @Composable
 fun ErrorFooter(
@@ -23,6 +23,7 @@ fun ErrorFooter(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     action: ErrorAction? = error.action(),
+    retrying: Boolean = false,
 ) {
     BannerCard(
         title = stringResource(R.string.error_load_more, platformNames(platforms)),
@@ -32,6 +33,7 @@ fun ErrorFooter(
         platform = platforms.singleOrNull(),
         onRetry = onRetry,
         modifier = modifier.testTag(ErrorTags.FOOTER),
+        retrying = retrying,
     )
 }
 
