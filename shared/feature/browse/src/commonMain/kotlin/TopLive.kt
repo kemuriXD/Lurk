@@ -10,7 +10,9 @@ import io.github.kemurixd.lurk.feature.common.PlatformSlice
  * What the Top Live list shows.
  *
  * [streams] hold the pages in the order they arrived, each page sorted by viewers. [slices] describe each shown
- * platform's first page; a failed later page leaves its slice loaded and appears in [loadMoreErrors].
+ * platform's first page; a failed later page leaves its slice loaded and appears in [loadMoreErrors]. A platform in
+ * [retrying] is being asked again after a failure: its failure stays in [slices] or [loadMoreErrors] until the
+ * answer lands.
  */
 data class TopLiveUiState(
     val filter: PlatformFilter,
@@ -19,6 +21,7 @@ data class TopLiveUiState(
     val canLoadMore: Boolean,
     val loadingMore: Boolean,
     val loadMoreErrors: Map<Platform, LurkError> = emptyMap(),
+    val retrying: Set<Platform> = emptySet(),
 )
 
 sealed interface TopLiveIntent {

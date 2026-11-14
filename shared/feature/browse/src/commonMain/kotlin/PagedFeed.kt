@@ -30,7 +30,8 @@ internal data class Batch<T>(
  * Everything one platform has loaded for a paged list. [pages] keeps each fetched page apart, tagged with the batch
  * it belongs to, so a list that merges several platforms can sort a batch without touching the batches above it.
  * The cursor sits here, not in the slice (`PlatformSlice.Loaded` carries no cursor), and a load-more failure sits in
- * [moreError] while [slice] stays loaded.
+ * [moreError] while [slice] stays loaded. [retrying] is true while a retry of a failed first page or a failed next page
+ * runs: the failure stays on screen (no skeleton, no spinner row) until the answer lands.
  */
 internal data class PagedState<T>(
     val pages: List<Batch<T>> = emptyList(),
@@ -38,6 +39,7 @@ internal data class PagedState<T>(
     val cursor: String? = null,
     val loadingMore: Boolean = false,
     val moreError: LurkError? = null,
+    val retrying: Boolean = false,
 ) {
     val canLoadMore: Boolean get() = slice is PlatformSlice.Loaded && cursor != null
 }
@@ -75,13 +77,18 @@ internal class PagedFeed<T>(
         if (running == null && current.canLoadMore) launch(current.cursor, first = false, batch = batch)
     }
 
-    /** Reloads a failed first page, or tries a failed load-more again. */
+    /** Reloads a failed first page, or tries a failed load-more again, keeping the failure on screen meanwhile. */
     fun retry(batch: Int = 0) {
         if (running != null) return
         val current = mutableState.value
         when {
-            current.slice is PlatformSlice.Failed -> launch(cursor = null, first = true, batch = batch)
-            current.moreError != null -> loadMore(batch)
+            current.slice is PlatformSlice.Failed -> {
+                launch(cursor = null, first = true, batch = batch, retry = true)
+            }
+
+            current.moreError != null && current.canLoadMore -> {
+                launch(current.cursor, first = false, batch = batch, retry = true)
+            }
         }
     }
 
@@ -97,9 +104,14 @@ internal class PagedFeed<T>(
         cursor: String?,
         first: Boolean,
         batch: Int,
+        retry: Boolean = false,
     ) {
         mutableState.update {
-            if (first) PagedState(slice = PlatformSlice.Loading) else it.copy(loadingMore = true, moreError = null)
+            when {
+                retry -> it.copy(retrying = true)
+                first -> PagedState(slice = PlatformSlice.Loading)
+                else -> it.copy(loadingMore = true, moreError = null)
+            }
         }
         // Lazy, so the job is registered before it runs and can recognise itself in [running].
         val job = scope.launch(start = CoroutineStart.LAZY) { load(cursor, first, batch) }
@@ -120,7 +132,7 @@ internal class PagedFeed<T>(
         } finally {
             if (running === job) {
                 running = null
-                mutableState.update { it.copy(loadingMore = false) }
+                mutableState.update { it.copy(loadingMore = false, retrying = false) }
             }
         }
     }

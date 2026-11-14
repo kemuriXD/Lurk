@@ -425,4 +425,26 @@ class CategoryStreamsViewModelTest {
     private companion object {
         const val TOKEN = "stand-in-token"
     }
+
+    @Test
+    fun aRetryKeepsTheFailedSliceOnScreenAndMarksItRetrying() =
+        runTest {
+            kick.liveInCategory = { _, _, _ -> Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            val gate = CompletableDeferred<Unit>()
+            kick.liveInCategory = { _, _, _ ->
+                gate.await()
+                Outcome.Failure(LurkError.Offline)
+            }
+
+            vm.onIntent(CategoryStreamsIntent.Retry)
+            runCurrent()
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slice)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slice)
+            assertFalse(state.value.retrying)
+        }
 }

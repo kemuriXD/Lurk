@@ -330,4 +330,73 @@ class TopLiveViewModelTest {
 
             assertEquals(listOf(900L, 800L), state.value.streams.viewers())
         }
+
+    @Test
+    fun aRetryKeepsTheFailedSliceOnScreenAndMarksItRetrying() =
+        runTest {
+            kick.topLive = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            val gate = CompletableDeferred<Unit>()
+            kick.topLive = {
+                gate.await()
+                Outcome.Failure(LurkError.Offline)
+            }
+
+            vm.onIntent(TopLiveIntent.Retry(Platform.KICK))
+            runCurrent()
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slices[Platform.KICK])
+            assertEquals(setOf(Platform.KICK), state.value.retrying)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slices[Platform.KICK])
+            assertTrue(state.value.retrying.isEmpty())
+        }
+
+    @Test
+    fun aRetryThatSucceedsReplacesTheFailure() =
+        runTest {
+            kick.topLive = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            kick.topLive = { pageOf(s(Platform.KICK, "k1", 500)) }
+            vm.onIntent(TopLiveIntent.Retry(Platform.KICK))
+            runCurrent()
+
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.KICK])
+            assertTrue(state.value.retrying.isEmpty())
+        }
+
+    @Test
+    fun aLoadMoreRetryKeepsTheFooterErrorOnScreen() =
+        runTest {
+            var hold: CompletableDeferred<Unit>? = null
+            twitch.topLive = { cursor ->
+                if (cursor == null) {
+                    pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+                } else {
+                    hold?.await()
+                    Outcome.Failure(LurkError.Offline)
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertEquals(mapOf(Platform.TWITCH to LurkError.Offline), state.value.loadMoreErrors)
+
+            val gate = CompletableDeferred<Unit>()
+            hold = gate
+            vm.onIntent(TopLiveIntent.Retry(Platform.TWITCH))
+            runCurrent()
+
+            assertEquals(mapOf(Platform.TWITCH to LurkError.Offline), state.value.loadMoreErrors)
+            assertEquals(setOf(Platform.TWITCH), state.value.retrying)
+            assertFalse(state.value.loadingMore)
+            gate.complete(Unit)
+            runCurrent()
+            assertTrue(state.value.retrying.isEmpty())
+        }
 }

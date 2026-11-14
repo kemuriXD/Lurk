@@ -15,6 +15,7 @@ data class CategoryStreamsUiState(
     val canLoadMore: Boolean,
     val loadingMore: Boolean = false,
     val loadMoreError: LurkError? = null,
+    val retrying: Boolean = false,
     val sorts: List<CategorySort> = emptyList(),
     val sort: CategorySort? = null,
 )

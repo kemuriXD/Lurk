@@ -99,6 +99,7 @@ class CategoriesViewModel(
             canLoadMore = feed.canLoadMore,
             loadingMore = feed.loadingMore,
             loadMoreError = feed.moreError,
+            retrying = feed.retrying,
         )
 
         fun unavailable(platform: Platform) =

@@ -211,4 +211,57 @@ class CategoriesViewModelTest {
             assertEquals(2, requests)
             assertEquals(listOf("1"), state.value.categories.map { it.id })
         }
+
+    @Test
+    fun aRetryKeepsTheFailedSliceOnScreenAndMarksItRetrying() =
+        runTest {
+            twitch.categories = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            twitch.categories = {
+                gate.await()
+                Outcome.Failure(LurkError.Offline)
+            }
+
+            vm.onIntent(CategoriesIntent.Retry)
+            runCurrent()
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slice)
+            assertTrue(state.value.retrying)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slice)
+            assertFalse(state.value.retrying)
+        }
+
+    @Test
+    fun aLoadMoreRetryKeepsTheFooterErrorOnScreen() =
+        runTest {
+            var hold: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+            twitch.categories = { cursor ->
+                if (cursor == null) {
+                    pageOf(c(Platform.TWITCH, "1"), next = "p2")
+                } else {
+                    hold?.await()
+                    Outcome.Failure(LurkError.Timeout)
+                }
+            }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(CategoriesIntent.LoadMore)
+            runCurrent()
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            hold = gate
+
+            vm.onIntent(CategoriesIntent.Retry)
+            runCurrent()
+
+            assertEquals(LurkError.Timeout, state.value.loadMoreError)
+            assertTrue(state.value.retrying)
+            assertFalse(state.value.loadingMore)
+            gate.complete(Unit)
+            runCurrent()
+            assertFalse(state.value.retrying)
+        }
 }

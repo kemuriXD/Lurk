@@ -138,6 +138,7 @@ class CategoryStreamsViewModel(
         canLoadMore = feed.canLoadMore,
         loadingMore = feed.loadingMore,
         loadMoreError = feed.moreError,
+        retrying = feed.retrying,
         sorts = choice.options,
         sort = choice.sort,
     )

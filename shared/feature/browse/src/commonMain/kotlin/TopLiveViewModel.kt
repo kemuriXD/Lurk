@@ -125,6 +125,7 @@ class TopLiveViewModel(
                 canLoadMore = shown.values.any { it.canLoadMore },
                 loadingMore = shown.values.any { it.loadingMore },
                 loadMoreErrors = moreErrors,
+                retrying = shown.filterValues { it.retrying }.keys,
             )
         }
     }

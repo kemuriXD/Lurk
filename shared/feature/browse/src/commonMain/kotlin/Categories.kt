@@ -13,6 +13,7 @@ data class CategoriesUiState(
     val canLoadMore: Boolean,
     val loadingMore: Boolean = false,
     val loadMoreError: LurkError? = null,
+    val retrying: Boolean = false,
 )
 
 sealed interface CategoriesIntent {
