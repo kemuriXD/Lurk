@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,9 +41,10 @@ private val AvatarSize = 40.dp
 
 /**
  * One platform in the Accounts card (Figma AccountRow): who is signed in, and one button. Signed out offers Sign in,
- * signed in offers Sign out, and an expired session offers Sign in again beside Sign out.
+ * signed in offers Sign out, and an expired session offers Sign in again and Sign out on a line under the text.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 internal fun AccountRowItem(
     row: AccountRow,
     onIntent: (AccountsIntent) -> Unit,
@@ -49,35 +52,54 @@ internal fun AccountRowItem(
 ) {
     val platform = row.platform
     val content = rowContent(row)
-    Row(
-        modifier = modifier.fillMaxWidth().heightIn(min = 72.dp).padding(RowPadding),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Leading(platform, row.status)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = content.headline,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = content.supporting,
-                style = MaterialTheme.typography.bodyMedium,
-                color = content.supportingColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        val action = Modifier.testTag(SettingsTestTags.action(platform))
-        when (row.status) {
-            AccountStatus.SignedOut -> {
-                SignInButton(platform, R.string.sign_in, { onIntent(AccountsIntent.SignIn(platform)) }, action)
+    val action = Modifier.testTag(SettingsTestTags.action(platform))
+    // An expired row has two buttons, which take the whole width on a phone: they go on a line of their own under the
+    // text. The other rows keep their one button beside it.
+    val expired = row.status is AccountStatus.Expired
+    Column(modifier.fillMaxWidth().padding(RowPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Leading(platform, row.status)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                // Text wraps rather than ellipsizing: a name or status cut to "Not signe…" says nothing.
+                Text(
+                    text = content.headline,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = content.supporting,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = content.supportingColor,
+                )
             }
+            when (row.status) {
+                AccountStatus.SignedOut -> {
+                    SignInButton(platform, R.string.sign_in, { onIntent(AccountsIntent.SignIn(platform)) }, action)
+                }
 
-            is AccountStatus.Expired -> {
+                is AccountStatus.SignedIn -> {
+                    TextButton(onClick = { onIntent(AccountsIntent.SignOut(platform)) }, modifier = action) {
+                        Text(stringResource(R.string.sign_out))
+                    }
+                }
+
+                is AccountStatus.Expired -> {
+                    Unit
+                }
+            }
+        }
+        if (expired) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 // The stored session is kept until the user replaces it or removes it here.
                 TextButton(
                     onClick = { onIntent(AccountsIntent.SignOut(platform)) },
@@ -86,12 +108,6 @@ internal fun AccountRowItem(
                     Text(stringResource(R.string.sign_out))
                 }
                 SignInButton(platform, R.string.sign_in_again, { onIntent(AccountsIntent.SignIn(platform)) }, action)
-            }
-
-            is AccountStatus.SignedIn -> {
-                TextButton(onClick = { onIntent(AccountsIntent.SignOut(platform)) }, modifier = action) {
-                    Text(stringResource(R.string.sign_out))
-                }
             }
         }
     }
