@@ -319,24 +319,6 @@ private fun ErrorActionButton(
     )
 }
 
-/** True once [active] has held for [delayMillis]; false the moment it ends, and never at all for a shorter hold. */
-@Composable
-private fun rememberDelayed(
-    active: Boolean,
-    delayMillis: Long,
-): Boolean {
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(active) {
-        if (active) {
-            delay(delayMillis)
-            shown = true
-        } else {
-            shown = false
-        }
-    }
-    return shown && active
-}
-
 private fun ErrorAction.isReadyRetry(waiting: Boolean): Boolean = this is ErrorAction.Retry && !waiting
 
 /** Figma Banner tones: Info for being offline or signed out, Warning for a platform change, Error for the rest. */

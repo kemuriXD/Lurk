@@ -27,8 +27,8 @@ sealed interface FollowState {
 }
 
 /**
- * The Channel page: the channel's profile and the Follow button. [retrying] is true while a failed [load] is being asked
- * again: the failure stays in [load] until the answer lands.
+ * The Channel page: the channel's profile and the Follow button. [retrying] is true while a failed [load] is being
+ * asked again: the failure stays in [load] until the answer lands.
  */
 data class ChannelUiState(
     val load: PlatformSlice<Channel> = PlatformSlice.Loading,

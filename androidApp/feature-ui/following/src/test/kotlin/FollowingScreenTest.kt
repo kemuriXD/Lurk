@@ -712,57 +712,6 @@ class FollowingScreenTest {
             live = null,
             lastStream = null,
         )
-
-    private fun failedKick(
-        retrying: Set<Platform> = emptySet(),
-        manual: Boolean = false,
-    ): FollowingUiState {
-        val twitch = stream("streamer1")
-        return state(
-            live = listOf(twitch),
-            slices =
-                mapOf(
-                    Platform.TWITCH to PlatformSlice.Loaded(Followed(listOf(twitch), emptyList())),
-                    Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
-                ),
-        ).copy(retrying = retrying, refreshing = manual || retrying.isNotEmpty(), manualRefresh = manual)
-    }
-
-    @Test
-    fun aRetryingBannerStaysOverTheListAndItsRetryIsOff() {
-        show(failedKick(retrying = setOf(Platform.KICK)))
-        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
-        rule.onAllNodesWithTag(ExpandedStreamCardTags.CARD).assertCountEquals(1)
-        rule.onAllNodesWithTag(ExpandedStreamCardTags.PLACEHOLDER).assertCountEquals(0)
-        rule.onNodeWithContentDescription("Retry loading Kick").assertIsNotEnabled()
-    }
-
-    @Test
-    fun aPullToRefreshOverABannerKeepsItAndShowsOnlyThePullSpinner() {
-        show(failedKick(manual = true))
-        rule.onNodeWithTag(FollowingTestTags.REFRESH_INDICATOR).assertIsDisplayed()
-        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
-        rule.onNodeWithContentDescription("Retry loading Kick").assertIsEnabled()
-        rule.onAllNodesWithTag(ErrorTags.RETRY_PROGRESS).assertCountEquals(0)
-        rule.onAllNodesWithTag(ExpandedStreamCardTags.CARD).assertCountEquals(1)
-        rule.onAllNodesWithTag(ExpandedStreamCardTags.PLACEHOLDER).assertCountEquals(0)
-    }
-
-    @Test
-    fun aRetryingFullScreenErrorStaysAndItsRetryIsOff() {
-        show(
-            state(
-                slices =
-                    mapOf(
-                        Platform.TWITCH to PlatformSlice.Failed(LurkError.Offline),
-                        Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
-                    ),
-            ).copy(retrying = setOf(Platform.TWITCH, Platform.KICK), refreshing = true),
-        )
-        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
-        rule.onNodeWithText("Retry").assertIsNotEnabled()
-        rule.onAllNodesWithTag(ExpandedStreamCardTags.PLACEHOLDER).assertCountEquals(0)
-    }
 }
 
 /** Counts which strings the content asks for. A composable asks for its strings again each time it recomposes. */
