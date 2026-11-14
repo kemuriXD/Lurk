@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -518,6 +519,38 @@ class SearchScreenTest {
                     avatarUrl = null,
                 ),
         )
+
+    @Test
+    fun aRetryingBannerStaysOverTheResultsAndItsRetryIsOff() {
+        show(
+            results(
+                channels = listOf(channel("pixelotter", Platform.KICK)),
+                slices =
+                    mapOf(
+                        Platform.TWITCH to PlatformSlice.Failed(LurkError.Offline),
+                        Platform.KICK to PlatformSlice.Loaded(Unit),
+                    ),
+            ).copy(retrying = setOf(Platform.TWITCH)),
+        )
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Twitch").assertIsNotEnabled()
+        rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
+    }
+
+    @Test
+    fun aRetryingErrorStateStaysAndItsRetryIsOff() {
+        show(
+            results(
+                slices =
+                    mapOf(
+                        Platform.TWITCH to PlatformSlice.Failed(LurkError.Offline),
+                        Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
+                    ),
+            ).copy(retrying = setOf(Platform.TWITCH, Platform.KICK)),
+        )
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+    }
 }
 
 /** Counts which strings the content asks for. A composable asks for its strings again each time it recomposes. */

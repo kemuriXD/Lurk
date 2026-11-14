@@ -368,6 +368,7 @@ private fun LazyGridScope.searchErrors(
         failures = failures,
         nothingElse = failures.size == state.slices.size && nothingFound,
         allFailedTitle = R.string.search_error_title,
+        retrying = state.retrying,
         onRetry = { onIntent(SearchIntent.Retry(it)) },
     )
 }
