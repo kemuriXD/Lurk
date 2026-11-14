@@ -648,4 +648,27 @@ class SearchViewModelTest {
 
             assertTrue(state.value.retrying.isEmpty())
         }
+
+    @Test
+    fun aNewRetryAfterARestartKeepsItsOwnMarkWhenTheCutOffOneUnwinds() =
+        runTest {
+            twitch.search = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val collector = backgroundScope.launch { vm.state.collect {} }
+            runCurrent()
+            type(vm, "pix")
+            twitch.search = { CompletableDeferred<Outcome<SearchResults>>().await() }
+            vm.onIntent(SearchIntent.Retry(Platform.TWITCH))
+            runCurrent()
+            collector.cancel()
+            advanceTimeBy(5_001)
+            runCurrent()
+            backgroundScope.launch { vm.state.collect {} }
+            runCurrent()
+
+            vm.onIntent(SearchIntent.Retry(Platform.TWITCH))
+            runCurrent()
+
+            assertEquals(setOf(Platform.TWITCH), vm.state.value.retrying)
+        }
 }

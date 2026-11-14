@@ -14,10 +14,13 @@ import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.common.loadBoth
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -87,12 +90,35 @@ class ChannelViewModel(
             owners.collectLatest(::accountChanged)
         }
 
-    val state: StateFlow<ChannelUiState> =
-        merge(combine(data, owners, ::uiState), autoLoad).stateIn(
+    /** The last value with the account its follow state belongs to. Kept after the 5 s stop, so no skeleton returns. */
+    private val cached: StateFlow<Cached> =
+        merge(combine(data, owners) { d, o -> Cached(uiState(d, o), o) }, autoLoad).stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-            initialValue = uiState(data.value, ownerOf(platform.id, accounts.states.value)),
+            initialValue = ownerOf(platform.id, accounts.states.value).let { Cached(uiState(data.value, it), it) },
         )
+
+    /**
+     * What the screen shows. The cached value is read through [coerce], so a value cached for another account never
+     * reaches the screen, not even for the first frame after a collector returns.
+     */
+    @OptIn(ExperimentalForInheritanceCoroutinesApi::class)
+    val state: StateFlow<ChannelUiState> =
+        object : StateFlow<ChannelUiState> {
+            override val replayCache: List<ChannelUiState> get() = listOf(value)
+
+            override val value: ChannelUiState get() = coerce(cached.value, currentOwner())
+
+            override suspend fun collect(collector: FlowCollector<ChannelUiState>): Nothing {
+                cached.map { coerce(it, currentOwner()) }.distinctUntilChanged().collect(collector)
+                awaitCancellation()
+            }
+        }
+
+    private data class Cached(
+        val ui: ChannelUiState,
+        val owner: String?,
+    )
 
     fun onIntent(intent: ChannelIntent) {
         when (intent) {
@@ -107,7 +133,7 @@ class ChannelViewModel(
 
     private fun retry() {
         // A retry already running is not started again.
-        if (data.value.retrying) return
+        if (data.value.retrying || channelJob?.isActive == true) return
         // A failure stays on screen while it is asked again, so the error never gives way to a skeleton and back.
         loadChannel(keepFailure = data.value.slice is PlatformSlice.Failed)
         currentOwner()?.let(::loadFollowed)
@@ -250,6 +276,17 @@ class ChannelViewModel(
 
         fun Followed.contains(ref: ChannelRef): Boolean =
             live.any { it.key == ref.key } || offline.any { it.key == ref.key }
+
+        /** The cached state if it is for the signed-in account [now]; otherwise the same state with Follow reset. */
+        fun coerce(
+            cached: Cached,
+            now: String?,
+        ): ChannelUiState =
+            if (cached.owner == now) {
+                cached.ui
+            } else {
+                cached.ui.copy(follow = if (now == null) FollowState.Hidden else FollowState.Unknown)
+            }
 
         fun uiState(
             data: Data,

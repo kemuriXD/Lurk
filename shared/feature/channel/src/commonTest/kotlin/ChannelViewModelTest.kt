@@ -19,6 +19,7 @@ import io.github.kemurixd.lurk.feature.testing.FakeProfileFetcher
 import io.github.kemurixd.lurk.feature.testing.FakeStreamingPlatform
 import io.github.kemurixd.lurk.feature.testing.InMemorySecureStore
 import io.github.kemurixd.lurk.feature.testing.TestDispatchers
+import io.github.kemurixd.lurk.feature.testing.testAccount
 import io.github.kemurixd.lurk.feature.testing.testChannel
 import io.github.kemurixd.lurk.feature.testing.testStream
 import kotlinx.coroutines.CompletableDeferred
@@ -543,5 +544,72 @@ class ChannelViewModelTest {
                         .map { it.value }
                 assertTrue(seen.none { it.load == PlatformSlice.Loading }, "saw Loading: $seen")
             }
+        }
+
+    @Test
+    fun anAccountChangeWhileUnsubscribedNeverShowsThePreviousFollowStateOnReturn() =
+        runTest {
+            val vm = viewModel(kick, accounts(Platform.KICK))
+            vm.state.test {
+                awaitUntil { it.follow == FollowState.NotFollowing }
+                cancelAndIgnoreRemainingEvents()
+            }
+            dispatcher.scheduler.advanceTimeBy(5_001)
+            runCurrent()
+            sessions.signOut(Platform.KICK)
+
+            // What a screen reads for its first composition, then what it collects first.
+            val first = vm.state.value
+            assertEquals(FollowState.Hidden, first.follow)
+            assertTrue(first.load != PlatformSlice.Loading)
+            vm.state.test {
+                val seen = mutableListOf(awaitItem())
+                runCurrent()
+                seen +=
+                    cancelAndConsumeRemainingEvents()
+                        .filterIsInstance<app.cash.turbine.Event.Item<ChannelUiState>>()
+                        .map { it.value }
+                assertTrue(seen.all { it.follow == FollowState.Hidden }, "saw another account's state: $seen")
+                assertTrue(seen.none { it.load == PlatformSlice.Loading })
+            }
+        }
+
+    @Test
+    fun switchingToAnotherAccountWhileUnsubscribedShowsNoFollowStateUntilItsOwnLoads() =
+        runTest {
+            val vm = viewModel(kick, accounts(Platform.KICK))
+            vm.state.test {
+                awaitUntil { it.follow == FollowState.NotFollowing }
+                cancelAndIgnoreRemainingEvents()
+            }
+            dispatcher.scheduler.advanceTimeBy(5_001)
+            runCurrent()
+            fetchers.getValue(Platform.KICK).result =
+                Outcome.Success(testAccount(Platform.KICK, "streamer2", "Streamer Two", "1000002"))
+            sessions.signOut(Platform.KICK)
+            sessions.signIn(Platform.KICK, TOKEN)
+
+            assertEquals(FollowState.Unknown, vm.state.value.follow)
+        }
+
+    @Test
+    fun aRetryWhileTheFirstLoadRunsIsIgnored() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            twitch.channel = {
+                gate.await()
+                Outcome.Success(testChannel(Platform.TWITCH))
+            }
+            val vm = viewModel(twitch, accounts())
+            keepCollecting(vm)
+            val calls = twitch.channelCalls
+
+            vm.onIntent(ChannelIntent.Retry)
+            runCurrent()
+
+            assertEquals(calls, twitch.channelCalls)
+            gate.complete(Unit)
+            runCurrent()
+            assertTrue(vm.state.value.loaded())
         }
 }

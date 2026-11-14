@@ -14,8 +14,10 @@ import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.loadBoth
 import io.github.kemurixd.lurk.feature.common.withLastLive
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration
@@ -151,14 +154,19 @@ class SearchViewModel(
                 it.copy(status = it.status + (platform to PlatformSlice.Loading))
             }
         }
-        retries[platform] =
-            viewModelScope.launch {
+        // Lazy, so the job is registered before it runs and can recognise itself in [retries].
+        val job =
+            viewModelScope.launch(start = CoroutineStart.LAZY) {
+                val me = currentCoroutineContext().job
                 try {
                     load(target, query)
                 } finally {
-                    core.update { it.copy(retrying = it.retrying - platform) }
+                    // Only the retry that still owns the mark clears it: a newer one for this platform keeps its own.
+                    if (retries[platform] === me) core.update { it.copy(retrying = it.retrying - platform) }
                 }
             }
+        retries[platform] = job
+        job.start()
     }
 
     private suspend fun load(
