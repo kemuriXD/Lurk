@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SingleChoiceSegmentedButtonRowScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -45,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -52,6 +54,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.kemurixd.lurk.core.model.Category
@@ -59,12 +62,14 @@ import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.ChannelRow
+import io.github.kemurixd.lurk.designsystem.component.CollapsibleHeader
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.component.platformErrors
+import io.github.kemurixd.lurk.designsystem.component.rememberCompactHeight
 import io.github.kemurixd.lurk.designsystem.time.rememberNowState
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
@@ -126,9 +131,16 @@ fun SearchScreen(
     modifier: Modifier = Modifier,
 ) {
     val gridState = rememberLazyGridState()
-    // A new search starts at the top, whatever the previous list was scrolled to.
+    // A new search starts at the top, whatever the previous list was scrolled to. The query a scroll was last reset
+    // for is saved, so a rotation, which composes the screen again with the same query, keeps the position.
     val query = state.query.trim()
-    LaunchedEffect(query) { gridState.scrollToItem(0) }
+    var scrolledFor by rememberSaveable { mutableStateOf(query) }
+    LaunchedEffect(query) {
+        if (scrolledFor != query) {
+            scrolledFor = query
+            gridState.scrollToItem(0)
+        }
+    }
     // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in. Only
     // the offline rows read it, so a tick redraws their text and leaves the screen and the live rows alone.
     val now = rememberNowState()
@@ -144,34 +156,50 @@ fun SearchScreen(
                 )
             }
         } else {
-            Progress(searching = state.phase == SearchPhase.TYPING)
-            TypeSwitch(selected = state.type, onSelect = { onIntent(SearchIntent.SelectType(it)) })
-            PlatformFilterChips(
-                selected = state.filter,
-                onSelect = { onIntent(SearchIntent.SelectFilter(it)) },
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
-            if (state.phase == SearchPhase.NO_RESULTS) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    EmptyState(
-                        title = stringResource(state.type.noResultsTitle(), state.query.trim()),
-                        body = stringResource(R.string.no_results_body),
-                        action = null,
-                        icon = DesignR.drawable.ic_search,
-                    )
-                }
-            } else {
-                val categoriesOnly = state.type == SearchType.CATEGORIES
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = if (categoriesOnly) TileGridMin else 300.dp),
-                    state = gridState,
-                    modifier = Modifier.weight(1f).fillMaxWidth().testTag(SearchTestTags.LIST),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                ) {
-                    results(state, now, onIntent, onOpenChannel, onOpenCategory)
+            // In a landscape phone only the field stays pinned; the filters scroll away with the list.
+            CollapsibleHeader(
+                collapsible = rememberCompactHeight(),
+                modifier = Modifier.weight(1f),
+                header = { SearchFilters(state, onIntent) },
+            ) {
+                if (state.phase == SearchPhase.NO_RESULTS) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        EmptyState(
+                            title = stringResource(state.type.noResultsTitle(), state.query.trim()),
+                            body = stringResource(R.string.no_results_body),
+                            action = null,
+                            icon = DesignR.drawable.ic_search,
+                        )
+                    }
+                } else {
+                    val categoriesOnly = state.type == SearchType.CATEGORIES
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = if (categoriesOnly) TileGridMin else 300.dp),
+                        state = gridState,
+                        modifier = Modifier.weight(1f).fillMaxWidth().testTag(SearchTestTags.LIST),
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                    ) {
+                        results(state, now, onIntent, onOpenChannel, onOpenCategory)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SearchFilters(
+    state: SearchUiState,
+    onIntent: (SearchIntent) -> Unit,
+) {
+    Column {
+        Progress(searching = state.phase == SearchPhase.TYPING)
+        TypeSwitch(selected = state.type, onSelect = { onIntent(SearchIntent.SelectType(it)) })
+        PlatformFilterChips(
+            selected = state.filter,
+            onSelect = { onIntent(SearchIntent.SelectFilter(it)) },
+            modifier = Modifier.padding(vertical = 8.dp),
+        )
     }
 }
 
@@ -231,42 +259,6 @@ private fun SearchField(
             ),
     )
 }
-
-/** All / Channels / Categories, in the same segmented style as Browse's Top Live / Categories switch. */
-@Composable
-private fun TypeSwitch(
-    selected: SearchType,
-    onSelect: (SearchType) -> Unit,
-) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        val types = SearchType.entries
-        types.forEachIndexed { index, type ->
-            SegmentedButton(
-                selected = type == selected,
-                onClick = { onSelect(type) },
-                shape = SegmentedButtonDefaults.itemShape(index, types.size),
-                modifier = Modifier.testTag(type.tag()).heightIn(min = 48.dp),
-            ) {
-                Text(
-                    stringResource(
-                        when (type) {
-                            SearchType.ALL -> R.string.type_all
-                            SearchType.CHANNELS -> R.string.type_channels
-                            SearchType.CATEGORIES -> R.string.type_categories
-                        },
-                    ),
-                )
-            }
-        }
-    }
-}
-
-private fun SearchType.tag(): String =
-    when (this) {
-        SearchType.ALL -> SearchTestTags.TYPE_ALL
-        SearchType.CHANNELS -> SearchTestTags.TYPE_CHANNELS
-        SearchType.CATEGORIES -> SearchTestTags.TYPE_CATEGORIES
-    }
 
 /** The 4 dp strip under the field. It keeps its height when idle so the chips don't jump. */
 @Composable
