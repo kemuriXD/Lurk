@@ -1,8 +1,10 @@
 package io.github.kemurixd.lurk.featureui.browse
 
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -15,6 +17,7 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
 import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.component.ErrorTags
+import io.github.kemurixd.lurk.designsystem.component.PlatformTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsIntent
 import io.github.kemurixd.lurk.feature.browse.CategoryStreamsUiState
@@ -179,6 +182,13 @@ class CategoryScreenTest {
             ),
         )
         rule.onNodeWithText("Viewers (high to low)").assertDoesNotExist()
+    }
+
+    @Test
+    fun streamCardsLeaveOutTheBadgeTheHeaderAlreadyShows() {
+        show(state(streams = listOf(stream())))
+        // The one badge on screen is the header's.
+        rule.onAllNodesWithTag(PlatformTags.BADGE, useUnmergedTree = true).assertCountEquals(1)
     }
 
     private fun state(

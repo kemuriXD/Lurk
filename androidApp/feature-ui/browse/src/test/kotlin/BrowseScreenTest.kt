@@ -1,8 +1,10 @@
 package io.github.kemurixd.lurk.featureui.browse
 
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -16,6 +18,7 @@ import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
 import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardTags
+import io.github.kemurixd.lurk.designsystem.component.PlatformTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.feature.browse.CategoriesIntent
 import io.github.kemurixd.lurk.feature.browse.CategoriesUiState
@@ -241,6 +244,45 @@ class BrowseScreenTest {
         rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
         rule.onNodeWithContentDescription("Retry loading Twitch").performClick()
         assertEquals(listOf<CategoriesIntent>(CategoriesIntent.Retry), categoryIntents)
+    }
+
+    private fun badges() = rule.onAllNodesWithTag(PlatformTags.BADGE, useUnmergedTree = true)
+
+    private fun logos(platform: Platform) = rule.onAllNodesWithTag(PlatformTags.logo(platform), useUnmergedTree = true)
+
+    @Test
+    fun topLiveShowsBadgesUnderTheAllFilter() {
+        show(topLive = topLiveState())
+        badges().assertCountEquals(1)
+    }
+
+    @Test
+    fun topLiveHidesBadgesUnderASinglePlatformFilter() {
+        show(topLive = topLiveState().copy(filter = PlatformFilter.TWITCH))
+        badges().assertCountEquals(0)
+    }
+
+    @Test
+    fun topLiveChipsLeadWithTheirLogos() {
+        show()
+        logos(Platform.TWITCH).assertCountEquals(1)
+        logos(Platform.KICK).assertCountEquals(1)
+    }
+
+    @Test
+    fun categoryTilesHideTheirBadgeUnderThePlatformSwitch() {
+        show(categories = categoriesState(categories = listOf(category("1"))))
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        rule.onNodeWithText("Category 1").assertIsDisplayed()
+        badges().assertCountEquals(0)
+    }
+
+    @Test
+    fun platformSwitchSegmentsLeadWithTheirLogos() {
+        show()
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        logos(Platform.TWITCH).assertCountEquals(1)
+        logos(Platform.KICK).assertCountEquals(1)
     }
 
     private fun topLiveState(

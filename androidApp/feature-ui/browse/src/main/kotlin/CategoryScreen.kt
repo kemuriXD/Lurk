@@ -172,6 +172,8 @@ private fun LazyGridScope.streamContent(
                     onOpenPlayer = { onOpenPlayer(stream) },
                     onOpenChannel = { onOpenChannel(stream.channel) },
                     modifier = Modifier.padding(ContentPadding),
+                    // The header already names the platform, and the whole list is its streams.
+                    showPlatform = false,
                 )
             }
         }

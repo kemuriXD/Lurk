@@ -40,6 +40,7 @@ import io.github.kemurixd.lurk.designsystem.component.CategoryTile
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
+import io.github.kemurixd.lurk.designsystem.component.PlatformLogo
 import io.github.kemurixd.lurk.designsystem.component.StreamCard
 import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
@@ -50,6 +51,7 @@ import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
 import io.github.kemurixd.lurk.feature.browse.TopLiveIntent
 import io.github.kemurixd.lurk.feature.browse.TopLiveUiState
 import io.github.kemurixd.lurk.feature.browse.TopLiveViewModel
+import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import org.koin.compose.viewmodel.koinViewModel
@@ -192,10 +194,9 @@ private fun PlatformSwitch(
                                 BrowseTestTags.PLATFORM_KICK
                             },
                         ).heightIn(min = 48.dp),
+                icon = { PlatformLogo(platform, size = SegmentedButtonDefaults.IconSize) },
             ) {
-                Text(
-                    stringResource(platform.labelRes),
-                )
+                Text(stringResource(platform.labelRes))
             }
         }
     }
@@ -242,6 +243,7 @@ private fun TopLiveGrid(
                         onOpenPlayer = { onOpenPlayer(stream) },
                         onOpenChannel = { onOpenChannel(stream.channel) },
                         modifier = Modifier.padding(ContentPadding),
+                        showPlatform = state.filter == PlatformFilter.ALL,
                     )
                 }
             }
@@ -299,7 +301,8 @@ private fun LazyGridScope.categoryContent(
     when {
         state.categories.isNotEmpty() -> {
             items(state.categories, key = { "${it.platform.name}:${it.id}" }) { category ->
-                CategoryTile(category = category, onClick = { onOpenCategory(category) })
+                // One platform at a time, named by the switch above, so the tiles need no badge.
+                CategoryTile(category = category, onClick = { onOpenCategory(category) }, showPlatform = false)
             }
         }
 
