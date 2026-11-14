@@ -247,6 +247,21 @@ class BrowseScreenTest {
     }
 
     @Test
+    fun aDeadEndOnOnePlatformStillLoadsMoreOfTheOther() {
+        // Twitch's next page failed for good; Kick still has a cursor (the state says it can load more).
+        show(
+            topLive =
+                topLiveState(
+                    streams = listOf(stream()),
+                    canLoadMore = true,
+                    loadMoreErrors = mapOf(Platform.TWITCH to LurkError.SchemaChanged),
+                ),
+        )
+        rule.waitForIdle()
+        assertEquals(listOf<TopLiveIntent>(TopLiveIntent.LoadMore), topLiveIntents)
+    }
+
+    @Test
     fun noLoadMoreWhenThereIsNothingMore() {
         show(topLive = topLiveState(streams = listOf(stream()), canLoadMore = false))
         rule.waitForIdle()

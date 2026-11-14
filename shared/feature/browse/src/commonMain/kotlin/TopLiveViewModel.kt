@@ -92,12 +92,16 @@ class TopLiveViewModel(
         }
     }
 
-    /** One load-more for all shown platforms together; while any of them is busy nothing starts. */
+    /**
+     * One load-more for all shown platforms together; while any of them is busy nothing starts. A platform whose next
+     * page failed sits it out: a retryable failure waits for its Retry, and a dead end has no cursor left. The other
+     * platforms keep paging.
+     */
     private fun loadMore() {
         val shown = feeds.filterKeys(filter.value::includes).values
         if (shown.none { it.busy }) {
             val batch = nextBatch++
-            shown.forEach { it.loadMore(batch) }
+            shown.filter { it.state.value.canPageOn }.forEach { it.loadMore(batch) }
         }
     }
 
@@ -122,7 +126,7 @@ class TopLiveViewModel(
                 filter = selected,
                 streams = streams,
                 slices = shown.mapValues { it.value.slice },
-                canLoadMore = shown.values.any { it.canLoadMore },
+                canLoadMore = shown.values.any { it.canPageOn },
                 loadingMore = shown.values.any { it.loadingMore },
                 loadMoreErrors = moreErrors,
                 retrying = shown.filterValues { it.retrying }.keys,

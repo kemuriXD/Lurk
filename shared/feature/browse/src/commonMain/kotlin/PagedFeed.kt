@@ -42,6 +42,9 @@ internal data class PagedState<T>(
     val retrying: Boolean = false,
 ) {
     val canLoadMore: Boolean get() = slice is PlatformSlice.Loaded && cursor != null
+
+    /** Whether a plain load-more may ask for the next page: there is one, and no failed page waits for its Retry. */
+    val canPageOn: Boolean get() = canLoadMore && moreError == null
 }
 
 /**

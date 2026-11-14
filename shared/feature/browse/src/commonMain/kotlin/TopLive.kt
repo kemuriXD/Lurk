@@ -12,7 +12,8 @@ import io.github.kemurixd.lurk.feature.common.PlatformSlice
  * [streams] hold the pages in the order they arrived, each page sorted by viewers. [slices] describe each shown
  * platform's first page; a failed later page leaves its slice loaded and appears in [loadMoreErrors]. A platform in
  * [retrying] is being asked again after a failure: its failure stays in [slices] or [loadMoreErrors] until the
- * answer lands.
+ * answer lands. [canLoadMore] is true while some shown platform can fetch its next page now: one whose next page
+ * failed waits for its Retry or has reached its end, and doesn't hold the others back.
  */
 data class TopLiveUiState(
     val filter: PlatformFilter,
@@ -29,7 +30,7 @@ sealed interface TopLiveIntent {
         val filter: PlatformFilter,
     ) : TopLiveIntent
 
-    /** Fetches the next page of every shown platform that has one. Ignored while anything is loading. */
+    /** Fetches the next page of every shown platform that has one and no failed page waiting. Ignored while busy. */
     data object LoadMore : TopLiveIntent
 
     /** Starts over from the first pages. */

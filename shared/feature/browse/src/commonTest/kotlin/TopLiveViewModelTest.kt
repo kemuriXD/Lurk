@@ -194,7 +194,73 @@ class TopLiveViewModelTest {
             assertEquals(listOf(900L), state.value.streams.viewers())
             assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.TWITCH])
             assertEquals(mapOf(Platform.TWITCH to LurkError.Offline), state.value.loadMoreErrors)
+            // The failed page waits for its Retry; nothing else can page.
+            assertFalse(state.value.canLoadMore)
+        }
+
+    /** Kick pages on and on: each page has a next one. */
+    private fun endlessKick() {
+        kick.topLive = { cursor ->
+            val n = cursor?.removePrefix("k")?.toInt() ?: 1
+            pageOf(s(Platform.KICK, "k$n", 500L - n), next = "k${n + 1}")
+        }
+    }
+
+    @Test
+    fun aDeadEndOnOnePlatformLeavesTheOtherPaging() =
+        runTest {
+            twitch.topLive = { cursor ->
+                if (cursor ==
+                    null
+                ) {
+                    pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+                } else {
+                    Outcome.Failure(LurkError.SchemaChanged)
+                }
+            }
+            endlessKick()
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertEquals(mapOf(Platform.TWITCH to LurkError.SchemaChanged), state.value.loadMoreErrors)
             assertTrue(state.value.canLoadMore)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            assertEquals(2, twitch.topLiveCalls)
+            assertEquals(3, kick.topLiveCalls)
+            assertEquals(mapOf(Platform.TWITCH to LurkError.SchemaChanged), state.value.loadMoreErrors)
+        }
+
+    @Test
+    fun aPageWaitingForItsRetryLeavesTheOtherPlatformPaging() =
+        runTest {
+            twitch.topLive = { cursor ->
+                if (cursor ==
+                    null
+                ) {
+                    pageOf(s(Platform.TWITCH, "t1", 900), next = "t2")
+                } else {
+                    Outcome.Failure(LurkError.Offline)
+                }
+            }
+            endlessKick()
+            val vm = viewModel()
+            val state = watch(vm.state)
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+            assertEquals(mapOf(Platform.TWITCH to LurkError.Offline), state.value.loadMoreErrors)
+            assertTrue(state.value.canLoadMore)
+
+            vm.onIntent(TopLiveIntent.LoadMore)
+            runCurrent()
+
+            // Twitch's page waits for the Retry on its footer; only Kick asks for more.
+            assertEquals(2, twitch.topLiveCalls)
+            assertEquals(3, kick.topLiveCalls)
+            assertEquals(mapOf(Platform.TWITCH to LurkError.Offline), state.value.loadMoreErrors)
         }
 
     @Test

@@ -233,7 +233,8 @@ private fun TopLiveGrid(
 ) {
     EndOfListEffect(
         state = gridState,
-        enabled = state.canLoadMore && !state.loadingMore && state.loadMoreErrors.isEmpty(),
+        // Per platform: a failed next page holds back only its own platform (the state leaves it out of canLoadMore).
+        enabled = state.canLoadMore && !state.loadingMore,
         onLoadMore = { onIntent(TopLiveIntent.LoadMore) },
     )
     LazyVerticalGrid(
