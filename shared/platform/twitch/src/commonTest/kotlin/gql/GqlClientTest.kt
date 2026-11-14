@@ -112,6 +112,7 @@ class GqlClientTest {
         DeviceId(store),
         TestDispatchers(StandardTestDispatcher(testScheduler)),
         solver,
+        discoveryDeviceId = DeviceId.forDiscovery(store),
     )
 
     private suspend fun GqlClient.login(token: String? = null): Outcome<String> =

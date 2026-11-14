@@ -32,6 +32,7 @@ val twitchModule: Module =
                 get(),
                 getOrNull<ChallengeSolver>(),
                 network = get(),
+                discoveryDeviceId = DeviceId.forDiscovery(get()),
             )
         }
         single { TwitchPlaybackSource(get(), get(), get<RemoteConfigRepository>().config) } bind PlaybackSource::class

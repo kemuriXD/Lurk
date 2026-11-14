@@ -168,7 +168,14 @@ class TwitchPlaybackSourceTest {
                 },
             )
         val gql =
-            GqlClient(createHttpClient(engine), config, DeviceId(FakeSecureStore()), TestDispatchers(dispatcher), null)
+            GqlClient(
+                createHttpClient(engine),
+                config,
+                DeviceId(FakeSecureStore()),
+                TestDispatchers(dispatcher),
+                null,
+                discoveryDeviceId = DeviceId.forDiscovery(FakeSecureStore()),
+            )
         return Rig(TwitchPlaybackSource(gql, sessions, config, Random(1)), fetcher, seen)
     }
 

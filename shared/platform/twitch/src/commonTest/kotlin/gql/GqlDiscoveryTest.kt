@@ -35,6 +35,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -102,6 +103,7 @@ class GqlDiscoveryTest {
     private fun TestScope.rig(
         ids: List<String> = listOf("android-id", "tv-id"),
         network: NetworkStatus = AlwaysOnline,
+        store: SecureStore = MemoryStore(),
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): Rig {
         val seen = mutableListOf<HttpRequestData>()
@@ -122,11 +124,12 @@ class GqlDiscoveryTest {
             GqlClient(
                 createHttpClient(engine, network = network),
                 config(ids),
-                DeviceId(MemoryStore()),
+                DeviceId(store),
                 TestDispatchers(dispatcher),
                 null,
                 testScheduler.timeSource,
                 network,
+                discoveryDeviceId = DeviceId.forDiscovery(store),
             )
         return Rig(gql, seen, times)
     }
@@ -166,6 +169,24 @@ class GqlDiscoveryTest {
                         .orEmpty(),
                 ),
             )
+        }
+
+    @Test
+    fun discoveryNeverSendsTheDeviceIdOfSignedInRequests() =
+        runTest {
+            val store = MemoryStore()
+            val r = rig(store = store) { reply(ok) }
+            r.gql.discover()
+            r.gql.discover(after = "c1")
+            r.gql.query("LurkProbe", "query LurkProbe { v }", JsonObject(emptyMap()), "tok", ::decodeV)
+
+            val (first, again, signedIn) = r.seen.map { it.headers["X-Device-Id"].orEmpty() }
+            assertTrue(Regex("[0-9a-f]{32}").matches(first), first)
+            assertEquals(first, again)
+            assertNotEquals(signedIn, first)
+            // Each is kept under its own key, so a restart sends the same pair.
+            assertEquals(signedIn, store.get("twitch.deviceId"))
+            assertEquals(first, store.get("twitch.discoveryDeviceId"))
         }
 
     private class Switch(

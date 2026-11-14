@@ -53,7 +53,7 @@ private val BACKOFF_BASE = 1.seconds
  * it returns. The anonymous fallback is the caller's decision.
  *
  * The browse lists use [discoveryQuery] instead: anonymous, under the discovery client IDs, which page without an
- * integrity token.
+ * integrity token, and with their own [discoveryDeviceId], so they can't be linked to the signed-in [deviceId].
  */
 class GqlClient(
     private val http: HttpClient,
@@ -63,6 +63,7 @@ class GqlClient(
     private val solver: ChallengeSolver?,
     private val timeSource: TimeSource = TimeSource.Monotonic,
     private val network: NetworkStatus = AlwaysOnline,
+    private val discoveryDeviceId: DeviceId,
 ) {
     private val workingDiscoveryId = MutableStateFlow<String?>(null)
     private val pacing = Mutex()
@@ -133,7 +134,7 @@ class GqlClient(
         var attempt = 0
         while (true) {
             try {
-                return send(body, token = null, integrity = null, clientId = clientId)
+                return send(body, token = null, integrity = null, clientId = clientId, device = discoveryDeviceId)
             } catch (e: LurkException) {
                 val wait = retryDelay(e.error, attempt) ?: throw e
                 // A retry waits for a server that may answer; with the network gone nobody will.
@@ -162,9 +163,10 @@ class GqlClient(
         token: String?,
         integrity: String?,
         clientId: String? = null,
+        device: DeviceId = deviceId,
     ): GqlReply {
         val twitch = config.value.twitch
-        val id = deviceId.get()
+        val id = device.get()
         val text =
             http
                 .post(twitch.gqlUrl) {
