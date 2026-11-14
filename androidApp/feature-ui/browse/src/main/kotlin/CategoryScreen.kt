@@ -125,7 +125,11 @@ fun CategoryScreen(
         }
         streamContent(platform, state, onIntent, onOpenPlayer, onOpenChannel)
         val error = state.loadMoreError
-        pagingFooter(state.loadingMore, if (error == null) emptyMap() else mapOf(platform to error)) {
+        pagingFooter(
+            state.loadingMore,
+            if (error == null) emptyMap() else mapOf(platform to error),
+            if (state.retrying) setOf(platform) else emptySet(),
+        ) {
             onIntent(CategoryStreamsIntent.Retry)
         }
     }
@@ -185,6 +189,7 @@ private fun LazyGridScope.streamContent(
                     error = slice.error,
                     onRetry = { onIntent(CategoryStreamsIntent.Retry) },
                     platform = platform,
+                    retrying = state.retrying,
                 )
             }
         }

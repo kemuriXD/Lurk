@@ -67,11 +67,13 @@ internal fun LazyGridScope.fullWidth(
 
 /**
  * One error footer for each distinct failure of a next page, then the spinner while the next page loads. Platforms
- * whose next page failed the same way share one footer, and its Retry asks each. Sign-in errors stay per platform.
+ * whose next page failed the same way share one footer, and its Retry asks each. Sign-in errors stay per platform. A
+ * platform in [retrying] keeps its footer, with the action off, until its answer lands.
  */
 internal fun LazyGridScope.pagingFooter(
     loadingMore: Boolean,
     errors: Map<Platform, LurkError>,
+    retrying: Set<Platform> = emptySet(),
     onRetry: (Platform) -> Unit,
 ) {
     errors.toList().groupedByError().forEach { (platforms, error) ->
@@ -81,6 +83,7 @@ internal fun LazyGridScope.pagingFooter(
                 error = error,
                 onRetry = { platforms.forEach(onRetry) },
                 modifier = Modifier.padding(BannerPadding),
+                retrying = platforms.any { it in retrying },
             )
         }
     }

@@ -232,6 +232,7 @@ private fun TopLiveGrid(
             failures = failures,
             nothingElse = failures.size == state.slices.size && state.streams.isEmpty(),
             allFailedTitle = R.string.top_live_error_title,
+            retrying = state.retrying,
             onRetry = { onIntent(TopLiveIntent.Retry(it)) },
         )
         val loading = state.slices.values.any { it == PlatformSlice.Loading }
@@ -264,7 +265,7 @@ private fun TopLiveGrid(
                 }
             }
         }
-        pagingFooter(state.loadingMore, state.loadMoreErrors) { onIntent(TopLiveIntent.Retry(it)) }
+        pagingFooter(state.loadingMore, state.loadMoreErrors, state.retrying) { onIntent(TopLiveIntent.Retry(it)) }
     }
 }
 
@@ -313,6 +314,7 @@ private fun LazyGridScope.categoryContent(
                     error = slice.error,
                     onRetry = { onIntent(CategoriesIntent.Retry) },
                     platform = state.platform,
+                    retrying = state.retrying,
                 )
             }
         }
@@ -344,7 +346,11 @@ private fun LazyGridScope.categoryContent(
         }
     }
     val error = state.loadMoreError
-    pagingFooter(state.loadingMore, if (error == null) emptyMap() else mapOf(state.platform to error)) {
+    pagingFooter(
+        state.loadingMore,
+        if (error == null) emptyMap() else mapOf(state.platform to error),
+        if (state.retrying) setOf(state.platform) else emptySet(),
+    ) {
         onIntent(CategoriesIntent.Retry)
     }
 }

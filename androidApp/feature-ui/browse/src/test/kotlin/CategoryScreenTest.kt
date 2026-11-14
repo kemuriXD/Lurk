@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.featureui.browse
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -220,4 +221,21 @@ class CategoryScreenTest {
             thumbnailUrl = null,
             avatarUrl = null,
         )
+
+    @Test
+    fun aRetryingErrorStateStaysAndItsRetryIsOff() {
+        show(state(slice = PlatformSlice.Failed(LurkError.Offline)).copy(retrying = true))
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
+    }
+
+    @Test
+    fun aRetryingFooterStaysAndItsRetryIsOff() {
+        show(
+            state(streams = listOf(stream()), loadMoreError = LurkError.Timeout).copy(retrying = true),
+        )
+        rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+    }
 }

@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.featureui.browse
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -388,4 +389,71 @@ class BrowseScreenTest {
             thumbnailUrl = null,
             avatarUrl = null,
         )
+
+    @Test
+    fun aRetryingBannerStaysOverTheListAndItsRetryIsOff() {
+        show(
+            topLive =
+                topLiveState(
+                    slices =
+                        mapOf(
+                            Platform.TWITCH to PlatformSlice.Loaded(Unit),
+                            Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
+                        ),
+                ).copy(retrying = setOf(Platform.KICK)),
+        )
+        rule.onNodeWithTag(ErrorTags.BANNER).assertIsDisplayed()
+        rule.onNodeWithText("Streamer One").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Kick").assertIsNotEnabled()
+        rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
+    }
+
+    @Test
+    fun aRetryingFooterStaysAndItsRetryIsOff() {
+        show(
+            topLive =
+                topLiveState(loadMoreErrors = mapOf(Platform.TWITCH to LurkError.Timeout))
+                    .copy(retrying = setOf(Platform.TWITCH)),
+        )
+        rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        rule.onNodeWithContentDescription("Retry loading Twitch").assertIsNotEnabled()
+    }
+
+    @Test
+    fun aRetryingAllFailedStateStaysAndShowsNoSkeleton() {
+        show(
+            topLive =
+                topLiveState(
+                    streams = emptyList(),
+                    slices =
+                        mapOf(
+                            Platform.TWITCH to PlatformSlice.Failed(LurkError.Offline),
+                            Platform.KICK to PlatformSlice.Failed(LurkError.Offline),
+                        ),
+                ).copy(retrying = setOf(Platform.TWITCH, Platform.KICK)),
+        )
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+        rule.onAllNodesWithTag("stream_card_placeholder").assertCountEquals(0)
+    }
+
+    @Test
+    fun aRetryingCategoriesErrorStateStaysAndItsRetryIsOff() {
+        show(categories = categoriesState(slice = PlatformSlice.Failed(LurkError.Offline)).copy(retrying = true))
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        rule.onNodeWithTag(ErrorTags.STATE).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+    }
+
+    @Test
+    fun aRetryingCategoriesFooterStaysAndItsRetryIsOff() {
+        show(
+            categories =
+                categoriesState(categories = listOf(category("1")), loadMoreError = LurkError.Timeout)
+                    .copy(retrying = true),
+        )
+        rule.onNodeWithTag(BrowseTestTags.TAB_CATEGORIES).performClick()
+        rule.onNodeWithTag(ErrorTags.FOOTER).assertIsDisplayed()
+        rule.onNodeWithText("Retry").assertIsNotEnabled()
+    }
 }
