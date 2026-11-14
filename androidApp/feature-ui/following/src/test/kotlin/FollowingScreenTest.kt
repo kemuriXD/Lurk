@@ -197,6 +197,30 @@ class FollowingScreenTest {
     }
 
     @Test
+    fun signedOutListsTwitchBeforeKickWhateverTheSliceOrder() {
+        show(
+            state(
+                slices =
+                    mapOf(
+                        Platform.KICK to PlatformSlice.NotSignedIn,
+                        Platform.TWITCH to PlatformSlice.NotSignedIn,
+                    ),
+            ),
+        )
+        val twitch =
+            rule
+                .onNodeWithText("Sign in to Twitch")
+                .fetchSemanticsNode()
+                .boundsInRoot.top
+        val kick =
+            rule
+                .onNodeWithText("Sign in to Kick")
+                .fetchSemanticsNode()
+                .boundsInRoot.top
+        assertTrue("Twitch at $twitch should sit above Kick at $kick", twitch < kick)
+    }
+
+    @Test
     fun signedOutShowsSignInForEachPlatform() {
         show(
             state(

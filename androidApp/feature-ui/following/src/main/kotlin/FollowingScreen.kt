@@ -181,7 +181,7 @@ private fun LazyGridScope.content(
     val slices = state.slices
     // A list filtered to one platform needs no badge on its rows: the chip already says which.
     val showPlatform = state.filter == PlatformFilter.ALL
-    val signedOut = slices.filterValues { it == PlatformSlice.NotSignedIn }.keys.toList()
+    val signedOut = slices.filterValues { it == PlatformSlice.NotSignedIn }.keys.sortedBy { it.ordinal }
     if (slices.isNotEmpty() && signedOut.size == slices.size) {
         fullWidth("signed_out") { SignedOut(signedOut, onSignIn) }
         return
