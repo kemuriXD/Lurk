@@ -124,6 +124,8 @@ class SearchViewModel(
     private suspend fun search(query: String) {
         retries.values.forEach(Job::cancel)
         retries.clear()
+        // A retry cut short here can no longer clear its own mark.
+        core.update { it.copy(retrying = emptySet()) }
         val now = core.value
         // A collector coming back to a finished search for this query has nothing to redo.
         val finished = now.searched == query && now.status.values.none { it == PlatformSlice.Loading }
@@ -137,6 +139,8 @@ class SearchViewModel(
 
     private fun retry(platform: Platform) {
         val target = platforms.firstOrNull { it.id == platform } ?: return
+        // A retry already running is not started again.
+        if (platform in core.value.retrying) return
         val query = core.value.query.trim()
         if (query.isEmpty()) return
         retries.remove(platform)?.cancel()
@@ -148,7 +152,14 @@ class SearchViewModel(
                 it.copy(status = it.status + (platform to PlatformSlice.Loading))
             }
         }
-        retries[platform] = viewModelScope.launch { load(target, query) }
+        retries[platform] =
+            viewModelScope.launch {
+                try {
+                    load(target, query)
+                } finally {
+                    core.update { it.copy(retrying = it.retrying - platform) }
+                }
+            }
     }
 
     private suspend fun load(

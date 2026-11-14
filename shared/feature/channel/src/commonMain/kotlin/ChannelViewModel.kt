@@ -47,8 +47,9 @@ import io.github.kemurixd.lurk.core.model.Channel as ChannelProfile
  * [FollowState.Busy] meanwhile, and a failure puts the old state back and emits [ChannelEffect.ShowError]. A toggle
  * while one is running is ignored. A result for an account that has since signed out is dropped.
  *
- * Loading starts when [state] gets a collector. Five seconds after the last one leaves, the cached value resets; a
- * loaded channel is not fetched again when a collector returns, but the follow list is.
+ * Loading starts when [state] gets a collector. Five seconds after the last one leaves, loading stops and the last
+ * value stays, so a collector that returns sees it at once and never a skeleton in between. A loaded channel is not
+ * fetched again when a collector returns, but the follow list is; a failed one is asked again with the failure kept.
  *
  * [effects] hands each effect to one collector, once; an effect sent while nobody collects waits for the next one.
  * Call [onIntent] from the main thread.
@@ -81,14 +82,15 @@ class ChannelViewModel(
     /** Emits nothing: it loads the channel once, then loads the follow list whenever the account changes. */
     private val autoLoad: Flow<Nothing> =
         flow {
-            if (data.value.slice !is PlatformSlice.Loaded<*>) loadChannel()
+            val slice = data.value.slice
+            if (slice !is PlatformSlice.Loaded<*>) loadChannel(keepFailure = slice is PlatformSlice.Failed)
             owners.collectLatest(::accountChanged)
         }
 
     val state: StateFlow<ChannelUiState> =
         merge(combine(data, owners, ::uiState), autoLoad).stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS, replayExpirationMillis = 0),
+            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
             initialValue = uiState(data.value, ownerOf(platform.id, accounts.states.value)),
         )
 
@@ -104,6 +106,8 @@ class ChannelViewModel(
     private fun currentOwner(): String? = ownerOf(platform.id, accounts.states.value)
 
     private fun retry() {
+        // A retry already running is not started again.
+        if (data.value.retrying) return
         // A failure stays on screen while it is asked again, so the error never gives way to a skeleton and back.
         loadChannel(keepFailure = data.value.slice is PlatformSlice.Failed)
         currentOwner()?.let(::loadFollowed)

@@ -399,4 +399,23 @@ class TopLiveViewModelTest {
             runCurrent()
             assertTrue(state.value.retrying.isEmpty())
         }
+
+    @Test
+    fun aRefreshDuringARetryClearsTheMark() =
+        runTest {
+            kick.topLive = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            kick.topLive = { CompletableDeferred<Outcome<io.github.kemurixd.lurk.core.model.Page<Stream>>>().await() }
+            vm.onIntent(TopLiveIntent.Retry(Platform.KICK))
+            runCurrent()
+            assertEquals(setOf(Platform.KICK), state.value.retrying)
+
+            kick.topLive = { pageOf(s(Platform.KICK, "k1", 500)) }
+            vm.onIntent(TopLiveIntent.Refresh)
+            runCurrent()
+
+            assertTrue(state.value.retrying.isEmpty())
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.KICK])
+        }
 }

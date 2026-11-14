@@ -487,4 +487,58 @@ class ChannelViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test
+    fun aSecondRetryWhileOneRunsIsIgnored() =
+        runTest {
+            twitch.channel = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel(twitch, accounts())
+
+            vm.state.test {
+                awaitUntil { it.load is PlatformSlice.Failed }
+                val gate = CompletableDeferred<Unit>()
+                twitch.channel = {
+                    gate.await()
+                    Outcome.Failure(LurkError.Offline)
+                }
+                vm.onIntent(ChannelIntent.Retry)
+                awaitUntil { it.retrying }
+                val calls = twitch.channelCalls
+
+                vm.onIntent(ChannelIntent.Retry)
+                runCurrent()
+
+                assertEquals(calls, twitch.channelCalls)
+                gate.complete(Unit)
+                awaitUntil { !it.retrying }
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun comingBackAfterAFailureNeverPassesThroughLoading() =
+        runTest {
+            twitch.channel = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel(twitch, accounts())
+            vm.state.test {
+                awaitUntil { it.load is PlatformSlice.Failed }
+                cancelAndIgnoreRemainingEvents()
+            }
+            dispatcher.scheduler.advanceTimeBy(5_001)
+            runCurrent()
+            val gate = CompletableDeferred<Unit>()
+            twitch.channel = {
+                gate.await()
+                Outcome.Failure(LurkError.Offline)
+            }
+
+            vm.state.test {
+                val seen = mutableListOf(awaitItem())
+                runCurrent()
+                gate.complete(Unit)
+                runCurrent()
+                seen += cancelAndConsumeRemainingEvents().filterIsInstance<app.cash.turbine.Event.Item<ChannelUiState>>().map { it.value }
+                assertTrue(seen.none { it.load == PlatformSlice.Loading }, "saw Loading: $seen")
+            }
+        }
 }
