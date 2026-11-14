@@ -10,12 +10,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -23,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -55,10 +58,12 @@ import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCard
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.PlatformFilterChips
+import io.github.kemurixd.lurk.designsystem.component.PlatformLogoLeading
 import io.github.kemurixd.lurk.designsystem.component.SectionHeader
 import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.component.platformErrors
 import io.github.kemurixd.lurk.designsystem.time.rememberNowState
+import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.following.FollowingIntent
@@ -174,6 +179,8 @@ private fun LazyGridScope.content(
     onOpenBrowse: () -> Unit,
 ) {
     val slices = state.slices
+    // A list filtered to one platform needs no badge on its rows: the chip already says which.
+    val showPlatform = state.filter == PlatformFilter.ALL
     val signedOut = slices.filterValues { it == PlatformSlice.NotSignedIn }.keys.toList()
     if (slices.isNotEmpty() && signedOut.size == slices.size) {
         fullWidth("signed_out") { SignedOut(signedOut, onSignIn) }
@@ -216,31 +223,34 @@ private fun LazyGridScope.content(
                 stream = stream,
                 onOpenPlayer = { onOpenPlayer(stream) },
                 onOpenChannel = { onOpenChannel(stream.channel) },
+                showPlatform = showPlatform,
             )
         }
     } else if (loaded && !loading) {
         fullWidth("nobody_live") { NobodyLive(onOpenBrowse) }
     }
-    offlineSection(state, now, offlineFold, onIntent, onOpenChannel)
+    offlineSection(state, now, offlineFold, showPlatform, onIntent, onOpenChannel)
 }
 
 private fun LazyGridScope.offlineSection(
     state: FollowingUiState,
     now: State<Instant>,
     fold: OfflineFold,
+    showPlatform: Boolean,
     onIntent: (FollowingIntent) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
 ) {
     if (state.offline.isEmpty()) return
     fullWidth(OFFLINE_HEADER_KEY) { OfflineHeader(state.offline.size, state.offlineCollapsed, onIntent) }
     // Folded and finished shrinking, no offline row is composed at all, so none asks for a last-live lookup.
-    if (!state.offlineCollapsed || fold.rowsInList) offlineRows(state, now, fold, onIntent, onOpenChannel)
+    if (!state.offlineCollapsed || fold.rowsInList) offlineRows(state, now, fold, showPlatform, onIntent, onOpenChannel)
 }
 
 private fun LazyGridScope.offlineRows(
     state: FollowingUiState,
     now: State<Instant>,
     fold: OfflineFold,
+    showPlatform: Boolean,
     onIntent: (FollowingIntent) -> Unit,
     onOpenChannel: (ChannelRef) -> Unit,
 ) {
@@ -263,7 +273,12 @@ private fun LazyGridScope.offlineRows(
             enter = expandVertically(tween(OFFLINE_FOLD_MILLIS)) + fadeIn(tween(OFFLINE_FOLD_MILLIS)),
             exit = shrinkVertically(tween(OFFLINE_FOLD_MILLIS)) + fadeOut(tween(OFFLINE_FOLD_MILLIS)),
         ) {
-            ChannelRow(channel = channel, onClick = { onOpenChannel(channel.ref) }, now = { now.value })
+            ChannelRow(
+                channel = channel,
+                onClick = { onOpenChannel(channel.ref) },
+                showPlatform = showPlatform,
+                now = { now.value },
+            )
         }
     }
 }
@@ -316,9 +331,17 @@ private fun SignedOut(
             action = null,
             icon = DesignR.drawable.ic_login,
         )
-        platforms.forEach { platform ->
-            Button(onClick = { onSignIn(platform) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.sign_in_to, stringResource(platform.labelRes)))
+        // Both buttons are as wide as the wider one.
+        Column(Modifier.width(IntrinsicSize.Max), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            platforms.forEach { platform ->
+                Button(
+                    onClick = { onSignIn(platform) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    PlatformLogoLeading(platform)
+                    Text(stringResource(R.string.sign_in_to, stringResource(platform.labelRes)))
+                }
             }
         }
     }
@@ -332,7 +355,9 @@ private fun SignInPrompt(
     TextButton(
         onClick = { onSignIn(platform) },
         modifier = Modifier.padding(horizontal = 8.dp).heightIn(min = 48.dp),
+        contentPadding = ButtonDefaults.TextButtonWithIconContentPadding,
     ) {
+        PlatformLogoLeading(platform)
         Text(stringResource(R.string.sign_in_to, stringResource(platform.labelRes)))
     }
 }

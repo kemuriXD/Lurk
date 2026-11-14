@@ -1,10 +1,15 @@
 package io.github.kemurixd.lurk.featureui.following
 
 import android.content.res.Resources
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -24,6 +29,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
@@ -35,6 +42,7 @@ import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
 import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.component.ErrorTags
 import io.github.kemurixd.lurk.designsystem.component.ExpandedStreamCardTags
+import io.github.kemurixd.lurk.designsystem.component.PlatformTags
 import io.github.kemurixd.lurk.designsystem.component.SectionHeaderTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.designsystem.time.LocalClock
@@ -498,6 +506,130 @@ class FollowingScreenTest {
         val kick = stream("streamer1", Platform.KICK)
         show(loaded(live = listOf(twitch, kick), offline = emptyList()))
         rule.onAllNodesWithTag(ExpandedStreamCardTags.CARD).assertCountEquals(2)
+    }
+
+    @Test
+    fun signedOutButtonsStayInsideAPhoneAtDoubleFont() {
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+                LurkTheme(dynamicColor = false) {
+                    Box(Modifier.width(360.dp).testTag("host")) {
+                        FollowingScreen(
+                            state =
+                                state(
+                                    slices =
+                                        mapOf(
+                                            Platform.TWITCH to PlatformSlice.NotSignedIn,
+                                            Platform.KICK to PlatformSlice.NotSignedIn,
+                                        ),
+                                ),
+                            onIntent = {},
+                            onOpenPlayer = {},
+                            onOpenChannel = {},
+                            onSignIn = {},
+                            onOpenBrowse = {},
+                        )
+                    }
+                }
+            }
+        }
+        val host = rule.onNodeWithTag("host").fetchSemanticsNode().boundsInRoot
+        for (platform in Platform.entries) {
+            val name = if (platform == Platform.TWITCH) "Twitch" else "Kick"
+            val button = rule.onNodeWithText("Sign in to $name").fetchSemanticsNode().boundsInRoot
+            val label =
+                rule
+                    .onNodeWithText(
+                        "Sign in to $name",
+                        useUnmergedTree = true,
+                    ).fetchSemanticsNode()
+                    .boundsInRoot
+            assertTrue("$name button $button leaves $host", button.left >= host.left && button.right <= host.right)
+            assertTrue(
+                "$name label $label leaves its button $button",
+                label.left >= button.left && label.right <= button.right,
+            )
+        }
+    }
+
+    private fun badges() = rule.onAllNodesWithTag(PlatformTags.BADGE, useUnmergedTree = true)
+
+    private fun logos(platform: Platform) = rule.onAllNodesWithTag(PlatformTags.logo(platform), useUnmergedTree = true)
+
+    @Test
+    fun allFilterShowsABadgeOnEveryRow() {
+        show(loaded(live = listOf(stream("streamer1")), offline = listOf(channel("sleeper1"))))
+        badges().assertCountEquals(2)
+    }
+
+    @Test
+    fun aSinglePlatformFilterHidesEveryBadge() {
+        show(
+            loaded(
+                live = listOf(stream("streamer1")),
+                offline = listOf(channel("sleeper1")),
+            ).copy(filter = PlatformFilter.TWITCH),
+        )
+        badges().assertCountEquals(0)
+    }
+
+    @Test
+    fun aSinglePlatformFilterLeavesThePlatformOutOfTheSpokenCard() {
+        show(loaded(live = listOf(stream("streamer1")), offline = emptyList()).copy(filter = PlatformFilter.TWITCH))
+        val spoken =
+            rule
+                .onNodeWithTag(ExpandedStreamCardTags.CARD)
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.ContentDescription]
+                .joinToString()
+        assertTrue(spoken, !spoken.contains("Twitch"))
+    }
+
+    @Test
+    fun filterChipsLeadWithTheirLogos() {
+        show(loaded(live = emptyList(), offline = emptyList()))
+        logos(Platform.TWITCH).assertCountEquals(1)
+        logos(Platform.KICK).assertCountEquals(1)
+    }
+
+    @Test
+    fun signedOutButtonsLeadWithLogosAndShareTheirWidth() {
+        show(
+            state(
+                slices =
+                    mapOf(
+                        Platform.TWITCH to PlatformSlice.NotSignedIn,
+                        Platform.KICK to PlatformSlice.NotSignedIn,
+                    ),
+            ),
+        )
+        // The chips carry one logo each; the buttons add a second.
+        logos(Platform.TWITCH).assertCountEquals(2)
+        logos(Platform.KICK).assertCountEquals(2)
+        val twitch =
+            rule
+                .onNodeWithText("Sign in to Twitch")
+                .fetchSemanticsNode()
+                .size.width
+        val kick =
+            rule
+                .onNodeWithText("Sign in to Kick")
+                .fetchSemanticsNode()
+                .size.width
+        assertEquals("Twitch button $twitch and Kick button $kick differ", twitch, kick)
+    }
+
+    @Test
+    fun inlineSignInPromptLeadsWithTheLogo() {
+        val twitch = PlatformSlice.Loaded(Followed(listOf(stream("streamer1")), emptyList()))
+        show(
+            state(
+                live = listOf(stream("streamer1")),
+                slices = mapOf(Platform.TWITCH to twitch, Platform.KICK to PlatformSlice.NotSignedIn),
+            ),
+        )
+        logos(Platform.KICK).assertCountEquals(2)
     }
 
     private fun loaded(
