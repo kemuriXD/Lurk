@@ -93,6 +93,10 @@ class SearchSnapshotTest {
         )
 
     @Test
+    @Config(qualifiers = "w800dp-h360dp-hdpi")
+    fun resultsInLandscape() = show("Search_Results_Landscape", resultsState())
+
+    @Test
     fun noResults() = show("Search_NoResults", SearchUiState(query = "zzqxv", phase = SearchPhase.NO_RESULTS))
 
     private fun resultsState(slices: Map<Platform, PlatformSlice<Unit>> = bothLoaded) =
