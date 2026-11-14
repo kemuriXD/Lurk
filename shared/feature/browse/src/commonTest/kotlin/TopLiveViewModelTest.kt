@@ -484,4 +484,84 @@ class TopLiveViewModelTest {
             assertTrue(state.value.retrying.isEmpty())
             assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.KICK])
         }
+
+    @Test
+    fun aRefreshKeepsTheListOnScreenUntilTheNewPagesLand() =
+        runTest {
+            twitch.topLive = { pageOf(s(Platform.TWITCH, "t1", 900)) }
+            kick.topLive = { pageOf(s(Platform.KICK, "k1", 500)) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            val gate = CompletableDeferred<Unit>()
+            twitch.topLive = {
+                gate.await()
+                pageOf(s(Platform.TWITCH, "t9", 990))
+            }
+            kick.topLive = {
+                gate.await()
+                pageOf(s(Platform.KICK, "k9", 400))
+            }
+
+            vm.onIntent(TopLiveIntent.Refresh)
+            runCurrent()
+
+            // No skeleton: the rows and the loaded slices stay while the pull spinner shows.
+            assertEquals(listOf(900L, 500L), state.value.streams.viewers())
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.TWITCH])
+            assertTrue(state.value.refreshing)
+            assertTrue(state.value.retrying.isEmpty())
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(listOf(990L, 400L), state.value.streams.viewers())
+            assertFalse(state.value.refreshing)
+        }
+
+    @Test
+    fun aRefreshKeepsAFailureOnScreenWithoutMarkingItRetrying() =
+        runTest {
+            twitch.topLive = { pageOf(s(Platform.TWITCH, "t1", 900)) }
+            kick.topLive = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            val gate = CompletableDeferred<Unit>()
+            kick.topLive = {
+                gate.await()
+                pageOf(s(Platform.KICK, "k1", 500))
+            }
+
+            vm.onIntent(TopLiveIntent.Refresh)
+            runCurrent()
+
+            assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slices[Platform.KICK])
+            assertTrue(state.value.retrying.isEmpty())
+            assertTrue(state.value.refreshing)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.KICK])
+            assertEquals(listOf(900L, 500L), state.value.streams.viewers())
+        }
+
+    @Test
+    fun aFailedRefreshKeepsTheRowsAndShowsTheFailure() =
+        runTest {
+            twitch.topLive = { pageOf(s(Platform.TWITCH, "t1", 900)) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+
+            twitch.topLive = { Outcome.Failure(LurkError.Timeout) }
+            vm.onIntent(TopLiveIntent.Refresh)
+            runCurrent()
+
+            assertEquals(listOf(900L), state.value.streams.viewers())
+            assertEquals(PlatformSlice.Failed(LurkError.Timeout), state.value.slices[Platform.TWITCH])
+            assertFalse(state.value.refreshing)
+
+            twitch.topLive = { pageOf(s(Platform.TWITCH, "t2", 950)) }
+            vm.onIntent(TopLiveIntent.Retry(Platform.TWITCH))
+            runCurrent()
+            assertEquals(listOf(950L), state.value.streams.viewers())
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slices[Platform.TWITCH])
+        }
 }

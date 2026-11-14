@@ -31,7 +31,8 @@ internal data class Batch<T>(
  * it belongs to, so a list that merges several platforms can sort a batch without touching the batches above it.
  * The cursor sits here, not in the slice (`PlatformSlice.Loaded` carries no cursor), and a load-more failure sits in
  * [moreError] while [slice] stays loaded. [retrying] is true while a retry of a failed first page or a failed next page
- * runs: the failure stays on screen (no skeleton, no spinner row) until the answer lands.
+ * runs: the failure stays on screen (no skeleton, no spinner row) until the answer lands. [refreshing] is true while a
+ * [PagedFeed.reload] runs: everything on screen stays, failures included, until the first page lands.
  */
 internal data class PagedState<T>(
     val pages: List<Batch<T>> = emptyList(),
@@ -40,6 +41,7 @@ internal data class PagedState<T>(
     val loadingMore: Boolean = false,
     val moreError: LurkError? = null,
     val retrying: Boolean = false,
+    val refreshing: Boolean = false,
 ) {
     val canLoadMore: Boolean get() = slice is PlatformSlice.Loaded && cursor != null
 
@@ -95,7 +97,22 @@ internal class PagedFeed<T>(
         }
     }
 
-    /** Drops whatever is loaded or loading and starts again from the first page. */
+    /**
+     * Asks for the first page again while keeping everything on screen: no skeleton, and a failure stays put, unmarked,
+     * until the answer lands. The new first page then replaces all pages. If it fails, the pages stay and the failure
+     * shows as the first page's. Before anything has loaded this is [start].
+     */
+    fun reload(batch: Int = 0) {
+        if (mutableState.value.slice == PlatformSlice.Loading) {
+            start(batch)
+            return
+        }
+        running?.cancel()
+        running = null
+        launch(cursor = null, first = true, batch = batch, quiet = true)
+    }
+
+    /** Drops whatever is loaded or loading and starts again from the first page, with the skeleton. */
     fun refresh(batch: Int = 0) {
         running?.cancel()
         running = null
@@ -108,9 +125,11 @@ internal class PagedFeed<T>(
         first: Boolean,
         batch: Int,
         retry: Boolean = false,
+        quiet: Boolean = false,
     ) {
         mutableState.update {
             when {
+                quiet -> it.copy(refreshing = true, loadingMore = false, retrying = false)
                 retry -> it.copy(retrying = true)
                 first -> PagedState(slice = PlatformSlice.Loading)
                 else -> it.copy(loadingMore = true, moreError = null)
@@ -135,7 +154,7 @@ internal class PagedFeed<T>(
         } finally {
             if (running === job) {
                 running = null
-                mutableState.update { it.copy(loadingMore = false, retrying = false) }
+                mutableState.update { it.copy(loadingMore = false, retrying = false, refreshing = false) }
             }
         }
     }
@@ -148,10 +167,12 @@ internal class PagedFeed<T>(
     ): PagedState<T> =
         when (result) {
             is PlatformSlice.Loaded -> {
-                val seen = before.pages.flatMap { it.items }.mapTo(HashSet(), keyOf)
+                // A first page replaces every page, so only a later page is checked against what is shown.
+                val kept = if (first) emptyList() else before.pages
+                val seen = kept.flatMap { it.items }.mapTo(HashSet(), keyOf)
                 val fresh = result.value.items.filter { seen.add(keyOf(it)) }
                 before.copy(
-                    pages = if (first) listOf(Batch(batch, fresh)) else before.pages + Batch(batch, fresh),
+                    pages = kept + Batch(batch, fresh),
                     slice = PlatformSlice.Loaded(Unit),
                     cursor = result.value.nextCursor,
                     moreError = null,
@@ -160,6 +181,7 @@ internal class PagedFeed<T>(
 
             is PlatformSlice.Failed -> {
                 when {
+                    // A failed reload keeps the pages already shown under the failure.
                     first -> before.copy(slice = result)
 
                     // Asking for the same page again would fail the same way, so end the list here.

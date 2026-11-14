@@ -447,4 +447,29 @@ class CategoryStreamsViewModelTest {
             assertEquals(PlatformSlice.Failed(LurkError.Offline), state.value.slice)
             assertFalse(state.value.retrying)
         }
+
+    @Test
+    fun aRefreshReloadsTheFirstPageAndKeepsTheRowsMeanwhile() =
+        runTest {
+            kick.liveInCategory = { _, _, _ -> pageOf(k("a", 50)) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            kick.liveInCategory = { _, _, _ ->
+                gate.await()
+                pageOf(k("b", 70))
+            }
+
+            vm.onIntent(CategoryStreamsIntent.Refresh)
+            runCurrent()
+
+            assertEquals(listOf(50L), state.value.streams.map { it.viewers })
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slice)
+            assertTrue(state.value.refreshing)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(listOf(70L), state.value.streams.map { it.viewers })
+            assertFalse(state.value.refreshing)
+        }
 }

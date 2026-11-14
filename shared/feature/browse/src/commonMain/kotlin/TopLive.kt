@@ -23,6 +23,7 @@ data class TopLiveUiState(
     val loadingMore: Boolean,
     val loadMoreErrors: Map<Platform, LurkError> = emptyMap(),
     val retrying: Set<Platform> = emptySet(),
+    val refreshing: Boolean = false,
 )
 
 sealed interface TopLiveIntent {
@@ -33,7 +34,7 @@ sealed interface TopLiveIntent {
     /** Fetches the next page of every shown platform that has one and no failed page waiting. Ignored while busy. */
     data object LoadMore : TopLiveIntent
 
-    /** Starts over from the first pages. */
+    /** Reloads every platform's first page, keeping what is on screen until the answers land. */
     data object Refresh : TopLiveIntent
 
     /** Reloads a platform's failed first page, or its failed next page. */

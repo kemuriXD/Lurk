@@ -264,4 +264,30 @@ class CategoriesViewModelTest {
             runCurrent()
             assertFalse(state.value.retrying)
         }
+
+    @Test
+    fun aRefreshReloadsTheShownPlatformAndKeepsItsTilesMeanwhile() =
+        runTest {
+            twitch.categories = { pageOf(c(Platform.TWITCH, "1")) }
+            val vm = viewModel()
+            val state = watch(vm.state)
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            twitch.categories = {
+                gate.await()
+                pageOf(c(Platform.TWITCH, "2"))
+            }
+
+            vm.onIntent(CategoriesIntent.Refresh)
+            runCurrent()
+
+            assertEquals(listOf("1"), state.value.categories.map { it.id })
+            assertEquals(PlatformSlice.Loaded(Unit), state.value.slice)
+            assertTrue(state.value.refreshing)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(listOf("2"), state.value.categories.map { it.id })
+            assertFalse(state.value.refreshing)
+            assertEquals(0, kick.categoriesCalls)
+        }
 }

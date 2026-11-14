@@ -83,7 +83,7 @@ class TopLiveViewModel(
 
             TopLiveIntent.Refresh -> {
                 val batch = nextBatch++
-                feeds.values.forEach { it.refresh(batch) }
+                feeds.values.forEach { it.reload(batch) }
             }
 
             is TopLiveIntent.Retry -> {
@@ -130,6 +130,7 @@ class TopLiveViewModel(
                 loadingMore = shown.values.any { it.loadingMore },
                 loadMoreErrors = moreErrors,
                 retrying = shown.filterValues { it.retrying }.keys,
+                refreshing = shown.values.any { it.refreshing },
             )
         }
     }

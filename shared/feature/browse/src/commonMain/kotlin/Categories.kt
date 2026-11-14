@@ -14,6 +14,7 @@ data class CategoriesUiState(
     val loadingMore: Boolean = false,
     val loadMoreError: LurkError? = null,
     val retrying: Boolean = false,
+    val refreshing: Boolean = false,
 )
 
 sealed interface CategoriesIntent {
@@ -25,4 +26,7 @@ sealed interface CategoriesIntent {
 
     /** Reloads a failed first page, or a failed next page. */
     data object Retry : CategoriesIntent
+
+    /** Reloads the shown platform from its first page, keeping what is on screen until the answer lands. */
+    data object Refresh : CategoriesIntent
 }

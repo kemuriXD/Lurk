@@ -76,6 +76,10 @@ class CategoriesViewModel(
             CategoriesIntent.Retry -> {
                 feeds[selected.value]?.retry()
             }
+
+            CategoriesIntent.Refresh -> {
+                feeds[selected.value]?.reload()
+            }
         }
     }
 
@@ -100,6 +104,7 @@ class CategoriesViewModel(
             loadingMore = feed.loadingMore,
             loadMoreError = feed.moreError,
             retrying = feed.retrying,
+            refreshing = feed.refreshing,
         )
 
         fun unavailable(platform: Platform) =

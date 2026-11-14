@@ -125,6 +125,7 @@ class CategoryStreamsViewModel(
         when (intent) {
             CategoryStreamsIntent.LoadMore -> feed?.loadMore()
             CategoryStreamsIntent.Retry -> feed?.retry()
+            CategoryStreamsIntent.Refresh -> feed?.reload()
             is CategoryStreamsIntent.SelectSort -> picked.value = intent.sort
         }
     }
@@ -139,6 +140,7 @@ class CategoryStreamsViewModel(
         loadingMore = feed.loadingMore,
         loadMoreError = feed.moreError,
         retrying = feed.retrying,
+        refreshing = feed.refreshing,
         sorts = choice.options,
         sort = choice.sort,
     )
