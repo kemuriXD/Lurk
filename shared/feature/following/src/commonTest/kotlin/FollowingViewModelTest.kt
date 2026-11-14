@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import app.cash.turbine.Event
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import io.github.kemurixd.lurk.auth.SessionRepository
@@ -686,4 +687,127 @@ class FollowingViewModelTest {
             }
             assertTrue(twitch.lastLiveRequests.isEmpty())
         }
+
+    @Test
+    fun aRetryKeepsTheFailedSliceInPlaceAndMarksItRetrying() =
+        runTest {
+            kick.followed = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.slices[Platform.KICK] is PlatformSlice.Failed && !it.refreshing }
+                val gate = CompletableDeferred<Unit>()
+                kick.followed = {
+                    gate.await()
+                    Outcome.Failure(LurkError.Offline)
+                }
+
+                vm.onIntent(FollowingIntent.Retry(Platform.KICK))
+
+                val retrying = awaitUntil { it.refreshing }
+                assertEquals(PlatformSlice.Failed(LurkError.Offline), retrying.slices[Platform.KICK])
+                assertEquals(setOf(Platform.KICK), retrying.retrying)
+                gate.complete(Unit)
+                val done = awaitUntil { !it.refreshing }
+                assertEquals(PlatformSlice.Failed(LurkError.Offline), done.slices[Platform.KICK])
+                assertTrue(done.retrying.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun aRetryThatSucceedsReplacesTheFailure() =
+        runTest {
+            var kickResult: Outcome<Followed> = Outcome.Failure(LurkError.Offline)
+            kick.followed = { kickResult }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.slices[Platform.KICK] is PlatformSlice.Failed && !it.refreshing }
+                kickResult = followed(live = listOf(testStream(Platform.KICK, channelId = "")))
+
+                vm.onIntent(FollowingIntent.Retry(Platform.KICK))
+
+                val state = awaitUntil { it.allLoaded }
+                assertTrue(state.retrying.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun aRetryOverStaleItemsKeepsTheBannerAndMarksItRetrying() =
+        runTest {
+            val stream = testStream(Platform.KICK, channelId = "")
+            var kickResult: Outcome<Followed> = followed(live = listOf(stream))
+            kick.followed = { kickResult }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.allLoaded }
+                kickResult = Outcome.Failure(LurkError.Offline)
+                vm.onIntent(FollowingIntent.Refresh)
+                awaitUntil { !it.refreshing && it.refreshErrors.isNotEmpty() }
+                val gate = CompletableDeferred<Unit>()
+                kick.followed = {
+                    gate.await()
+                    Outcome.Failure(LurkError.Offline)
+                }
+
+                vm.onIntent(FollowingIntent.Retry(Platform.KICK))
+
+                val retrying = awaitUntil { it.refreshing }
+                assertEquals(mapOf(Platform.KICK to LurkError.Offline), retrying.refreshErrors)
+                assertEquals(setOf(Platform.KICK), retrying.retrying)
+                gate.complete(Unit)
+                val done = awaitUntil { !it.refreshing }
+                assertEquals(mapOf(Platform.KICK to LurkError.Offline), done.refreshErrors)
+                assertTrue(done.retrying.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun theTimedReloadNeverTurnsAFailureIntoASkeleton() =
+        runTest {
+            kick.followed = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.slices[Platform.KICK] is PlatformSlice.Failed && !it.refreshing }
+                advanceTimeBy(61.seconds)
+                runCurrent()
+                val seen = cancelAndConsumeRemainingEvents().filterIsInstance<Event.Item<FollowingUiState>>()
+                assertTrue(seen.isNotEmpty())
+                assertTrue(seen.all { it.value.slices[Platform.KICK] is PlatformSlice.Failed })
+                assertTrue(seen.all { it.value.retrying.isEmpty() })
+            }
+            assertEquals(2, kick.followedCalls)
+        }
+
+    @Test
+    fun aPullToRefreshOverABannerKeepsItAndShowsNoRetrySpinner() =
+        runTest {
+            kick.followed = { Outcome.Failure(LurkError.Offline) }
+            val vm = viewModel(accounts())
+
+            vm.state.test {
+                awaitUntil { it.slices[Platform.KICK] is PlatformSlice.Failed && !it.refreshing }
+                val gate = CompletableDeferred<Unit>()
+                kick.followed = {
+                    gate.await()
+                    Outcome.Failure(LurkError.Offline)
+                }
+
+                vm.onIntent(FollowingIntent.Refresh)
+
+                val pulling = awaitUntil { it.manualRefresh }
+                assertEquals(PlatformSlice.Failed(LurkError.Offline), pulling.slices[Platform.KICK])
+                assertTrue(pulling.retrying.isEmpty())
+                gate.complete(Unit)
+                val done = awaitUntil { !it.refreshing }
+                assertEquals(PlatformSlice.Failed(LurkError.Offline), done.slices[Platform.KICK])
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
 }

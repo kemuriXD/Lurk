@@ -187,6 +187,7 @@ class FollowingViewModel(
 
             is FollowingIntent.Retry -> {
                 refresh(platforms.filter { it.id == intent.platform })
+                markRetrying(intent.platform)
             }
 
             is FollowingIntent.OfflineRowShown -> {
@@ -196,6 +197,15 @@ class FollowingViewModel(
             is FollowingIntent.OfflineRowHidden -> {
                 lastLive.release(intent.channel)
             }
+        }
+    }
+
+    /** Flags [platform] as being asked again, if it has a failure on screen and a load is running for it. */
+    private fun markRetrying(platform: Platform) {
+        val running = inFlight[platform]?.job?.isActive == true
+        loads.update {
+            val failing = it.slices[platform] is PlatformSlice.Failed || platform in it.errors
+            if (running && failing) it.copy(retrying = it.retrying + platform) else it
         }
     }
 
@@ -278,21 +288,26 @@ class FollowingViewModel(
         val errors: Map<Platform, LurkError> = emptyMap(),
         val loading: Map<Platform, String> = emptyMap(),
         val manual: Boolean = false,
+        val retrying: Set<Platform> = emptySet(),
     ) {
         /**
-         * The same account's loaded items stay on screen, marked stale, while they reload. Anything else, including
-         * another account's items, starts again from `Loading`.
+         * The same account's loaded items stay on screen, marked stale, while they reload, and so does the same
+         * account's failure, so a retry never swaps an error for a skeleton and back. Anything else, including another
+         * account's items, starts again from `Loading`.
          */
         fun started(
             platform: Platform,
             owner: String,
         ): LoadState {
             val current = slices.getValue(platform)
-            return if (owners[platform] == owner && current is PlatformSlice.Loaded) {
+            val sameAccount = owners[platform] == owner
+            return if (sameAccount && current is PlatformSlice.Loaded) {
                 copy(
                     slices = slices + (platform to current.copy(stale = true)),
                     loading = loading + (platform to owner),
                 )
+            } else if (sameAccount && current is PlatformSlice.Failed) {
+                copy(loading = loading + (platform to owner))
             } else {
                 copy(
                     slices = slices + (platform to PlatformSlice.Loading),
@@ -311,7 +326,7 @@ class FollowingViewModel(
         ): LoadState {
             val previous = slices.getValue(platform)
             val done =
-                copy(owners = owners + (platform to owner), loading = loading - platform)
+                copy(owners = owners + (platform to owner), loading = loading - platform, retrying = retrying - platform)
                     .let { it.copy(manual = it.manual && it.loading.isNotEmpty()) }
             return if (result is PlatformSlice.Failed && previous is PlatformSlice.Loaded &&
                 owners[platform] == owner
@@ -326,7 +341,9 @@ class FollowingViewModel(
         }
 
         fun finished(platform: Platform): LoadState =
-            (loading - platform).let { left -> copy(loading = left, manual = manual && left.isNotEmpty()) }
+            (loading - platform).let { left ->
+                copy(loading = left, manual = manual && left.isNotEmpty(), retrying = retrying - platform)
+            }
     }
 
     private data class Choices(
@@ -376,10 +393,25 @@ class FollowingViewModel(
                 slices = shown,
                 refreshing = refreshing,
                 manualRefresh = loads.manual && refreshing,
+                retrying = retryingNow(choices, loads, owners),
                 refreshErrors = loads.errors.filterKeys { current(it) && choices.filter.includes(it) },
                 offlineCollapsed = choices.offlineCollapsed,
             )
         }
+
+        /** Platforms the user asked again after a failure, still loading for the current account. Not a pull. */
+        private fun retryingNow(
+            choices: Choices,
+            loads: LoadState,
+            owners: Map<Platform, String?>,
+        ): Set<Platform> =
+            if (loads.manual) {
+                emptySet()
+            } else {
+                loads.retrying
+                    .filter { owners[it] != null && loads.loading[it] == owners[it] && choices.filter.includes(it) }
+                    .toSet()
+            }
 
         private val byName: Comparator<Channel> =
             compareBy<Channel, String>(String.CASE_INSENSITIVE_ORDER) { it.displayName }.thenBy { it.ref.platform }

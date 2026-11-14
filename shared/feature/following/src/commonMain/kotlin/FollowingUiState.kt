@@ -19,6 +19,10 @@ import io.github.kemurixd.lurk.feature.common.PlatformSlice
  * A refresh that fails over loaded items keeps them as `Loaded(stale = true)` and puts the error in [refreshErrors].
  * A first load that fails is a `Failed` slice instead.
  *
+ * A platform in [retrying] is being asked again after a failure the user can see: its `Failed` slice or its entry in
+ * [refreshErrors] stays until the answer lands, so the screen never swaps the error for a skeleton and back. A pull
+ * to refresh is not a retry: it only sets [manualRefresh].
+ *
  * [offlineCollapsed] folds the Offline section to its header. [offline] still holds every channel, so the header can
  * count them; the screen just doesn't show the rows.
  */
@@ -32,4 +36,5 @@ data class FollowingUiState(
     val manualRefresh: Boolean = false,
     val refreshErrors: Map<Platform, LurkError> = emptyMap(),
     val offlineCollapsed: Boolean = false,
+    val retrying: Set<Platform> = emptySet(),
 )
