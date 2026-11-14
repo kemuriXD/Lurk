@@ -23,6 +23,8 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -263,5 +265,23 @@ class SearchLayoutTest {
             assertTrue("Categories crowds the check icon at $dp dp", word.left - segment.left >= 37f)
             assertTrue("Categories touches the border at $dp dp", segment.right - word.right >= 11f)
         }
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h360dp")
+    fun inALandscapePhoneTheNoResultsMessageCanBeRead() {
+        show(SearchUiState(query = "zzqxv", phase = SearchPhase.NO_RESULTS))
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        for (line in listOf("No results for “zzqxv”", "Check the spelling, or try a category name instead.")) {
+            val node = rule.onNodeWithText(line)
+            node.performScrollTo()
+            val bounds = node.fetchSemanticsNode().boundsInRoot
+            assertTrue(
+                "$line ends at ${bounds.bottom}, below the window at ${root.bottom}",
+                bounds.bottom <= root.bottom,
+            )
+            assertTrue("$line starts at ${bounds.top}, above the window", bounds.top >= root.top)
+        }
+        rule.onNodeWithTag(SearchTestTags.FIELD).assertIsDisplayed()
     }
 }

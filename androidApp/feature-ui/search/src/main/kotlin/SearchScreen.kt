@@ -21,9 +21,11 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -144,6 +146,7 @@ fun SearchScreen(
     // One ticking clock for every offline row, instead of a state and a timer started by each row that scrolls in. Only
     // the offline rows read it, so a tick redraws their text and leaves the screen and the live rows alone.
     val now = rememberNowState()
+    val compact = rememberCompactHeight()
     Column(modifier.fillMaxSize().imePadding()) {
         SearchField(initial = state.query, onIntent = onIntent)
         if (state.phase == SearchPhase.EMPTY) {
@@ -155,10 +158,17 @@ fun SearchScreen(
                     icon = DesignR.drawable.ic_search,
                 )
             }
+        } else if (compact && state.phase == SearchPhase.NO_RESULTS) {
+            // A landscape phone has no room for the filters and the message one above the other: they scroll together,
+            // and only the field stays pinned.
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                SearchFilters(state, onIntent)
+                NoResults(state)
+            }
         } else {
             // In a landscape phone only the field stays pinned; the filters scroll away with the list.
             CollapsibleHeader(
-                collapsible = rememberCompactHeight(),
+                collapsible = compact,
                 modifier = Modifier.weight(1f),
                 // The grid keeps its last size after it leaves, so an empty state is told apart by the phase.
                 canScroll = state.phase != SearchPhase.NO_RESULTS,
@@ -169,14 +179,7 @@ fun SearchScreen(
                 header = { SearchFilters(state, onIntent) },
             ) {
                 if (state.phase == SearchPhase.NO_RESULTS) {
-                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        EmptyState(
-                            title = stringResource(state.type.noResultsTitle(), state.query.trim()),
-                            body = stringResource(R.string.no_results_body),
-                            action = null,
-                            icon = DesignR.drawable.ic_search,
-                        )
-                    }
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { NoResults(state) }
                 } else {
                     val categoriesOnly = state.type == SearchType.CATEGORIES
                     LazyVerticalGrid(
@@ -207,6 +210,16 @@ private fun SearchFilters(
             modifier = Modifier.padding(vertical = 8.dp),
         )
     }
+}
+
+@Composable
+private fun NoResults(state: SearchUiState) {
+    EmptyState(
+        title = stringResource(state.type.noResultsTitle(), state.query.trim()),
+        body = stringResource(R.string.no_results_body),
+        action = null,
+        icon = DesignR.drawable.ic_search,
+    )
 }
 
 @StringRes
