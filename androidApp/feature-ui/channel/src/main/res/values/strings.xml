@@ -15,7 +15,7 @@
 
     <string name="section_live_now">Live now</string>
     <string name="section_last_stream">Last stream</string>
-    <string name="last_stream_footer">We’ll show the stream here when %1$s goes live again.</string>
+    <string name="last_stream_footer">You’ll see the stream here when %1$s is live again.</string>
 
     <string name="load_error_title">Couldn’t load this channel</string>
     <string name="follow_failed">Couldn’t follow %1$s</string>
