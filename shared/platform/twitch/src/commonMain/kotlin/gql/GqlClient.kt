@@ -46,6 +46,9 @@ private const val MAX_RETRIES = 3
 private val LOAD_MORE_INTERVAL = 500.milliseconds
 private val BACKOFF_BASE = 1.seconds
 
+/** The longest a retry waits inside the client. A longer `Retry-After` goes to the UI, which counts it down. */
+private val MAX_RETRY_WAIT = 8.seconds
+
 /**
  * Posts raw GraphQL operations to Twitch's web endpoint and returns the `data` object, decoded by the caller.
  *
@@ -100,8 +103,7 @@ class GqlClient(
     ): Outcome<T> =
         outcomeOf {
             val body = requestBody(operation, query, variables)
-            if ("after" in variables) awaitLoadMoreSlot(operation)
-            markRequest(operation)
+            awaitSlot(operation, loadMore = "after" in variables)
             val twitch = config.value.twitch
             val ids = twitch.gqlDiscoveryClientIds.ifEmpty { listOf(twitch.gqlClientId) }
             val start = ids.indexOf(workingDiscoveryId.value).coerceAtLeast(0)
@@ -117,14 +119,28 @@ class GqlClient(
             withContext(dispatchers.default) { decodeReply(dataOf(reply), decode) }
         }
 
-    private suspend fun awaitLoadMoreSlot(operation: String) {
-        val last = pacing.withLock { lastRequest[operation] } ?: return
-        val wait = LOAD_MORE_INTERVAL - last.elapsedNow()
+    /**
+     * Reserves this request's slot and waits for it. The slot is the later of now and one [LOAD_MORE_INTERVAL] after
+     * the previous slot of the same operation, taken under the lock, so concurrent load-mores queue up half a second
+     * apart. A first page takes the slot without waiting for it.
+     */
+    private suspend fun awaitSlot(
+        operation: String,
+        loadMore: Boolean,
+    ) {
+        val wait =
+            pacing.withLock {
+                val last = lastRequest[operation]
+                val wait =
+                    if (loadMore && last != null) {
+                        (LOAD_MORE_INTERVAL - last.elapsedNow()).coerceAtLeast(Duration.ZERO)
+                    } else {
+                        Duration.ZERO
+                    }
+                lastRequest[operation] = timeSource.markNow() + wait
+                wait
+            }
         if (wait.isPositive()) delay(wait)
-    }
-
-    private suspend fun markRequest(operation: String) {
-        pacing.withLock { lastRequest[operation] = timeSource.markNow() }
     }
 
     private suspend fun sendWithBackoff(
@@ -152,9 +168,19 @@ class GqlClient(
         if (attempt >= MAX_RETRIES) return null
         val backoff = BACKOFF_BASE * (1 shl attempt)
         return when {
-            error is LurkError.RateLimited -> maxOf(backoff, error.retryAfter ?: Duration.ZERO)
-            error is LurkError.Http && error.code >= SERVER_ERROR_FLOOR -> backoff
-            else -> null
+            // A wait too long to sit through behind a spinner is the caller's to show, with its own countdown.
+            error is LurkError.RateLimited -> {
+                val wait = maxOf(backoff, error.retryAfter ?: Duration.ZERO)
+                wait.takeIf { it <= MAX_RETRY_WAIT }
+            }
+
+            error is LurkError.Http && error.code >= SERVER_ERROR_FLOOR -> {
+                backoff
+            }
+
+            else -> {
+                null
+            }
         }
     }
 

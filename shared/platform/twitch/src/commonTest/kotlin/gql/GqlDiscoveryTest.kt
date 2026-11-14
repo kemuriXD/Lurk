@@ -24,6 +24,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -38,6 +39,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GqlDiscoveryTest {
@@ -293,5 +295,46 @@ class GqlDiscoveryTest {
             r.gql.discover()
 
             assertEquals(1, r.seen.size)
+        }
+
+    @Test
+    fun aShortRetryAfterIsHonouredInPlaceOfTheBackoff() =
+        runTest {
+            var calls = 0
+            val r =
+                rig {
+                    if (calls++ < 1) {
+                        respond("{}", HttpStatusCode.TooManyRequests, headersOf(HttpHeaders.RetryAfter, "6"))
+                    } else {
+                        reply(ok)
+                    }
+                }
+
+            assertEquals(Outcome.Success(1), r.gql.discover())
+            assertEquals(listOf(0L, 6_000L), r.times)
+        }
+
+    @Test
+    fun aLongRetryAfterSurfacesTheRateLimitInsteadOfWaiting() =
+        runTest {
+            val r =
+                rig { respond("{}", HttpStatusCode.TooManyRequests, headersOf(HttpHeaders.RetryAfter, "300")) }
+
+            assertEquals(Outcome.Failure(LurkError.RateLimited(300.seconds)), r.gql.discover())
+            assertEquals(listOf(0L), r.times)
+            assertEquals(0L, testScheduler.currentTime)
+        }
+
+    @Test
+    fun twoLoadMoresStartedTogetherAreSpacedHalfASecondApart() =
+        runTest {
+            val r = rig { reply(ok) }
+            r.gql.discover()
+            val a = async { r.gql.discover(after = "c1") }
+            val b = async { r.gql.discover(after = "c2") }
+            a.await()
+            b.await()
+
+            assertEquals(listOf(0L, 500L, 1_000L), r.times)
         }
 }
