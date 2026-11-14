@@ -2,6 +2,7 @@ package io.github.kemurixd.lurk.platform.twitch.discovery
 
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.common.isRetryable
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Page
@@ -179,5 +180,41 @@ class TopStreamsQueryTest {
             val r = discoveryRig { reply(fixture("gql/error-integrity.json")) }
 
             assertEquals(Outcome.Failure(LurkError.IntegrityRequired), r.gql.topLive(null))
+        }
+
+    @Test
+    fun aServiceTimeoutCanBeAskedAgain() =
+        runTest {
+            val r = discoveryRig { reply(fixture("gql/error-timeout.json")) }
+
+            val result = r.gql.topLive(null)
+
+            assertEquals(Outcome.Failure(LurkError.Unexpected), result)
+            assertTrue(result.error.isRetryable)
+        }
+
+    @Test
+    fun anIntegrityErrorWithNullDataIsStillIntegrityRequired() =
+        runTest {
+            val r = discoveryRig { reply(fixture("gql/error-integrity.json")) }
+
+            val result = r.gql.topLive(null)
+
+            assertEquals(Outcome.Failure(LurkError.IntegrityRequired), result)
+            assertFalse(result.error.isRetryable)
+        }
+
+    @Test
+    fun aReplyMissingItsFieldsWithoutErrorsIsASchemaChange() =
+        runTest {
+            val r = discoveryRig { reply(fixture("gql/top-streams-shape-changed.json")) }
+
+            assertEquals(Outcome.Failure(LurkError.SchemaChanged), r.gql.topLive(null))
+        }
+
+    private val Outcome<*>.error: LurkError
+        get() {
+            assertIs<Outcome.Failure>(this)
+            return error
         }
 }

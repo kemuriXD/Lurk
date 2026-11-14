@@ -11,17 +11,32 @@ import kotlinx.serialization.json.contentOrNull
 private val authMarkers = listOf("OAuth token", "Unauthorized")
 private val integrityMarkers = listOf("failed integrity check", "IntegrityCheckFailed")
 
+/** What GraphQL says when the query itself no longer fits the server's schema: asking again can't help. */
+private val schemaMarkers =
+    listOf(
+        "Cannot query field",
+        "Unknown argument",
+        "Unknown type",
+        "GRAPHQL_VALIDATION_FAILED",
+        "PersistedQueryNotFound",
+    )
+
 /** What one GQL response says, before any caller decodes it. */
 internal sealed interface GqlReply {
+    /** The `data` object. [failed] when the reply also listed errors, so a part of [data] may be missing. */
     data class Data(
         val data: JsonObject,
+        val failed: Boolean = false,
     ) : GqlReply
 
     data object AuthExpired : GqlReply
 
     data object IntegrityFailed : GqlReply
 
-    /** Not the shape GQL answers with, or errors without data. */
+    /** The server listed errors and sent no data: a backend failure such as a timeout, worth asking again. */
+    data object ServerError : GqlReply
+
+    /** Not the shape GQL answers with, or a query the server's schema no longer accepts. */
     data object UnexpectedShape : GqlReply
 }
 
@@ -34,10 +49,15 @@ internal fun classifyReply(body: JsonElement): GqlReply {
             else -> null
         } ?: return GqlReply.UnexpectedShape
     val texts = errorTexts(reply)
+    val failed = (reply["errors"] as? JsonArray)?.isNotEmpty() == true
+    val data = reply["data"] as? JsonObject
     return when {
         texts.any { text -> authMarkers.any { it in text } } -> GqlReply.AuthExpired
         texts.any { text -> integrityMarkers.any { it in text } } -> GqlReply.IntegrityFailed
-        else -> (reply["data"] as? JsonObject)?.let { GqlReply.Data(it) } ?: GqlReply.UnexpectedShape
+        texts.any { text -> schemaMarkers.any { it in text } } -> GqlReply.UnexpectedShape
+        data != null -> GqlReply.Data(data, failed)
+        failed -> GqlReply.ServerError
+        else -> GqlReply.UnexpectedShape
     }
 }
 

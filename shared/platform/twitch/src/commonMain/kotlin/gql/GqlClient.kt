@@ -82,8 +82,7 @@ class GqlClient(
                 val integrity = solveIntegrity(token) ?: throw LurkException(LurkError.IntegrityRequired)
                 reply = send(body, token, integrity)
             }
-            val data = dataOf(reply)
-            withContext(dispatchers.default) { decodeOrSchemaChanged(data, decode) }
+            withContext(dispatchers.default) { decodeReply(reply, decode) }
         }
 
     /**
@@ -114,8 +113,7 @@ class GqlClient(
                     break
                 }
             }
-            val data = dataOf(reply)
-            withContext(dispatchers.default) { decodeOrSchemaChanged(data, decode) }
+            withContext(dispatchers.default) { decodeReply(reply, decode) }
         }
 
     private suspend fun awaitLoadMoreSlot(operation: String) {
@@ -186,14 +184,6 @@ class GqlClient(
         return (result as? ChallengeResult.Solved)?.cookies?.get(INTEGRITY_COOKIE)?.takeIf { it.isNotBlank() }
     }
 
-    private fun dataOf(reply: GqlReply): JsonObject =
-        when (reply) {
-            is GqlReply.Data -> reply.data
-            GqlReply.AuthExpired -> throw LurkException(LurkError.AuthExpired)
-            GqlReply.IntegrityFailed -> throw LurkException(LurkError.IntegrityRequired)
-            GqlReply.UnexpectedShape -> throw LurkException(LurkError.SchemaChanged)
-        }
-
     private fun requestBody(
         operation: String,
         query: String,
@@ -210,17 +200,31 @@ class GqlClient(
         }.toString()
 }
 
+/**
+ * Decodes the reply's data. A reply that can't be decoded is a schema change only when the server reported nothing
+ * wrong: one that listed errors (a "service timeout" with `null` fields, say) failed on the server's side this time,
+ * so it is [LurkError.Unexpected], which can be asked again.
+ */
 @Suppress("TooGenericExceptionCaught")
-private fun <T> decodeOrSchemaChanged(
-    data: JsonObject,
+private fun <T> decodeReply(
+    reply: GqlReply,
     decode: (JsonObject) -> T,
-): T =
-    try {
-        decode(data)
+): T {
+    val data =
+        when (reply) {
+            is GqlReply.Data -> reply
+            GqlReply.AuthExpired -> throw LurkException(LurkError.AuthExpired)
+            GqlReply.IntegrityFailed -> throw LurkException(LurkError.IntegrityRequired)
+            GqlReply.ServerError -> throw LurkException(LurkError.Unexpected)
+            GqlReply.UnexpectedShape -> throw LurkException(LurkError.SchemaChanged)
+        }
+    return try {
+        decode(data.data)
     } catch (e: CancellationException) {
         throw e
     } catch (e: LurkException) {
         throw e
     } catch (e: Exception) {
-        throw LurkException(LurkError.SchemaChanged, e)
+        throw LurkException(if (data.failed) LurkError.Unexpected else LurkError.SchemaChanged, e)
     }
+}
