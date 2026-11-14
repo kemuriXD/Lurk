@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- Lets system traces show the app's own sections without making the build debuggable. -->
+        <profileable
+            android:shell="true"
+            tools:targetApi="29" />
+    </application>
+</manifest>

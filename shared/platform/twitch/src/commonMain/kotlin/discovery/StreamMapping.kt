@@ -10,13 +10,24 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
-internal const val PAGE_SIZE = 30
+/** The most `games` and `game.streams` answer with per request. */
+internal const val PAGE_SIZE = 100
+internal const val GAME_STREAMS_PAGE_SIZE = PAGE_SIZE
+
+/** The most the top-level `streams` field accepts per request: a larger `first` is refused and answers `null`. */
+internal const val TOP_STREAMS_PAGE_SIZE = 30
 
 /** The fields of a live stream that every discovery query asks for. */
 internal const val STREAM_FIELDS =
     "id title viewersCount createdAt previewImageURL " +
         "broadcaster { id login displayName profileImageURL(width: 70) } " +
         "game { id name boxArtURL }"
+
+/**
+ * [STREAM_FIELDS] plus the broadcaster's tags and the stream language. Only the Following list shows them, so only its
+ * query pays for them.
+ */
+internal const val STREAM_FIELDS_WITH_TAGS = "$STREAM_FIELDS language freeformTags { name }"
 
 private const val THUMBNAIL_SIZE = "440x248"
 private const val BOX_ART_SIZE = "285x380"
@@ -60,9 +71,17 @@ internal fun streamOf(
             startedAt = instantOrNull(node.text("createdAt")),
             thumbnailUrl = node.text("previewImageURL")?.sized(THUMBNAIL_SIZE),
             avatarUrl = broadcaster.text("profileImageURL"),
+            tags = tagsOf(node),
+            language = node.nonBlank("language")?.lowercase(),
         )
     }
 }
+
+/** The non-blank `freeformTags` names, in order. Empty when the query didn't ask for them. */
+private fun tagsOf(node: JsonObject): List<String> =
+    (node["freeformTags"] as? JsonArray)
+        .orEmpty()
+        .mapNotNull { (it as? JsonObject)?.nonBlank("name") }
 
 /**
  * Reads a connection's edges into a page. Items [map] cannot read are dropped. The cursor is the last edge's

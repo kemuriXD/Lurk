@@ -6,21 +6,26 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
 
 private const val KEY = "twitch.deviceId"
+private const val DISCOVERY_KEY = "twitch.discoveryDeviceId"
 private const val ID_BYTES = 16
 private const val BYTE_MASK = 0xFF
 private const val HEX_RADIX = 16
 private val validId = Regex("[0-9a-f]{32}")
 
-/** The `X-Device-Id` Twitch's web client sends: 32 lowercase hex characters, made once and kept. */
+/**
+ * The `X-Device-Id` Twitch's web client sends: 32 lowercase hex characters, made once and kept in [secure] under
+ * [key]. The anonymous browse lists use their own ([forDiscovery]), so they can't be tied to signed-in requests.
+ */
 class DeviceId(
     private val secure: SecureStore,
+    private val key: String = KEY,
 ) {
     private val lock = Mutex()
     private var cached: String? = null
 
     suspend fun get(): String =
         lock.withLock {
-            cached ?: (secure.get(KEY)?.takeIf { validId.matches(it) } ?: create()).also { cached = it }
+            cached ?: (secure.get(key)?.takeIf { validId.matches(it) } ?: create()).also { cached = it }
         }
 
     private suspend fun create(): String {
@@ -28,7 +33,12 @@ class DeviceId(
             Random.nextBytes(ID_BYTES).joinToString("") {
                 (it.toInt() and BYTE_MASK).toString(HEX_RADIX).padStart(2, '0')
             }
-        secure.put(KEY, id)
+        secure.put(key, id)
         return id
+    }
+
+    companion object {
+        /** The device ID of the anonymous browse-list requests, kept apart from the signed-in one. */
+        fun forDiscovery(secure: SecureStore): DeviceId = DeviceId(secure, DISCOVERY_KEY)
     }
 }

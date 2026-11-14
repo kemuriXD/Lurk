@@ -16,7 +16,9 @@ import io.github.kemurixd.lurk.core.common.DispatcherProvider
 import io.github.kemurixd.lurk.core.common.commonModule
 import io.github.kemurixd.lurk.core.config.configModule
 import io.github.kemurixd.lurk.core.model.Platform
+import io.github.kemurixd.lurk.core.network.AlwaysOnline
 import io.github.kemurixd.lurk.core.network.ChallengeSolver
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.WebSocketConnector
 import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.CacheStore
@@ -24,6 +26,25 @@ import io.github.kemurixd.lurk.core.storage.SecureStore
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.db.LurkDatabase
 import io.github.kemurixd.lurk.core.storage.storageModule
+import io.github.kemurixd.lurk.feature.accounts.AccountsViewModel
+import io.github.kemurixd.lurk.feature.accounts.LoginViewModel
+import io.github.kemurixd.lurk.feature.accounts.accountsModule
+import io.github.kemurixd.lurk.feature.browse.CategoriesViewModel
+import io.github.kemurixd.lurk.feature.browse.CategoryStreamsViewModel
+import io.github.kemurixd.lurk.feature.browse.TopLiveViewModel
+import io.github.kemurixd.lurk.feature.browse.browseModule
+import io.github.kemurixd.lurk.feature.channel.ChannelViewModel
+import io.github.kemurixd.lurk.feature.channel.channelModule
+import io.github.kemurixd.lurk.feature.common.AccountsState
+import io.github.kemurixd.lurk.feature.common.LastLiveLoader
+import io.github.kemurixd.lurk.feature.common.featureCommonModule
+import io.github.kemurixd.lurk.feature.following.FollowingViewModel
+import io.github.kemurixd.lurk.feature.following.followingModule
+import io.github.kemurixd.lurk.feature.search.SearchViewModel
+import io.github.kemurixd.lurk.feature.search.searchModule
+import io.github.kemurixd.lurk.feature.testing.inMemorySettingsStore
+import io.github.kemurixd.lurk.login.AndroidCookieJar
+import io.github.kemurixd.lurk.login.CookieJar
 import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
@@ -38,6 +59,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.core.module.Module
+import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
@@ -81,6 +103,7 @@ class AppModulesTest {
     private val platformExtraTypes =
         listOf(
             HttpClient::class,
+            NetworkStatus::class,
             WebSocketConnector::class,
             SecureStore::class,
             DispatcherProvider::class,
@@ -102,6 +125,8 @@ class AppModulesTest {
                 authModule,
                 twitchModule,
                 kickModule,
+                platformsModule,
+                featureCommonModule,
                 module {
                     single<SecureStore> { MemorySecureStore() }
                     single {
@@ -113,6 +138,7 @@ class AppModulesTest {
                         )
                     }
                     single<Clock> { Clock.System }
+                    single<NetworkStatus> { AlwaysOnline }
                 },
             )
         }
@@ -125,7 +151,10 @@ class AppModulesTest {
     @Test
     fun networkModuleIsComplete() {
         // Koin inspects constructor parameters, which the factory and the monotonic clock fill in.
-        networkModule.verify(extraTypes = listOf(HttpClientEngine::class, TimeSource.WithComparableMarks::class))
+        networkModule.verify(
+            extraTypes =
+                listOf(HttpClientEngine::class, TimeSource.WithComparableMarks::class, NetworkStatus::class),
+        )
     }
 
     @Test
@@ -146,7 +175,15 @@ class AppModulesTest {
     @Test
     fun appModulesCoverEveryModule() {
         val modules: List<Module> = appModules(context)
-        assertEquals(12, modules.size)
+        assertEquals(21, modules.size)
+        assertTrue(accountsModule in modules)
+        assertTrue(loginModule in modules)
+        assertTrue(featureCommonModule in modules)
+        assertTrue(followingModule in modules)
+        assertTrue(browseModule in modules)
+        assertTrue(searchModule in modules)
+        assertTrue(channelModule in modules)
+        assertTrue(platformsModule in modules)
         assertTrue(playbackModule in modules)
         assertTrue(authModule in modules)
         assertTrue(twitchModule in modules)
@@ -165,6 +202,95 @@ class AppModulesTest {
     @Test
     fun kickModuleIsComplete() {
         kickModule.verify(extraTypes = platformExtraTypes + CookiesStorage::class)
+    }
+
+    @Test
+    fun featureCommonModuleResolvesOverTheRealPlatforms() {
+        // No verify() here: LastLiveLoader takes List<StreamingPlatform>, and verify() still reports that parameter
+        // missing with List::class in extraTypes ("Missing definition for ... type 'kotlin.collections.List'"). So the
+        // module is resolved over the real graph instead, which checks every binding.
+        val koin = platformGraph().koin
+        koin.get<AccountsState>()
+        koin.get<LastLiveLoader>()
+    }
+
+    // verify() can't check a generic List binding, so followingModule is covered by resolving it over the real graph.
+
+    @Test
+    fun platformListHoldsBothPlatforms() {
+        val koin = platformGraph().koin
+        assertEquals(setOf(Platform.TWITCH, Platform.KICK), koin.get<List<StreamingPlatform>>().map { it.id }.toSet())
+    }
+
+    @Test
+    fun followingViewModelResolvesOverTheRealPlatforms() {
+        val app = platformGraph()
+        app.modules(followingModule, module { single { inMemorySettingsStore() } })
+        app.koin.get<FollowingViewModel>()
+    }
+
+    @Test
+    fun browseViewModelsResolveOverTheRealPlatforms() {
+        val app = platformGraph()
+        app.modules(browseModule)
+        app.koin.get<TopLiveViewModel>()
+        app.koin.get<CategoriesViewModel>()
+    }
+
+    @Test
+    fun searchViewModelResolvesOverTheRealPlatforms() {
+        val app = platformGraph()
+        app.modules(searchModule)
+        app.koin.get<SearchViewModel>()
+    }
+
+    @Test
+    fun channelViewModelTakesPlatformAndLoginAsParameters() {
+        val app = platformGraph()
+        app.modules(channelModule)
+        app.koin.get<ChannelViewModel> { parametersOf(Platform.KICK, "streamer1") }
+        app.koin.get<ChannelViewModel> { parametersOf(Platform.TWITCH, "streamer1") }
+    }
+
+    @Test
+    fun accountsViewModelResolvesOverTheRealSessions() {
+        val app = platformGraph()
+        app.modules(accountsModule)
+        app.koin.get<AccountsViewModel>()
+    }
+
+    @Test
+    fun loginViewModelTakesThePlatformAsAParameter() {
+        val app = platformGraph()
+        app.modules(accountsModule)
+        app.koin.get<LoginViewModel> { parametersOf(Platform.TWITCH) }
+        app.koin.get<LoginViewModel> { parametersOf(Platform.KICK) }
+    }
+
+    @Test
+    fun loginModuleBindsTheAndroidCookieJar() {
+        val koin = koinApplication { modules(loginModule) }.koin
+        assertTrue(koin.get<CookieJar>() is AndroidCookieJar)
+        assertSame(koin.get<CookieJar>(), koin.get<CookieJar>())
+    }
+
+    @Test
+    fun categoryStreamsViewModelTakesPlatformAndIdAsParameters() {
+        val app = platformGraph()
+        app.modules(browseModule)
+        app.koin.get<CategoryStreamsViewModel> { parametersOf(Platform.KICK, "42") }
+    }
+
+    @Test
+    fun accountsStateResolvesOverTheRealSessions() {
+        val koin = platformGraph().koin
+        assertSame(koin.get<SessionRepository>(), koin.get<SessionRepository>())
+        assertEquals(
+            Platform.entries.toSet(),
+            koin
+                .get<AccountsState>()
+                .states.value.keys,
+        )
     }
 
     @Test

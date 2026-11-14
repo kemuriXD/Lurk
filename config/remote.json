@@ -2,6 +2,7 @@
   "schemaVersion": 2,
   "twitch": {
     "gqlClientId": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+    "gqlDiscoveryClientIds": ["kd1unb4b3q4t58fwlpcbzcbnm76a8fp", "ue6666qo983tsx6so1t0vnawi233wa"],
     "persistedQueries": {
       "FollowingLive_CurrentUser": "bbfa83064e90280dce3eaa9de3a18eb6647505546336313241afdf569b6b34b6",
       "FollowButton_User": "1131e2a2138f219d96db8deda8eb06b217c0669e4fd33b8bed47623fc9764b33",

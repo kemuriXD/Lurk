@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="section_live">Live</string>
+    <string name="section_offline">Offline</string>
+    <string name="cd_hide_offline">Hide offline channels</string>
+    <string name="cd_show_offline">Show offline channels</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
+
+    <string name="sort_viewers">Viewers</string>
+    <string name="sort_recent">Recently started</string>
+    <string name="sort_name">A–Z</string>
+
+    <string name="signed_out_title">Sign in to see who’s live</string>
+    <string name="signed_out_body">Your Following list comes from your Twitch and Kick accounts. Browse, Search and watching work without signing in.</string>
+    <string name="sign_in_to">Sign in to %1$s</string>
+    <string name="following_error_title">Couldn’t load your follows</string>
+
+    <string name="nobody_live_title">Nothing live right now</string>
+    <string name="nobody_live_body">Channels you follow on Twitch and Kick show up here as soon as they go live.</string>
+    <string name="browse_live_channels">Browse live channels</string>
+    <string name="cd_sort_live">Sort live channels, currently by %1$s</string>
+</resources>

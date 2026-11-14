@@ -18,7 +18,10 @@ data class LoginSpec(
 
     companion object {
         val TWITCH = LoginSpec(Platform.TWITCH, "https://www.twitch.tv/login", ".twitch.tv", "auth-token")
-        val KICK = LoginSpec(Platform.KICK, "https://kick.com/login", "kick.com", "session_token")
+
+        // The home page, not /login: Kick's login dialog blocks taps on the cookie-consent banner. The user answers
+        // the banner, then taps Kick's own Log in.
+        val KICK = LoginSpec(Platform.KICK, "https://kick.com/", "kick.com", "session_token")
 
         fun forPlatform(platform: Platform): LoginSpec =
             when (platform) {

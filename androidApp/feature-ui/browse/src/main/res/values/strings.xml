@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_top_live">Top Live</string>
+    <string name="tab_categories">Categories</string>
+
+    <string name="top_live_empty_title">Nothing live right now</string>
+    <string name="top_live_empty_body">Streams on Twitch and Kick show up here as they go live.</string>
+    <string name="top_live_error_title">Couldn’t load live channels</string>
+
+    <string name="categories_empty_title">No categories yet</string>
+    <string name="categories_empty_body">Try the other platform, or check back in a moment.</string>
+    <string name="categories_error_title">Couldn’t load categories</string>
+
+    <string name="category_live_channels">Live channels</string>
+    <string name="category_empty_title">No one is live in this category</string>
+    <string name="category_empty_body">Check back later, or browse another category.</string>
+    <string name="category_error_title">Couldn’t load this category</string>
+
+    <string name="sort_featured">Featured</string>
+    <string name="sort_recommended">Recommended</string>
+    <string name="sort_recommended_for_you">Recommended for you</string>
+    <string name="sort_viewers_high">Viewers (high to low)</string>
+    <string name="sort_viewers_low">Viewers (low to high)</string>
+    <string name="sort_recent">Recently started</string>
+
+    <string name="cd_sort_live">Sort live channels, currently by %1$s</string>
+</resources>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="platform_twitch">Twitch</string>
+    <string name="platform_kick">Kick</string>
+
+    <string name="filter_all">All</string>
+
+    <string name="live">Live</string>
+    <string name="cd_live_viewers">Live, %1$s viewers</string>
+    <string name="viewers_count">%1$s viewers</string>
+    <string name="offline">Offline</string>
+    <string name="offline_last_live">Offline · last live %1$s</string>
+    <string name="ago_just_now">just now</string>
+    <string name="ago_yesterday">yesterday</string>
+    <plurals name="ago_minutes">
+        <item quantity="one">%d minute ago</item>
+        <item quantity="other">%d minutes ago</item>
+    </plurals>
+    <plurals name="ago_hours">
+        <item quantity="one">%d hour ago</item>
+        <item quantity="other">%d hours ago</item>
+    </plurals>
+    <plurals name="ago_days">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <plurals name="ago_weeks">
+        <item quantity="one">%d week ago</item>
+        <item quantity="other">%d weeks ago</item>
+    </plurals>
+    <plurals name="ago_months">
+        <item quantity="one">%d month ago</item>
+        <item quantity="other">%d months ago</item>
+    </plurals>
+    <plurals name="ago_years">
+        <item quantity="one">%d year ago</item>
+        <item quantity="other">%d years ago</item>
+    </plurals>
+    <string name="supporting_category_viewers">%1$s · %2$s viewers</string>
+    <string name="loading">Loading</string>
+    <plurals name="cd_more_tags">
+        <item quantity="one">%d more tag</item>
+        <item quantity="other">%d more tags</item>
+    </plurals>
+
+    <string name="cd_card_separator">", "</string>
+    <string name="cd_live">live</string>
+    <string name="cd_uptime_hours_minutes">%1$s %2$s</string>
+    <string name="cd_live_for">live for %1$s</string>
+    <string name="cd_live_for_under_minute">live for less than a minute</string>
+    <plurals name="cd_uptime_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <plurals name="cd_uptime_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+
+    <string name="cd_open_channel">Open %1$s</string>
+    <string name="cd_account_and_settings">Account and settings</string>
+
+    <string name="error_action_retry">Retry</string>
+    <string name="error_action_sign_in">Sign in</string>
+    <string name="error_action_sign_in_again">Sign in again</string>
+    <string name="error_action_open_proxy_settings">Open proxy settings</string>
+    <string name="error_action_check_for_update">Check for update</string>
+    <string name="error_action_go_back">Go back</string>
+    <string name="error_action_retry_in">Retry in %1$ds</string>
+    <string name="error_retry_cd">Retry loading %1$s</string>
+    <string name="error_load_platform">Couldn’t load %1$s</string>
+    <string name="error_snackbar_message">%1$s. %2$s</string>
+    <string name="error_list_join">%1$s, %2$s</string>
+    <string name="error_list_last">%1$s or %2$s</string>
+    <string name="error_load_more">Couldn’t load more from %1$s</string>
+
+    <string name="error_offline">You’re offline. Check your connection.</string>
+    <string name="error_timeout">That took too long.</string>
+    <string name="error_auth_expired">Your session expired.</string>
+    <string name="error_blocked">The platform blocked the request for now.</string>
+    <string name="error_integrity_required">The platform is running a check Lurk can’t pass yet.</string>
+    <string name="error_proxy_failed">The proxy didn’t respond.</string>
+    <string name="error_schema_changed">The platform changed something Lurk relies on.</string>
+    <string name="error_not_found">Nothing found here.</string>
+    <string name="error_not_signed_in">You’re not signed in.</string>
+    <string name="error_unsupported">This isn’t supported yet.</string>
+    <string name="error_unexpected">Something went wrong.</string>
+    <string name="error_http">The server returned an error.</string>
+    <string name="error_rate_limited">Too many requests. Wait a moment.</string>
+</resources>

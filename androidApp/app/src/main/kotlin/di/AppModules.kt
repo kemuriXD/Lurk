@@ -6,10 +6,21 @@ import io.github.kemurixd.lurk.auth.authModule
 import io.github.kemurixd.lurk.chat.chatModule
 import io.github.kemurixd.lurk.core.common.commonModule
 import io.github.kemurixd.lurk.core.config.configModule
+import io.github.kemurixd.lurk.core.network.NetworkStatus
 import io.github.kemurixd.lurk.core.network.networkModule
 import io.github.kemurixd.lurk.core.storage.androidStorageModule
 import io.github.kemurixd.lurk.core.storage.storageModule
 import io.github.kemurixd.lurk.emotes.emotesModule
+import io.github.kemurixd.lurk.feature.accounts.accountsModule
+import io.github.kemurixd.lurk.feature.browse.browseModule
+import io.github.kemurixd.lurk.feature.channel.channelModule
+import io.github.kemurixd.lurk.feature.common.featureCommonModule
+import io.github.kemurixd.lurk.feature.following.followingModule
+import io.github.kemurixd.lurk.feature.search.searchModule
+import io.github.kemurixd.lurk.login.AndroidCookieJar
+import io.github.kemurixd.lurk.login.CookieJar
+import io.github.kemurixd.lurk.network.AndroidNetworkStatus
+import io.github.kemurixd.lurk.platform.api.StreamingPlatform
 import io.github.kemurixd.lurk.platform.kick.kickModule
 import io.github.kemurixd.lurk.platform.twitch.twitchModule
 import io.github.kemurixd.lurk.playback.playbackModule
@@ -36,11 +47,30 @@ val appScopeModule: Module =
         }
     }
 
+/** Every bound platform as one list, so each view model resolves the same `List<StreamingPlatform>` with `get()`. */
+val platformsModule: Module =
+    module {
+        single<List<StreamingPlatform>> { getAll() }
+    }
+
+/** What the HTTP client consults before sending: the device's connectivity. */
+fun androidNetworkModule(context: Context): Module =
+    module {
+        single<NetworkStatus> { AndroidNetworkStatus(context) }
+    }
+
+/** The login WebView's cookie store. */
+val loginModule: Module =
+    module {
+        single<CookieJar> { AndroidCookieJar() }
+    }
+
 /** Every Koin module the app starts with. Feature and platform modules join this list as they are built. */
 fun appModules(context: Context): List<Module> =
     listOf(
         commonModule,
         networkModule,
+        androidNetworkModule(context),
         storageModule,
         androidStorageModule(context),
         configModule,
@@ -51,4 +81,12 @@ fun appModules(context: Context): List<Module> =
         authModule,
         twitchModule,
         kickModule,
+        platformsModule,
+        featureCommonModule,
+        followingModule,
+        browseModule,
+        searchModule,
+        channelModule,
+        accountsModule,
+        loginModule,
     )

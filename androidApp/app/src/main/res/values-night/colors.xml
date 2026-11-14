@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="splash_surface">#0D1516</color>
+    <color name="splash_circle">#0E4E57</color>
+    <color name="splash_face">#36D9F0</color>
+    <color name="splash_wall">#DCE4E5</color>
+    <color name="splash_eye">#0E4E57</color>
+    <color name="splash_pupil">#9DEFFE</color>
+</resources>

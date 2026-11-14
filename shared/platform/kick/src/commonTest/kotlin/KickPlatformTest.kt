@@ -3,6 +3,7 @@ package io.github.kemurixd.lurk.platform.kick
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.LurkException
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
@@ -45,12 +46,19 @@ class KickPlatformTest {
         seen: MutableList<HttpRequestData> = mutableListOf(),
         signedIn: Boolean = false,
         status: HttpStatusCode = HttpStatusCode.OK,
+        channelFixture: String = "api/channel-live.json",
     ): KickPlatform {
         val rig =
             Rig(
                 mockEngine {
                     seen += it
-                    json(if (status == HttpStatusCode.OK) fixture("api/channel-live.json") else "{}", status)
+                    val body =
+                        when {
+                            status != HttpStatusCode.OK -> "{}"
+                            it.url.encodedPath.endsWith("/videos") -> fixture("api/channel-videos.json")
+                            else -> fixture(channelFixture)
+                        }
+                    json(body, status)
                 },
             )
         val sessions = rigSessions(signedIn)
@@ -73,6 +81,10 @@ class KickPlatformTest {
                     chatSend = true,
                     chatHistory = true,
                     cheermotes = false,
+                    categorySorts = listOf(CategorySort.FEATURED, CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+                    categorySortsNeedingSignIn = setOf(CategorySort.RECOMMENDED),
+                    categorySortDefaults = listOf(CategorySort.RECOMMENDED, CategorySort.VIEWERS_HIGH),
+                    lastLiveLookup = true,
                 )
             val platform = platform()
             assertEquals(expected, platform.capabilities)
@@ -114,6 +126,40 @@ class KickPlatformTest {
             assertNotNull(endpoints.sender)
             endpoints.history!!.fetch()
             assertEquals("/api/v1/chat/1000001/history", seen.last().url.encodedPath)
+        }
+
+    @Test
+    fun resolvingAnOfflineChannelForChatSkipsPastStreams() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            platform(seen, channelFixture = "api/channel-offline.json").chat(channel("", ""))
+            assertEquals(0, seen.count { it.url.encodedPath.endsWith("/videos") })
+        }
+
+    @Test
+    fun resolvingALiveChannelForChatSkipsTheLivestreamLookup() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            platform(seen).chat(channel("", ""))
+            assertEquals(0, seen.count { it.url.encodedPath.endsWith("/livestream") })
+        }
+
+    @Test
+    fun channelPageForAnOfflineChannelLooksUpPastStreams() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val result = platform(seen, channelFixture = "api/channel-offline.json").channel(channel("", "").ref)
+            assertNotNull((result as Outcome.Success).value.lastStream?.startedAt)
+            assertEquals(1, seen.count { it.url.encodedPath == "/api/v2/channels/streamer1/videos" })
+        }
+
+    @Test
+    fun lastLiveReadsThePastStreams() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val result = platform(seen, channelFixture = "api/channel-offline.json").lastLive(channel("", "").ref)
+            assertNotNull((result as Outcome.Success).value)
+            assertEquals(listOf("/api/v2/channels/streamer1/videos"), seen.map { it.url.encodedPath })
         }
 
     @Test

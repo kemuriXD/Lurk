@@ -13,7 +13,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.time.Instant
 
-private val kickChannelJson = Json { ignoreUnknownKeys = true }
+internal val kickChannelJson = Json { ignoreUnknownKeys = true }
 
 /** Lenient reading of the `channels/{slug}` reply: every field is optional and unknown keys are ignored. */
 @Serializable
@@ -90,7 +90,10 @@ internal fun startedAt(text: String?): Instant? =
         }
     }.getOrNull()
 
-/** The live broadcast, or null when the channel is offline. */
+/**
+ * The live broadcast, or null when the channel is offline. It has no preview: this reply's `thumbnail.url` is null or
+ * a `stream.kick.com` link that answers 403, so `channel()` fills it from `channels/{slug}/livestream` instead.
+ */
 internal fun KickChannelJson.toStream(): Stream? {
     val live = livestream?.takeIf { it.isLive != false }
     val login = slug
@@ -106,7 +109,7 @@ internal fun KickChannelJson.toStream(): Stream? {
             category = live.categories?.firstNotNullOfOrNull { it.toCategory() },
             viewers = live.viewerCount ?: 0L,
             startedAt = startedAt(live.startTime),
-            thumbnailUrl = live.thumbnail?.url,
+            thumbnailUrl = null,
             avatarUrl = user?.profilePic,
         )
     }

@@ -138,6 +138,15 @@ internal suspend fun TestScope.discoveryRig(
                 }
             },
         )
-    val gql = GqlClient(createHttpClient(engine), rigConfig, DeviceId(MemoryStore()), TestDispatchers(dispatcher), null)
+    val store = MemoryStore()
+    val gql =
+        GqlClient(
+            createHttpClient(engine),
+            rigConfig,
+            DeviceId(store),
+            TestDispatchers(dispatcher),
+            null,
+            discoveryDeviceId = DeviceId.forDiscovery(store),
+        )
     return DiscoveryRig(gql, sessions, seen)
 }

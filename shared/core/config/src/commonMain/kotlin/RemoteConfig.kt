@@ -25,7 +25,14 @@ data class TwitchConfig(
     val gqlUrl: String = "https://gql.twitch.tv/gql",
     val usherBase: String = "https://usher.ttvnw.net",
     val ircUrl: String = "wss://irc-ws.chat.twitch.tv:443",
+    /**
+     * Client IDs for the anonymous browse lists, tried in order: the Android app's, then the TV app's. Twitch's
+     * integrity check rejects every paged request on [gqlClientId], and these two page without it.
+     */
+    val gqlDiscoveryClientIds: List<String> = DEFAULT_DISCOVERY_CLIENT_IDS,
 )
+
+private val DEFAULT_DISCOVERY_CLIENT_IDS = listOf("kd1unb4b3q4t58fwlpcbzcbnm76a8fp", "ue6666qo983tsx6so1t0vnawi233wa")
 
 @Serializable
 data class KickConfig(

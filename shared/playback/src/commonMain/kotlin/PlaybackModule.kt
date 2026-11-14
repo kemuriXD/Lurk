@@ -14,7 +14,8 @@ import kotlin.time.TimeSource
 
 /**
  * Binds the playback services. Needs `HttpClient`, `DispatcherProvider` and [RemoteConfigRepository] from the core
- * modules. The direct `HttpClient` is shared with the other modules, and [RouteClients] never closes it.
+ * modules, and `NetworkStatus`. The direct `HttpClient` is shared with the other modules, and [RouteClients] never
+ * closes it.
  *
  * [PlaylistResolver] collects every bound [PlaybackSource] with `getAll()`. None is bound until the platform modules
  * add theirs, and until then every resolve returns `LurkError.NotFound`.
@@ -29,7 +30,7 @@ val playbackModule: Module =
     module {
         single { ProxyHealth(TimeSource.Monotonic) }
         single { ProxyChain(get(), TimeSource.Monotonic) }
-        single<RouteClients> { DefaultRouteClients(direct = get()) }
+        single<RouteClients> { DefaultRouteClients(direct = get(), network = get()) }
         single { AdDetector { AdMarkers.from(get<RemoteConfigRepository>().config.value.twitch) } }
         single {
             PlaylistResolver(

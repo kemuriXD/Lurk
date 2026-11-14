@@ -16,6 +16,25 @@ class RemoteConfigDefaultsTest {
         assertEquals("https://kick.com/", config.kick.siteBase)
     }
 
+    @Test
+    fun discoveryClientIdsDefaultToTheAndroidThenTheTvAppId() {
+        val config = Json.decodeFromString<RemoteConfig>(V2_JSON)
+        assertEquals(
+            listOf("kd1unb4b3q4t58fwlpcbzcbnm76a8fp", "ue6666qo983tsx6so1t0vnawi233wa"),
+            config.twitch.gqlDiscoveryClientIds,
+        )
+    }
+
+    @Test
+    fun discoveryClientIdsAreReadWhenPresent() {
+        val json =
+            V2_JSON.replace(
+                "\"gqlClientId\": \"id\",",
+                "\"gqlClientId\": \"id\", \"gqlDiscoveryClientIds\": [\"a\", \"b\", \"c\"],",
+            )
+        assertEquals(listOf("a", "b", "c"), Json.decodeFromString<RemoteConfig>(json).twitch.gqlDiscoveryClientIds)
+    }
+
     private companion object {
         val V2_JSON =
             """

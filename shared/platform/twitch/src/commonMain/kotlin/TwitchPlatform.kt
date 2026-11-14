@@ -5,8 +5,10 @@ import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.chat.ChatChannel
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
+import io.github.kemurixd.lurk.core.common.map
 import io.github.kemurixd.lurk.core.config.RemoteConfig
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Followed
@@ -34,13 +36,16 @@ import io.github.kemurixd.lurk.platform.twitch.discovery.channel
 import io.github.kemurixd.lurk.platform.twitch.discovery.liveInCategory
 import io.github.kemurixd.lurk.platform.twitch.discovery.search
 import io.github.kemurixd.lurk.platform.twitch.discovery.topLive
+import io.github.kemurixd.lurk.platform.twitch.discovery.withPreviewKey
+import io.github.kemurixd.lurk.platform.twitch.discovery.withPreviewKeys
 import io.github.kemurixd.lurk.platform.twitch.gql.GqlClient
 import io.github.kemurixd.lurk.playback.PlaybackSource
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Clock
 
-/** Twitch behind [StreamingPlatform]. */
+/** Twitch behind [StreamingPlatform]. Live previews get a cache key from [clock]; see `withPreviewKey`. */
 @Suppress("LongParameterList")
 class TwitchPlatform(
     private val gql: GqlClient,
@@ -50,6 +55,7 @@ class TwitchPlatform(
     private val config: StateFlow<RemoteConfig>,
     private val scope: CoroutineScope,
     override val playback: PlaybackSource,
+    private val clock: Clock = Clock.System,
 ) : StreamingPlatform {
     override val id: Platform = Platform.TWITCH
     override val capabilities =
@@ -59,25 +65,38 @@ class TwitchPlatform(
             chatSend = true,
             chatHistory = true,
             cheermotes = true,
+            categorySorts =
+                listOf(
+                    CategorySort.RECOMMENDED,
+                    CategorySort.VIEWERS_HIGH,
+                    CategorySort.VIEWERS_LOW,
+                    CategorySort.RECENT,
+                ),
+            categorySortsNeedingSignIn = emptySet(),
+            categorySortDefaults = listOf(CategorySort.RECOMMENDED),
         )
     override val nativeEmotes: NativeEmoteSource = TwitchEmoteSource(gql)
     override val badges: BadgeSource = TwitchBadgeSource(gql)
     override val cheermotes: CheermoteSource = TwitchCheermoteSource(gql)
 
-    override suspend fun topLive(cursor: String?): Outcome<Page<Stream>> = gql.topLive(sessions, cursor)
+    override suspend fun topLive(cursor: String?): Outcome<Page<Stream>> =
+        gql.topLive(cursor).map { it.withPreviewKeys(clock.now()) }
 
-    override suspend fun categories(cursor: String?): Outcome<Page<Category>> = gql.categories(sessions, cursor)
+    override suspend fun categories(cursor: String?): Outcome<Page<Category>> = gql.categories(cursor)
 
     override suspend fun liveInCategory(
         categoryId: String,
         cursor: String?,
-    ): Outcome<Page<Stream>> = gql.liveInCategory(sessions, categoryId, cursor)
+        sort: CategorySort,
+    ): Outcome<Page<Stream>> = gql.liveInCategory(categoryId, cursor, sort).map { it.withPreviewKeys(clock.now()) }
 
-    override suspend fun search(query: String): Outcome<SearchResults> = gql.search(sessions, query)
+    override suspend fun search(query: String): Outcome<SearchResults> =
+        gql.search(sessions, query).map { it.withPreviewKeys(clock.now()) }
 
-    override suspend fun channel(ref: ChannelRef): Outcome<Channel> = gql.channel(sessions, ref)
+    override suspend fun channel(ref: ChannelRef): Outcome<Channel> =
+        gql.channel(sessions, ref).map { it.withPreviewKey(clock.now()) }
 
-    override suspend fun followed(): Outcome<Followed> = gql.followed(sessions)
+    override suspend fun followed(): Outcome<Followed> = gql.followed(sessions).map { it.withPreviewKeys(clock.now()) }
 
     /** Twitch's web API has no follow mutation we can call. */
     override suspend fun setFollow(

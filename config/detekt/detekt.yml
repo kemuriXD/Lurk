@@ -13,6 +13,15 @@ Compose:
     active: true
   ComposableNaming:
     active: true
+  CompositionLocalAllowlist:
+    active: true
+    allowedCompositionLocals:
+      - LocalSpacing
+      - LocalPlatformColors
+      - LocalHighlightColors
+      - LocalClock
+      - LocalErrorHandlers
+      - LocalErrorSnackbarHost
   ModifierMissing:
     active: true
   ModifierNaming:

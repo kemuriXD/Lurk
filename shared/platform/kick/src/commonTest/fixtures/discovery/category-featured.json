@@ -1,0 +1,62 @@
+{
+  "data": {
+    "livestreams": [
+      {
+        "id": "00000000-0000-0000-0000-000000000011",
+        "title": "Stream title 11",
+        "viewer_count": 40,
+        "show_view_count": true,
+        "thumbnail": {
+          "src": "https://cdn.example/t/11.webp",
+          "srcset": "https://cdn.example/t/11.webp 1x"
+        },
+        "start_time": "2026-01-01T13:00:00Z",
+        "channel": {
+          "id": 1000011,
+          "slug": "streamer11",
+          "profile_pic": "https://cdn.example/a/11.png",
+          "username": "Streamer Eleven"
+        },
+        "category": {
+          "id": 15,
+          "name": "Category 1",
+          "slug": "category-1"
+        },
+        "language": "en",
+        "caption_language_codes": ["en"],
+        "is_mature": false,
+        "tags": []
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000012",
+        "title": "Stream title 12",
+        "viewer_count": 900,
+        "show_view_count": true,
+        "thumbnail": {
+          "src": "https://cdn.example/t/12.webp",
+          "srcset": "https://cdn.example/t/12.webp 1x"
+        },
+        "start_time": "2026-01-01T14:00:00Z",
+        "channel": {
+          "id": 1000012,
+          "slug": "streamer12",
+          "profile_pic": "https://cdn.example/a/12.png",
+          "username": "Streamer Twelve"
+        },
+        "category": {
+          "id": 15,
+          "name": "Category 1",
+          "slug": "category-1"
+        },
+        "language": "en",
+        "caption_language_codes": ["en"],
+        "is_mature": false,
+        "tags": []
+      }
+    ],
+    "pagination": {
+      "next_cursor": "cursor-2"
+    }
+  },
+  "message": "Success"
+}

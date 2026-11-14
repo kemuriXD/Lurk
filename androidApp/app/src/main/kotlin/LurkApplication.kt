@@ -3,15 +3,36 @@ package io.github.kemurixd.lurk
 import android.app.Application
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.platformLogWriter
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.ScrubbingLogWriter
 import io.github.kemurixd.lurk.core.config.RemoteConfigRepository
 import io.github.kemurixd.lurk.di.appModules
+import io.github.kemurixd.lurk.image.lurkImageLoader
+import io.github.kemurixd.lurk.login.CookieJar
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
+import kotlin.time.Duration.Companion.seconds
 
-class LurkApplication : Application() {
+private val RESTORE_TIMEOUT = 5.seconds
+
+class LurkApplication :
+    Application(),
+    SingletonImageLoader.Factory {
     private val scope = startupScope()
+    private val restored = MutableStateFlow(false)
+
+    /** True once the stored sessions have been read, so the start destination can be picked. The splash waits on it. */
+    val sessionsRestored: StateFlow<Boolean> = restored.asStateFlow()
+
+    override fun newImageLoader(context: PlatformContext): ImageLoader = lurkImageLoader(context)
 
     override fun onCreate() {
         super.onCreate()
@@ -21,6 +42,12 @@ class LurkApplication : Application() {
                 androidContext(this@LurkApplication)
                 modules(appModules(this@LurkApplication))
             }.koin
+        // A failed or stuck restore still lets the app start, signed out, so the splash never sticks.
+        scope.startSessions(
+            cookies = koin.get<CookieJar>(),
+            restore = { withTimeoutOrNull(RESTORE_TIMEOUT) { koin.get<SessionRepository>().restore() } },
+            onRestored = { restored.value = true },
+        )
         scope.launch {
             val config = koin.get<RemoteConfigRepository>()
             config.load()

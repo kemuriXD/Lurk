@@ -56,7 +56,7 @@
     "is_mature": false,
     "viewer_count": 1000,
     "thumbnail": {
-      "url": "https://cdn.example/a/1.png"
+      "url": "https://stream.example/thumbnails/livestream/1/thumb0/video_thumbnail/thumb0.jpg"
     },
     "lang_iso": "en",
     "tags": [],

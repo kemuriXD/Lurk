@@ -16,7 +16,7 @@ import org.koin.dsl.module
 
 /**
  * Binds Twitch. Needs `HttpClient`, `WebSocketConnector`, `SecureStore`, `DispatcherProvider`,
- * `RemoteConfigRepository`,
+ * `RemoteConfigRepository`, `NetworkStatus`,
  * the `SessionRepository` from `authModule` and the `appScope` coroutine scope. A [ChallengeSolver] is optional.
  * The platform, its [PlaybackSource] and its [ProfileFetcher] are also bound under those interfaces, so `getAll()`
  * finds them next to Kick's.
@@ -25,7 +25,15 @@ val twitchModule: Module =
     module {
         single { DeviceId(get()) }
         single {
-            GqlClient(get(), get<RemoteConfigRepository>().config, get(), get(), getOrNull<ChallengeSolver>())
+            GqlClient(
+                get(),
+                get<RemoteConfigRepository>().config,
+                get(),
+                get(),
+                getOrNull<ChallengeSolver>(),
+                network = get(),
+                discoveryDeviceId = DeviceId.forDiscovery(get()),
+            )
         }
         single { TwitchPlaybackSource(get(), get(), get<RemoteConfigRepository>().config) } bind PlaybackSource::class
         single { TwitchProfileFetcher(get()) } bind ProfileFetcher::class

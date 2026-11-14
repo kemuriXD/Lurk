@@ -3,7 +3,9 @@ package io.github.kemurixd.lurk.platform.kick.discovery
 import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.common.Outcome
 import io.github.kemurixd.lurk.core.model.Category
+import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
+import io.github.kemurixd.lurk.core.model.LastStream
 import io.github.kemurixd.lurk.core.model.Page
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
@@ -122,7 +124,7 @@ class KickDiscoveryTest {
                         json(fixture("discovery/top-live.json"))
                     },
                 ).api
-            val page = api.categoryLive(rigSessions(), "15", "cursor-2").page()
+            val page = api.categoryLive(rigSessions(), "15", "cursor-2", CategorySort.VIEWERS_HIGH).page()
 
             val request = seen.single()
             assertEquals("/api/v1/livestreams", request.url.encodedPath)
@@ -144,8 +146,99 @@ class KickDiscoveryTest {
                     },
                 ).api
 
-            assertEquals(Outcome.Failure(LurkError.NotFound), api.categoryLive(rigSessions(), "", null))
-            assertEquals(Outcome.Failure(LurkError.NotFound), api.categoryLive(rigSessions(), "  ", null))
+            assertEquals(
+                Outcome.Failure(LurkError.NotFound),
+                api.categoryLive(rigSessions(), "", null, CategorySort.VIEWERS_HIGH),
+            )
+            assertEquals(
+                Outcome.Failure(LurkError.NotFound),
+                api.categoryLive(rigSessions(), "  ", null, CategorySort.VIEWERS_HIGH),
+            )
+            assertEquals(emptyList(), seen)
+        }
+
+    @Test
+    fun featuredAsksForFeaturedAndKeepsKicksOrder() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+            val page = api.categoryLive(rigSessions(), "15", "cursor-1", CategorySort.FEATURED).page()
+
+            val request = seen.single()
+            assertEquals("/api/v1/livestreams", request.url.encodedPath)
+            assertEquals("featured", request.queryOf("sort"))
+            assertEquals("15", request.queryOf("category_id"))
+            assertEquals("cursor-1", request.queryOf("after"))
+            assertEquals(listOf("streamer11", "streamer12"), page.items.map { it.channel.login })
+            assertEquals("cursor-2", page.nextCursor)
+        }
+
+    @Test
+    fun recommendedReadsTheSignedInRecommendationList() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+            val page = api.categoryLive(rigSessions(signedIn = true), "15", "cursor-1", CategorySort.RECOMMENDED).page()
+
+            val request = seen.single()
+            assertEquals("web.kick.example", request.url.host)
+            assertEquals("/api/v1/recommendations/livestreams/list", request.url.encodedPath)
+            assertEquals("15", request.queryOf("category_id"))
+            assertEquals("24", request.queryOf("limit"))
+            assertEquals("cursor-1", request.queryOf("cursor"))
+            assertNull(request.queryOf("after"))
+            assertNull(request.queryOf("sort"))
+            assertEquals("Bearer $RIG_TOKEN", request.headers[HttpHeaders.Authorization])
+            assertEquals(listOf("streamer11", "streamer12"), page.items.map { it.channel.login })
+            assertEquals("cursor-2", page.nextCursor)
+        }
+
+    @Test
+    fun recommendedSignedOutIsNotSignedInWithoutARequest() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+
+            assertEquals(
+                Outcome.Failure(LurkError.NotSignedIn),
+                api.categoryLive(rigSessions(), "15", null, CategorySort.RECOMMENDED),
+            )
+            assertEquals(emptyList(), seen)
+        }
+
+    @Test
+    fun sortsKickDoesNotHaveAreUnsupportedWithoutARequest() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("discovery/category-featured.json"))
+                    },
+                ).api
+
+            listOf(CategorySort.VIEWERS_LOW, CategorySort.RECENT).forEach { sort ->
+                assertEquals(Outcome.Failure(LurkError.Unsupported), api.categoryLive(rigSessions(), "15", null, sort))
+            }
             assertEquals(emptyList(), seen)
         }
 
@@ -162,7 +255,7 @@ class KickDiscoveryTest {
                 ).api
             api.channel(rigSessions(), ChannelRef(Platform.KICK, "a/b?c#d"))
 
-            assertEquals("/api/v2/channels/a%2Fb%3Fc%23d", seen.single().url.encodedPath)
+            assertEquals("/api/v2/channels/a%2Fb%3Fc%23d", seen.first().url.encodedPath)
         }
 
     @Test
@@ -229,7 +322,182 @@ class KickDiscoveryTest {
             assertEquals("1000001", channel.id)
             assertEquals("2000001", channel.chatId)
             assertEquals("streamer1", channel.ref.login)
-            assertEquals("/api/v2/channels/streamer1", seen.single().url.encodedPath)
+            assertEquals("/api/v2/channels/streamer1", seen.first().url.encodedPath)
+        }
+
+    @Test
+    fun offlineChannelReadsWhenItLastWentLive() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        when (it.url.encodedPath) {
+                            "/api/v2/channels/streamer1" -> json(fixture("api/channel-offline.json"))
+                            "/api/v2/channels/streamer1/videos" -> json(fixture("api/channel-videos.json"))
+                            else -> json("{}", HttpStatusCode.NotFound)
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            assertEquals(
+                LastStream(
+                    title = "Stream title 2",
+                    category = Category(Platform.KICK, "1", "Category 1", "https://cdn.example/a/1.png", 1000),
+                    startedAt = Instant.parse("2026-01-02T20:00:00Z"),
+                ),
+                (result as Outcome.Success).value.lastStream,
+            )
+            assertEquals(
+                listOf("/api/v2/channels/streamer1", "/api/v2/channels/streamer1/videos"),
+                seen.map { it.url.encodedPath },
+            )
+        }
+
+    @Test
+    fun offlineChannelStillLoadsWhenPastStreamsFail() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        if (it.url.encodedPath.endsWith("/videos")) {
+                            json("{}", HttpStatusCode.InternalServerError)
+                        } else {
+                            json(fixture("api/channel-offline.json"))
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            val last = (result as Outcome.Success).value.lastStream
+            assertEquals("Category 1", last?.category?.name)
+            assertNull(last?.startedAt)
+        }
+
+    @Test
+    fun offlineChannelWithNoPastStreamsHasNoLastLive() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        val videos = it.url.encodedPath.endsWith("/videos")
+                        json(if (videos) "[]" else fixture("api/channel-offline.json"))
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            assertNull((result as Outcome.Success).value.lastStream?.startedAt)
+        }
+
+    @Test
+    fun liveChannelThumbnailComesFromTheLivestreamEndpoint() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        when (it.url.encodedPath) {
+                            "/api/v2/channels/streamer1" -> json(fixture("api/channel-live.json"))
+                            "/api/v2/channels/streamer1/livestream" -> json(fixture("api/livestream-live.json"))
+                            else -> json("{}", HttpStatusCode.NotFound)
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            val live = (result as Outcome.Success).value.live
+            assertEquals("https://cdn.example/t/9.webp", live?.thumbnailUrl)
+            assertEquals("Category 1", live?.category?.name)
+            assertEquals(
+                listOf("/api/v2/channels/streamer1", "/api/v2/channels/streamer1/livestream"),
+                seen.map { it.url.encodedPath },
+            )
+        }
+
+    @Test
+    fun liveChannelWithNullThumbnailStillGetsOne() =
+        runTest {
+            val body =
+                fixture("api/channel-live.json").replace(
+                    """"url": "https://stream.example/thumbnails/livestream/1/thumb0/video_thumbnail/thumb0.jpg"""",
+                    """"url": null""",
+                )
+            val api =
+                Rig(
+                    mockEngine {
+                        if (it.url.encodedPath.endsWith("/livestream")) {
+                            json(fixture("api/livestream-live.json"))
+                        } else {
+                            json(body)
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertEquals("https://cdn.example/t/9.webp", (result as Outcome.Success).value.live?.thumbnailUrl)
+        }
+
+    @Test
+    fun livestreamLookupFailureKeepsTheChannel() =
+        runTest {
+            val api =
+                Rig(
+                    mockEngine {
+                        if (it.url.encodedPath.endsWith("/livestream")) {
+                            json("{}", HttpStatusCode.InternalServerError)
+                        } else {
+                            json(fixture("api/channel-live.json"))
+                        }
+                    },
+                ).api
+            val result = api.channel(rigSessions(), ChannelRef(Platform.KICK, "streamer1"))
+
+            assertIs<Outcome.Success<*>>(result)
+            val live = (result as Outcome.Success).value.live
+            assertNull(live?.thumbnailUrl)
+            assertEquals("Category 1", live?.category?.name)
+        }
+
+    @Test
+    fun lastLiveReadsTheNewestPastStream() =
+        runTest {
+            val seen = mutableListOf<HttpRequestData>()
+            val api =
+                Rig(
+                    mockEngine {
+                        seen += it
+                        json(fixture("api/channel-videos.json"))
+                    },
+                ).api
+
+            assertEquals(
+                Outcome.Success(Instant.parse("2026-01-02T20:00:00Z")),
+                api.lastLive(rigSessions(), ChannelRef(Platform.KICK, "streamer1")),
+            )
+            assertEquals(listOf("/api/v2/channels/streamer1/videos"), seen.map { it.url.encodedPath })
+        }
+
+    @Test
+    fun lastLiveWithNoPastStreamsIsNull() =
+        runTest {
+            val api = Rig(mockEngine { json("[]") }).api
+
+            assertEquals(Outcome.Success(null), api.lastLive(rigSessions(), ChannelRef(Platform.KICK, "streamer1")))
+        }
+
+    @Test
+    fun lastLiveFailureIsAFailure() =
+        runTest {
+            val api = Rig(mockEngine { json("{}", HttpStatusCode.InternalServerError) }).api
+
+            assertIs<Outcome.Failure>(api.lastLive(rigSessions(), ChannelRef(Platform.KICK, "streamer1")))
         }
 
     @Test

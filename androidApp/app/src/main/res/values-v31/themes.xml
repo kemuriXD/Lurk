@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12 and later play the peek. The 730 ms duration is the animation plus its pause, inside the 1000 ms limit. -->
+    <style name="Theme.Lurk.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_surface</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_peek</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_circle</item>
+        <item name="windowSplashScreenAnimationDuration">730</item>
+        <item name="postSplashScreenTheme">@style/Theme.Lurk</item>
+    </style>
+</resources>

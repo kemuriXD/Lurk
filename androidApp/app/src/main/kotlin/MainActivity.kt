@@ -4,30 +4,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.getValue
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
+        val sessionsRestored = (application as LurkApplication).sessionsRestored
+        splash.setKeepOnScreenCondition { !sessionsRestored.value }
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Lurk")
-                            Text(BuildInfo.label, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
+            val ready by sessionsRestored.collectAsStateWithLifecycle()
+            // The start tab depends on the restored sessions, so nothing is composed before they are read.
+            if (ready) LurkTheme { LurkApp() }
         }
     }
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Lurk" parent="android:Theme.Material.NoActionBar" />
+
+    <!-- Shown until the stored sessions are restored. Below Android 12 the icon is the static peek. -->
+    <style name="Theme.Lurk.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_surface</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_peek_static</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_circle</item>
+        <item name="windowSplashScreenAnimationDuration">730</item>
+        <item name="postSplashScreenTheme">@style/Theme.Lurk</item>
+    </style>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="splash_surface">#F2FBFC</color>
+    <color name="splash_circle">#9DEFFE</color>
+    <color name="splash_face">#126874</color>
+    <color name="splash_wall">#171D1E</color>
+    <color name="splash_eye">#9DEFFE</color>
+    <color name="splash_pupil">#011F24</color>
+    <color name="ic_launcher_background">#9DEFFE</color>
+    <color name="ic_launcher_face">#126874</color>
+    <color name="ic_launcher_wall">#171D1E</color>
+    <color name="ic_launcher_pupil">#011F24</color>
+    <color name="ic_launcher_mono">#171D1E</color>
+</resources>

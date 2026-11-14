@@ -112,6 +112,7 @@ class GqlClientTest {
         DeviceId(store),
         TestDispatchers(StandardTestDispatcher(testScheduler)),
         solver,
+        discoveryDeviceId = DeviceId.forDiscovery(store),
     )
 
     private suspend fun GqlClient.login(token: String? = null): Outcome<String> =
@@ -288,7 +289,7 @@ class GqlClientTest {
         }
 
     @Test
-    fun errorWithoutDataIsSchemaChanged() =
+    fun aQueryTheServerNoLongerAcceptsIsSchemaChanged() =
         runTest {
             val gql = client { reply(fixture("gql/error-schema.json")) }
             assertEquals(Outcome.Failure(LurkError.SchemaChanged), gql.login())
@@ -302,5 +303,29 @@ class GqlClientTest {
             val result = gql.query("LurkProbe", "q", variables, null) { it["missing"]!!.jsonObject }
             assertIs<Outcome.Failure>(result)
             assertEquals(LurkError.SchemaChanged, result.error)
+        }
+
+    @Test
+    fun errorsWithoutDataCanBeAskedAgain() =
+        runTest {
+            val gql = client { reply(fixture("gql/error-service-no-data.json")) }
+            assertEquals(Outcome.Failure(LurkError.Unexpected), gql.login())
+        }
+
+    @Test
+    fun aServiceTimeoutWithNullFieldsCanBeAskedAgain() =
+        runTest {
+            val gql = client { reply(fixture("gql/error-timeout.json")) }
+            assertEquals(Outcome.Failure(LurkError.Unexpected), gql.login())
+        }
+
+    @Test
+    fun errorsBesideDataThatDecodesStillSucceed() =
+        runTest {
+            val body =
+                """[{"errors":[{"message":"service error","path":["user","x"]}],""" +
+                    """"data":{"user":{"login":"streamer1"}}}]"""
+            val gql = client { reply(body) }
+            assertEquals(Outcome.Success("streamer1"), gql.login())
         }
 }

@@ -27,8 +27,9 @@ class LoginSpecTest {
             LoginSpec(Platform.TWITCH, "https://www.twitch.tv/login", ".twitch.tv", "auth-token"),
             LoginSpec.TWITCH,
         )
+        // Kick opens on its home page: the /login dialog blocks taps on the cookie-consent banner.
         assertEquals(
-            LoginSpec(Platform.KICK, "https://kick.com/login", "kick.com", "session_token"),
+            LoginSpec(Platform.KICK, "https://kick.com/", "kick.com", "session_token"),
             LoginSpec.KICK,
         )
         assertEquals(LoginSpec.KICK, LoginSpec.forPlatform(Platform.KICK))

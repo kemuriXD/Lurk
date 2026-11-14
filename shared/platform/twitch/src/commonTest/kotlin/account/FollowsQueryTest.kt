@@ -19,6 +19,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 private fun HttpRequestData.variables(): JsonObject =
     Json
@@ -42,6 +44,10 @@ class FollowsQueryTest {
 
             assertEquals(listOf("streamer3", "streamer1"), followed.live.map { it.channel.login })
             assertEquals(listOf(5000L, 100L), followed.live.map { it.viewers })
+            assertEquals(
+                listOf("https://cdn.example/t/streamer3-440x248.jpg", "https://cdn.example/t/streamer1-440x248.jpg"),
+                followed.live.map { it.thumbnailUrl },
+            )
             assertEquals(listOf("streamer2"), followed.offline.map { it.ref.login })
             val offline = followed.offline.single()
             assertEquals("1000002", offline.id)
@@ -50,6 +56,39 @@ class FollowsQueryTest {
             assertEquals("https://cdn.example/a/2.png", offline.avatarUrl)
             assertNull(offline.live)
             assertEquals("OAuth rig-token", r.seen[0].headers["Authorization"])
+        }
+
+    @Test
+    fun offlineFollowCarriesWhenItLastWentLive() =
+        runTest {
+            val r = discoveryRig(signedIn = true) { reply(fixture("gql/follows.json")) }
+            val followed = r.gql.followed(r.sessions).value()
+
+            val query = r.operation()["query"]!!.jsonPrimitive.content
+            assertTrue("lastBroadcast { startedAt }" in query, query)
+            assertEquals(
+                Instant.parse("2026-01-01T08:00:00.123456Z"),
+                followed.offline
+                    .single()
+                    .lastStream
+                    ?.startedAt,
+            )
+        }
+
+    @Test
+    fun liveFollowCarriesItsTagsAndLanguage() =
+        runTest {
+            val r = discoveryRig(signedIn = true) { reply(fixture("gql/follows.json")) }
+            val followed = r.gql.followed(r.sessions).value()
+
+            val query = r.operation()["query"]!!.jsonPrimitive.content
+            assertTrue("freeformTags { name }" in query, query)
+            assertTrue(" language " in query, query)
+            val byLogin = followed.live.associateBy { it.channel.login }
+            assertEquals(listOf("English", "Tag One"), byLogin.getValue("streamer1").tags)
+            assertEquals("en", byLogin.getValue("streamer1").language)
+            assertEquals(emptyList(), byLogin.getValue("streamer3").tags)
+            assertNull(byLogin.getValue("streamer3").language)
         }
 
     @Test

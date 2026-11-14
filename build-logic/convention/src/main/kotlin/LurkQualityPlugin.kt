@@ -39,6 +39,9 @@ class LurkQualityPlugin : Plugin<Project> {
                     target("**/*.kt")
                     targetExclude("**/build/**")
                     ktlint(ktlintVersion)
+                        .editorConfigOverride(
+                            mapOf("ktlint_function_naming_ignore_when_annotated_with" to "Composable"),
+                        )
                 }
                 kotlinGradle {
                     target("**/*.kts")

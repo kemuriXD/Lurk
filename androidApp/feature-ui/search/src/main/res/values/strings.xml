@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_placeholder">Search Twitch and Kick</string>
+    <string name="cd_clear_search">Clear search</string>
+    <string name="cd_searching">Searching</string>
+
+    <string name="search_empty_title">Search both platforms</string>
+    <string name="search_empty_body">Find channels and categories on Twitch and Kick at once. Live channels come first.</string>
+
+    <string name="type_all">All</string>
+    <string name="type_channels">Channels</string>
+    <string name="type_categories">Categories</string>
+
+    <string name="section_channels">Channels</string>
+    <string name="section_categories">Categories</string>
+
+    <string name="no_results_title">No results for “%1$s”</string>
+    <string name="no_channels_title">No channels for “%1$s”</string>
+    <string name="no_categories_title">No categories for “%1$s”</string>
+    <string name="search_error_title">Couldn’t search</string>
+    <string name="no_results_body">Check the spelling, or try a category name instead.</string>
+</resources>
