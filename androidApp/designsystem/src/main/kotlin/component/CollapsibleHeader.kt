@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -37,6 +38,7 @@ fun rememberCompactHeight(): Boolean = LocalConfiguration.current.screenHeightDp
  * error, a short list), and whenever [resetKey] changes (a new search puts the list back at its top). While the body
  * can't scroll, the header doesn't collapse at all. The slide is not saved, so a screen made again starts with the
  * header shown. [scrollRoom] is asked at the moment of a scroll: a list too short to scroll never collapses the header.
+ * It is also watched: once it turns false (the list shrank until it can't scroll) a collapsed header comes back.
  */
 @Composable
 fun CollapsibleHeader(
@@ -57,6 +59,11 @@ fun CollapsibleHeader(
     val revealedNow by rememberUpdatedState(revealed)
     // A window that stops being compact, or a new [resetKey], starts again from a fully shown header.
     LaunchedEffect(collapsible, resetKey) { offset = 0f }
+    // A list that shrinks until it can't scroll (a refresh, a filter) could never bring the header back, so it comes
+    // back by itself. Read from the scroll state in an effect, never from the layout, so nothing relayouts in a loop.
+    LaunchedEffect(Unit) {
+        snapshotFlow { room() }.collect { canMove -> if (!canMove) offset = 0f }
+    }
     val connection =
         remember {
             object : NestedScrollConnection {

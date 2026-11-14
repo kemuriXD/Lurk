@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -120,6 +121,29 @@ class CollapsibleHeaderTest {
         canScroll = false
         showWithFlags()
         rule.onNodeWithTag("list").performTouchInput { swipeUp() }
+        rule.onNodeWithTag("header").assertIsDisplayed()
+    }
+
+    @Test
+    fun aCollapsedHeaderComesBackWhenTheListShrinksBelowScrolling() {
+        var rows by mutableIntStateOf(40)
+        rule.setContent {
+            val list = rememberLazyListState()
+            CollapsibleHeader(
+                collapsible = true,
+                scrollRoom = { list.canScrollForward || list.canScrollBackward },
+                header = { Box(Modifier.fillMaxWidth().height(120.dp).testTag("header")) { Text("Header") } },
+            ) {
+                LazyColumn(Modifier.weight(1f).testTag("list"), state = list) {
+                    items((1..rows).toList()) { Text("Row $it", Modifier.height(48.dp)) }
+                }
+            }
+        }
+        collapse()
+
+        rows = 2
+        rule.waitForIdle()
+
         rule.onNodeWithTag("header").assertIsDisplayed()
     }
 }
