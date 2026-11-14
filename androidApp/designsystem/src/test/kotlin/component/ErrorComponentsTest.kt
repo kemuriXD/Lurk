@@ -28,6 +28,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.ErrorAction
 import io.github.kemurixd.lurk.designsystem.R
+import io.github.kemurixd.lurk.designsystem.action
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
@@ -75,7 +76,14 @@ class ErrorComponentsTest {
 
     @Test
     fun errorStateGoesBackFromNotFound() {
-        show { ErrorState("Couldn’t load this category", LurkError.NotFound, onRetry = { retries++ }) }
+        show {
+            ErrorState(
+                "Couldn’t load this category",
+                LurkError.NotFound,
+                onRetry = { retries++ },
+                action = LurkError.NotFound.action(firstPage = true, canGoBack = true),
+            )
+        }
         rule.onNodeWithText("Go back").performClick()
         assertEquals(1, backs)
         assertEquals(0, retries)
@@ -107,7 +115,15 @@ class ErrorComponentsTest {
 
     @Test
     fun proxyFailureOpensProxySettings() {
-        show { ErrorBanner("Couldn’t load Kick", LurkError.ProxyFailed, onRetry = {}, platform = Platform.KICK) }
+        show {
+            ErrorBanner(
+                "Couldn’t load Kick",
+                LurkError.ProxyFailed,
+                onRetry = {},
+                platform = Platform.KICK,
+                action = LurkError.ProxyFailed.action(),
+            )
+        }
         rule.onNodeWithText("Open proxy settings").performClick()
         assertEquals(1, proxySettings)
     }
@@ -422,7 +438,15 @@ class ErrorComponentsTest {
 
     @Test
     fun retryingLeavesOtherActionsAlone() {
-        show { ErrorState("Couldn’t load this category", LurkError.NotFound, onRetry = {}, retrying = true) }
+        show {
+            ErrorState(
+                "Couldn’t load this category",
+                LurkError.NotFound,
+                onRetry = {},
+                action = LurkError.NotFound.action(firstPage = true, canGoBack = true),
+                retrying = true,
+            )
+        }
         rule.onNodeWithText("Go back").assertIsEnabled()
         progress.assertCountEquals(0)
     }

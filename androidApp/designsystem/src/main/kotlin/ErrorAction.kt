@@ -32,13 +32,21 @@ sealed interface ErrorAction {
 /**
  * What to offer for this failure (the §6 table). Retry only when asking again can help ([isRetryable]), except on a
  * first-page load ([firstPage]), which always offers Retry where the table offers nothing else (ruling R41).
+ *
+ * A first page is also a surface with room for one action, so two table entries give way to Retry there: Open proxy
+ * settings (Settings is a tab away) and Go back, unless the page can leave ([canGoBack], for a full-screen detail
+ * page; a tab-root list has nowhere to go back to). Check for update stays, since asking again can't fix a changed
+ * schema.
  */
-fun LurkError.action(firstPage: Boolean = false): ErrorAction? {
+fun LurkError.action(
+    firstPage: Boolean = false,
+    canGoBack: Boolean = false,
+): ErrorAction? {
     val own =
         when (this) {
-            LurkError.ProxyFailed -> ErrorAction.OpenProxySettings
+            LurkError.ProxyFailed -> if (firstPage) ErrorAction.Retry() else ErrorAction.OpenProxySettings
             LurkError.SchemaChanged -> ErrorAction.CheckForUpdate
-            LurkError.NotFound -> ErrorAction.GoBack
+            LurkError.NotFound -> if (firstPage && !canGoBack) ErrorAction.Retry() else ErrorAction.GoBack
             LurkError.NotSignedIn -> ErrorAction.SignIn(again = false)
             LurkError.AuthExpired -> ErrorAction.SignIn(again = true)
             is LurkError.RateLimited -> ErrorAction.Retry(after = retryAfter)

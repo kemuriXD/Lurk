@@ -21,6 +21,7 @@ import io.github.kemurixd.lurk.core.common.LurkError
 import io.github.kemurixd.lurk.core.model.Category
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.designsystem.R
+import io.github.kemurixd.lurk.designsystem.action
 import io.github.kemurixd.lurk.designsystem.theme.LurkRadius
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.designsystem.time.LocalClock
@@ -187,7 +188,14 @@ class ClippingTest {
     @Test
     fun errorStateWithItsLongestActionFitsAPhoneAtDoubleFont() {
         show(Phone, 2f) {
-            ErrorHost(ErrorHandlers()) { ErrorState("Couldn’t load categories", LurkError.ProxyFailed, {}) }
+            ErrorHost(ErrorHandlers()) {
+                ErrorState(
+                    "Couldn’t load categories",
+                    LurkError.ProxyFailed,
+                    {},
+                    action = LurkError.ProxyFailed.action(),
+                )
+            }
         }
         assertErrorSurfaceFits(
             ErrorTags.STATE,
@@ -222,7 +230,13 @@ class ClippingTest {
     fun errorBannerWithItsLongestActionFitsAPhoneAtDoubleFont() {
         show(Phone, 2f) {
             ErrorHost(ErrorHandlers()) {
-                ErrorBanner("Couldn’t load Twitch", LurkError.ProxyFailed, {}, platform = Platform.TWITCH)
+                ErrorBanner(
+                    "Couldn’t load Twitch",
+                    LurkError.ProxyFailed,
+                    {},
+                    platform = Platform.TWITCH,
+                    action = LurkError.ProxyFailed.action(),
+                )
             }
         }
         assertErrorSurfaceFits(

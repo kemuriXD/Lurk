@@ -36,6 +36,7 @@ import io.github.kemurixd.lurk.core.model.CategorySort
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.action
 import io.github.kemurixd.lurk.designsystem.component.EmptyState
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.PlatformBadge
@@ -217,6 +218,8 @@ private fun LazyGridScope.streamContent(
                     error = slice.error,
                     onRetry = { onIntent(CategoryStreamsIntent.Retry) },
                     platform = platform,
+                    // A pushed page: a category that is gone leaves by going back.
+                    action = slice.error.action(firstPage = true, canGoBack = true),
                     retrying = state.retrying,
                 )
             }

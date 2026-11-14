@@ -31,6 +31,7 @@ import io.github.kemurixd.lurk.core.model.Channel
 import io.github.kemurixd.lurk.core.model.ChannelRef
 import io.github.kemurixd.lurk.core.model.Platform
 import io.github.kemurixd.lurk.core.model.Stream
+import io.github.kemurixd.lurk.designsystem.action
 import io.github.kemurixd.lurk.designsystem.component.ErrorState
 import io.github.kemurixd.lurk.designsystem.component.formatViewers
 import io.github.kemurixd.lurk.designsystem.component.rememberErrorSnackbar
@@ -177,6 +178,8 @@ fun ChannelScreen(
                             error = load.error,
                             onRetry = { onIntent(ChannelIntent.Retry) },
                             platform = ref.platform,
+                            // A pushed page: a channel that is gone leaves by going back.
+                            action = load.error.action(firstPage = true, canGoBack = true),
                             retrying = state.retrying,
                         )
                     }

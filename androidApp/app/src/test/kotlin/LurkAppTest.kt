@@ -202,14 +202,21 @@ class LurkAppTest {
         compose.runOnIdle { assertEquals(LoginRoute(Platform.KICK), navigator.currentStack.last()) }
     }
 
+    @OptIn(ExperimentalTestApi::class)
     @Test
-    fun proxyFailureOpensSettings() {
-        twitch.topLive = { Outcome.Failure(LurkError.ProxyFailed) }
-        val navigator = showShell()
+    fun proxyFailureOnAFirstPageOffersRetryAndAsksAgain() {
+        var calls = 0
+        twitch.topLive = {
+            calls++
+            Outcome.Failure(LurkError.ProxyFailed)
+        }
+        showShell()
+        compose.waitUntilAtLeastOneExists(hasText("Retry") and hasClickAction(), timeoutMillis = 5_000)
+        val before = calls
 
-        clickErrorAction("Open proxy settings")
+        clickErrorAction("Retry")
 
-        compose.runOnIdle { assertEquals(SettingsRoute, navigator.currentStack.last()) }
+        compose.waitUntil(timeoutMillis = 5_000) { calls > before }
     }
 
     @Test

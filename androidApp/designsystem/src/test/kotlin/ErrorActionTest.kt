@@ -84,11 +84,25 @@ class ErrorActionTest {
     @Test
     fun firstPageKeepsTheTablesOwnAction() {
         assertEquals(ErrorAction.SignIn(again = true), LurkError.AuthExpired.action(firstPage = true))
-        assertEquals(ErrorAction.OpenProxySettings, LurkError.ProxyFailed.action(firstPage = true))
         assertEquals(ErrorAction.CheckForUpdate, LurkError.SchemaChanged.action(firstPage = true))
-        assertEquals(ErrorAction.GoBack, LurkError.NotFound.action(firstPage = true))
         assertEquals(ErrorAction.SignIn(again = false), LurkError.NotSignedIn.action(firstPage = true))
     }
+
+    // No surface shows two actions, so a retryable failure on a first page keeps its Retry.
+    @Test
+    fun firstPageRetriesAProxyFailureInsteadOfOpeningSettings() =
+        assertEquals(retry, LurkError.ProxyFailed.action(firstPage = true))
+
+    @Test
+    fun theTablesProxyActionStaysWhereItIsNotAFirstPage() =
+        assertEquals(ErrorAction.OpenProxySettings, LurkError.ProxyFailed.action(firstPage = false))
+
+    @Test
+    fun aMissingListOnATabRootRetries() = assertEquals(retry, LurkError.NotFound.action(firstPage = true))
+
+    @Test
+    fun aMissingDetailPageGoesBack() =
+        assertEquals(ErrorAction.GoBack, LurkError.NotFound.action(firstPage = true, canGoBack = true))
 
     @Test
     fun everyActionHasItsPlainVerbLabel() {
