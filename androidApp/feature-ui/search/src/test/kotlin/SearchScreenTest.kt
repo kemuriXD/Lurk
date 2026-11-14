@@ -10,12 +10,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -35,6 +37,7 @@ import io.github.kemurixd.lurk.core.model.Stream
 import io.github.kemurixd.lurk.designsystem.component.ErrorHandlers
 import io.github.kemurixd.lurk.designsystem.component.ErrorHost
 import io.github.kemurixd.lurk.designsystem.component.ErrorTags
+import io.github.kemurixd.lurk.designsystem.component.PlatformTags
 import io.github.kemurixd.lurk.designsystem.theme.LurkTheme
 import io.github.kemurixd.lurk.designsystem.time.LocalClock
 import io.github.kemurixd.lurk.feature.common.PlatformFilter
@@ -439,6 +442,35 @@ class SearchScreenTest {
         assertTrue("the clock never ticked", clockReads > 0)
         // A live row asks for its viewer count each time it recomposes; nothing in it depends on the clock.
         assertEquals("live rows recomposed on the tick", 0, liveRowReads)
+    }
+
+    private fun badges() = rule.onAllNodesWithTag(PlatformTags.BADGE, useUnmergedTree = true)
+
+    private fun logos(platform: Platform) = rule.onAllNodesWithTag(PlatformTags.logo(platform), useUnmergedTree = true)
+
+    private fun mixed() =
+        results(
+            channels = listOf(channel("pixel1")),
+            categories = listOf(Category(Platform.TWITCH, "1", "Pixel Art", null)),
+        )
+
+    @Test
+    fun allFilterShowsBadgesOnChannelRowsAndCategoryTiles() {
+        show(mixed())
+        badges().assertCountEquals(2)
+    }
+
+    @Test
+    fun aSinglePlatformFilterHidesEveryBadge() {
+        show(mixed().copy(filter = PlatformFilter.TWITCH))
+        badges().assertCountEquals(0)
+    }
+
+    @Test
+    fun filterChipsLeadWithTheirLogos() {
+        show(mixed())
+        logos(Platform.TWITCH).assertCountEquals(1)
+        logos(Platform.KICK).assertCountEquals(1)
     }
 
     private fun results(

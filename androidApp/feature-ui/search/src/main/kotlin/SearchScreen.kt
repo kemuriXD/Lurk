@@ -66,6 +66,7 @@ import io.github.kemurixd.lurk.designsystem.component.StreamCardPlaceholder
 import io.github.kemurixd.lurk.designsystem.component.labelRes
 import io.github.kemurixd.lurk.designsystem.component.platformErrors
 import io.github.kemurixd.lurk.designsystem.time.rememberNowState
+import io.github.kemurixd.lurk.feature.common.PlatformFilter
 import io.github.kemurixd.lurk.feature.common.PlatformSlice
 import io.github.kemurixd.lurk.feature.common.key
 import io.github.kemurixd.lurk.feature.search.SearchIntent
@@ -291,6 +292,8 @@ private fun LazyGridScope.results(
     onOpenChannel: (ChannelRef) -> Unit,
     onOpenCategory: (Category) -> Unit,
 ) {
+    // A list filtered to one platform needs no badge on its results: the chip already says which.
+    val showPlatform = state.filter == PlatformFilter.ALL
     // A lazy list holds on to its first visible item when rows land above it. Categories often answer before channels,
     // so without this anchor the new channels would push the list down to the categories. The anchor never moves, so
     // a list the user has not scrolled stays at the top while results land.
@@ -316,6 +319,7 @@ private fun LazyGridScope.results(
                 channel = channel,
                 onClick = { onOpenChannel(channel.ref) },
                 showLiveRing = false,
+                showPlatform = showPlatform,
                 now = { now.value },
             )
         }
@@ -333,10 +337,11 @@ private fun LazyGridScope.results(
                     category = category,
                     onClick = { onOpenCategory(category) },
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                    showPlatform = showPlatform,
                 )
             }
         } else {
-            fullWidth("categories") { Categories(state.categories, onOpenCategory) }
+            fullWidth("categories") { Categories(state.categories, showPlatform, onOpenCategory) }
         }
     }
     if (state.phase == SearchPhase.TYPING) {
@@ -370,6 +375,7 @@ private fun LazyGridScope.searchErrors(
 @Composable
 private fun Categories(
     categories: List<Category>,
+    showPlatform: Boolean,
     onOpen: (Category) -> Unit,
 ) {
     LazyRow(
@@ -378,7 +384,12 @@ private fun Categories(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         items(categories, key = { "${it.platform.name}:${it.id}" }) { category ->
-            CategoryTile(category = category, onClick = { onOpen(category) }, modifier = Modifier.width(TileWidth))
+            CategoryTile(
+                category = category,
+                onClick = { onOpen(category) },
+                modifier = Modifier.width(TileWidth),
+                showPlatform = showPlatform,
+            )
         }
     }
 }
