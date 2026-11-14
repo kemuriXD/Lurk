@@ -29,12 +29,13 @@ private val TextInset = 4.dp
 private const val ART_WIDTH = 116f
 private const val ART_HEIGHT = 155f
 
-/** A category with its box art, name and viewer count (Figma CategoryTile). */
+/** A category with its box art, name and viewer count (Figma CategoryTile). The badge shows only with [showPlatform]. */
 @Composable
 fun CategoryTile(
     category: Category,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showPlatform: Boolean = true,
 ) {
     Column(
         modifier = modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick),
@@ -53,7 +54,9 @@ fun CategoryTile(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            PlatformBadge(category.platform, Modifier.align(Alignment.TopStart).padding(LurkRadius.sm))
+            if (showPlatform) {
+                PlatformBadge(category.platform, Modifier.align(Alignment.TopStart).padding(LurkRadius.sm))
+            }
         }
         // The tile is clipped to rounded corners, so the text keeps off the bottom corners.
         Column(

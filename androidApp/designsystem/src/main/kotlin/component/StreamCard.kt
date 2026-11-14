@@ -53,7 +53,8 @@ private const val TITLE_LINES = 2
 
 /**
  * A live stream in the list layout (Figma StreamCard, Layout=List). The avatar and the channel name
- * open the channel; everything else opens the player.
+ * open the channel; everything else opens the player. The platform badge shows only while [showPlatform] is on: a
+ * list filtered to one platform already says which it is.
  */
 @Composable
 fun StreamCard(
@@ -61,6 +62,7 @@ fun StreamCard(
     onOpenPlayer: () -> Unit,
     onOpenChannel: () -> Unit,
     modifier: Modifier = Modifier,
+    showPlatform: Boolean = true,
 ) {
     Row(
         modifier =
@@ -74,7 +76,7 @@ fun StreamCard(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         StreamThumbnail(stream, Modifier.size(ThumbnailWidth, ThumbnailHeight))
-        StreamInfo(stream, onOpenChannel, Modifier.weight(1f))
+        StreamInfo(stream, onOpenChannel, showPlatform, Modifier.weight(1f))
     }
 }
 
@@ -166,6 +168,7 @@ fun StreamThumbnail(
 private fun StreamInfo(
     stream: Stream,
     onOpenChannel: () -> Unit,
+    showPlatform: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val openChannelLabel = stringResource(R.string.cd_open_channel, stream.displayName)
@@ -198,7 +201,7 @@ private fun StreamInfo(
                         // The avatar is the channel's one labelled stop for accessibility; this is the same action.
                         .semantics { hideFromAccessibility() },
             )
-            PlatformBadge(stream.channel.platform)
+            if (showPlatform) PlatformBadge(stream.channel.platform)
         }
         Text(
             text = stream.title,

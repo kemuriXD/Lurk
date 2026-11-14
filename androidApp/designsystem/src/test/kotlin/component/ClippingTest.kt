@@ -279,4 +279,40 @@ class ClippingTest {
             assertTrue("$text $box leaves $host", box.left >= host.left && box.right <= host.right)
         }
     }
+
+    @Test
+    fun platformChipsStayWholeAtPhoneWidth() = platformChipsStayWhole(1f)
+
+    @Test
+    fun platformChipsStayWholeAtDoubleFont() = platformChipsStayWhole(2f)
+
+    private fun platformChipsStayWhole(scale: Float) {
+        show(Phone, scale) { PlatformFilterChips(PlatformFilter.TWITCH, onSelect = {}) }
+        for (platform in Platform.entries) {
+            val name = if (platform == Platform.TWITCH) "Twitch" else "Kick"
+            val chip = rule.onNodeWithText(name).bounds()
+            val label = rule.onNodeWithText(name, useUnmergedTree = true).bounds()
+            val logo = rule.onNodeWithTag(PlatformTags.logo(platform), useUnmergedTree = true).bounds()
+            assertTrue(
+                "$name logo at ${scale}x $logo leaves chip $chip",
+                logo.left >= chip.left && logo.right <= chip.right,
+            )
+            assertTrue("$name label at ${scale}x $label leaves chip $chip", label.right <= chip.right)
+            assertTrue("$name logo at ${scale}x overlaps its label", logo.right <= label.left)
+        }
+    }
+
+    @Test
+    fun signInActionWithLogoStaysInsideTheBannerAtDoubleFont() {
+        show(Phone, 2f) {
+            ErrorHost(ErrorHandlers()) {
+                ErrorBanner("Couldn’t load Kick", LurkError.AuthExpired, onRetry = {}, platform = Platform.KICK)
+            }
+        }
+        val banner = rule.onNodeWithTag(ErrorTags.BANNER).bounds()
+        val logo = rule.onNodeWithTag(PlatformTags.logo(Platform.KICK), useUnmergedTree = true).bounds()
+        val label = rule.onNodeWithText("Sign in again", useUnmergedTree = true).bounds()
+        assertTrue("logo $logo leaves banner $banner", logo.left >= banner.left && logo.right <= banner.right)
+        assertTrue("label $label leaves banner $banner", label.right <= banner.right && label.bottom <= banner.bottom)
+    }
 }

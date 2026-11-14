@@ -73,8 +73,9 @@ object ExpandedStreamCardTags {
 /**
  * A followed live stream with a big preview, for the Following tab. Under the clean 16:9 preview: the avatar, then
  * the channel name and the muted title on one line with the platform badge at its end, then the live dot, uptime,
- * viewers and category, then the stream's tags. The avatar and the name open the channel; everything else opens the
- * player. The avatar is the channel's one labelled stop for accessibility.
+ * viewers and category, then the stream's tags. The badge, and the platform in the spoken sentence, show only with
+ * [showPlatform]. The avatar and the name open the channel; everything else opens the player. The avatar is the
+ * channel's one labelled stop for accessibility.
  */
 @Composable
 fun ExpandedStreamCard(
@@ -82,9 +83,10 @@ fun ExpandedStreamCard(
     onOpenPlayer: () -> Unit,
     onOpenChannel: () -> Unit,
     modifier: Modifier = Modifier,
+    showPlatform: Boolean = true,
 ) {
     val openChannel = stringResource(R.string.cd_open_channel, stream.displayName)
-    val description = rememberCardDescription(stream)
+    val description = rememberCardDescription(stream, showPlatform)
     Column(
         modifier =
             modifier
@@ -121,7 +123,7 @@ fun ExpandedStreamCard(
                 Modifier.weight(1f).semantics(mergeDescendants = true) { hideFromAccessibility() },
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Headline(stream, onOpenChannel)
+                Headline(stream, onOpenChannel, showPlatform)
                 MetaLine(stream)
                 if (stream.tags.isNotEmpty()) {
                     TagRow(stream.tags, Modifier.padding(top = 2.dp).testTag(ExpandedStreamCardTags.TAGS))
@@ -138,7 +140,10 @@ fun ExpandedStreamCard(
  * asks, so a tick never recomposes the card.
  */
 @Composable
-private fun rememberCardDescription(stream: Stream): () -> String {
+private fun rememberCardDescription(
+    stream: Stream,
+    showPlatform: Boolean,
+): () -> String {
     val resources = LocalContext.current.resources
     val locale = LocalConfiguration.current.locales[0]
     val minutes = rememberUptimeMinutes(stream.startedAt)
@@ -154,7 +159,7 @@ private fun rememberCardDescription(stream: Stream): () -> String {
             if (startedAt == null) live else spokenUptime(minutes.value.minutes, resources),
             viewers,
             stream.category?.name,
-        ).plus(stream.tags).plus(platform).joinToString(separator)
+        ).plus(stream.tags).plus(listOfNotNull(platform.takeIf { showPlatform })).joinToString(separator)
     }
 }
 
@@ -166,6 +171,7 @@ private fun rememberCardDescription(stream: Stream): () -> String {
 private fun Headline(
     stream: Stream,
     onOpenChannel: () -> Unit,
+    showPlatform: Boolean,
 ) {
     val style = MaterialTheme.typography.titleSmall
     Layout(
@@ -191,21 +197,21 @@ private fun Headline(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag(ExpandedStreamCardTags.TITLE),
             )
-            PlatformBadge(stream.channel.platform)
+            if (showPlatform) PlatformBadge(stream.channel.platform)
         },
     ) { measurables, constraints ->
         val gap = HeadlineGap.roundToPx()
         val width = constraints.maxWidth
-        val badge = measurables[2].measure(Constraints())
-        val room = (width - badge.width - gap).coerceAtLeast(0)
+        val badge = measurables.getOrNull(2)?.measure(Constraints())
+        val room = (width - (badge?.let { it.width + gap } ?: 0)).coerceAtLeast(0)
         val nameCap = if (stream.title.isBlank()) room else (room * NAME_SHARE).toInt()
         val name = measurables[0].measure(Constraints(maxWidth = nameCap))
         val title = measurables[1].measure(Constraints(maxWidth = (room - name.width - gap).coerceAtLeast(0)))
-        val height = maxOf(name.height, title.height, badge.height)
+        val height = maxOf(name.height, title.height, badge?.height ?: 0)
         layout(width, height) {
             name.placeRelative(0, (height - name.height) / 2)
             title.placeRelative(name.width + gap, (height - title.height) / 2)
-            badge.placeRelative(width - badge.width, (height - badge.height) / 2)
+            badge?.placeRelative(width - badge.width, (height - badge.height) / 2)
         }
     }
 }

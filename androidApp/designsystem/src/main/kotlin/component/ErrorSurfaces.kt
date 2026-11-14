@@ -285,15 +285,32 @@ private fun ErrorActionButton(
         handlers.perform(action, platform, onRetry)
         if (wait != null) tries++
     }
+    // Sign in is for one platform, so its logo leads the label.
+    val logo = platform.takeIf { action is ErrorAction.SignIn }
+    val padding = if (logo != null) ButtonDefaults.ButtonWithIconContentPadding else ButtonDefaults.ContentPadding
     if (filled) {
-        Button(onClick = onClick, enabled = !waiting, modifier = buttonModifier) { Text(label) }
+        Button(onClick = onClick, enabled = !waiting, modifier = buttonModifier, contentPadding = padding) {
+            logo?.let { PlatformLogoLeading(it) }
+            Text(label)
+        }
     } else {
         TextButton(
             onClick = onClick,
             enabled = !waiting,
             modifier = buttonModifier,
             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-        ) { Text(label) }
+            contentPadding =
+                if (logo !=
+                    null
+                ) {
+                    ButtonDefaults.TextButtonWithIconContentPadding
+                } else {
+                    ButtonDefaults.TextButtonContentPadding
+                },
+        ) {
+            logo?.let { PlatformLogoLeading(it) }
+            Text(label)
+        }
     }
 }
 

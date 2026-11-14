@@ -34,18 +34,7 @@ fun PlatformFilterChips(
                 selected = filter == selected,
                 onClick = { onSelect(filter) },
                 label = { Text(filter.label()) },
-                leadingIcon =
-                    if (filter == selected) {
-                        {
-                            Icon(
-                                painterResource(R.drawable.ic_check),
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    } else {
-                        null
-                    },
+                leadingIcon = filter.leading(selected = filter == selected),
             )
         }
     }
@@ -57,4 +46,30 @@ private fun PlatformFilter.label(): String =
         PlatformFilter.ALL -> stringResource(R.string.filter_all)
         PlatformFilter.TWITCH -> Platform.TWITCH.label()
         PlatformFilter.KICK -> Platform.KICK.label()
+    }
+
+/** The chip's icon: a platform's logo always, the check mark on the selected All chip, nothing on All otherwise. */
+private fun PlatformFilter.leading(selected: Boolean): (@Composable () -> Unit)? =
+    when (this) {
+        PlatformFilter.ALL -> {
+            if (selected) {
+                {
+                    Icon(
+                        painterResource(R.drawable.ic_check),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            } else {
+                null
+            }
+        }
+
+        PlatformFilter.TWITCH -> {
+            { PlatformLogo(Platform.TWITCH) }
+        }
+
+        PlatformFilter.KICK -> {
+            { PlatformLogo(Platform.KICK) }
+        }
     }

@@ -25,7 +25,7 @@ private val RowPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 24.dp, 
 
 /**
  * One channel in a list (Figma ChannelRow). Shows the live dot and viewers while live, and a ring on the avatar
- * unless [showLiveRing] is off. Offline, it says when the channel was last live, counted from [now]; without one,
+ * unless [showLiveRing] is off. The platform badge shows only while [showPlatform] is on. Offline, it says when the channel was last live, counted from [now]; without one,
  * it starts its own ticking clock. [now] is read only while offline, so a tick never recomposes a live row.
  */
 @Composable
@@ -34,6 +34,7 @@ fun ChannelRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showLiveRing: Boolean = true,
+    showPlatform: Boolean = true,
     now: (() -> Instant)? = null,
 ) {
     val live = channel.live
@@ -68,7 +69,7 @@ fun ChannelRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                PlatformBadge(channel.ref.platform)
+                if (showPlatform) PlatformBadge(channel.ref.platform)
             }
             Text(
                 text = supporting,
