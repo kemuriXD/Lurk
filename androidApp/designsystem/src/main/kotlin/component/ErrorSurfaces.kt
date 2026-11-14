@@ -150,17 +150,7 @@ fun ErrorFooter(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     action: ErrorAction? = error.action(),
-) {
-    BannerCard(
-        title = stringResource(R.string.error_load_more, stringResource(platform.labelRes)),
-        reason = stringResource(error.messageRes()),
-        error = error,
-        action = action,
-        platform = platform,
-        onRetry = onRetry,
-        modifier = modifier.testTag(ErrorTags.FOOTER),
-    )
-}
+) = ErrorFooter(listOf(platform), error, onRetry, modifier, action)
 
 @Composable
 internal fun BannerCard(

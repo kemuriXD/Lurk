@@ -18,6 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.time.Duration.Companion.seconds
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -80,6 +81,23 @@ class PlatformErrorsTest {
         show(listOf(Platform.TWITCH to LurkError.AuthExpired, Platform.KICK to LurkError.AuthExpired))
         rule.onAllNodesWithTag(ErrorTags.BANNER).assertCountEquals(2)
         rule.onNodeWithText("Couldn’t load Twitch").assertIsDisplayed()
+    }
+
+    @Test
+    fun onlyIdenticalErrorsMergeSoDifferentHttpCodesStaySeparate() {
+        show(listOf(Platform.TWITCH to LurkError.Http(500), Platform.KICK to LurkError.Http(503)))
+        rule.onAllNodesWithTag(ErrorTags.BANNER).assertCountEquals(2)
+    }
+
+    @Test
+    fun rateLimitsWithDifferentWaitsStaySeparate() {
+        show(
+            listOf(
+                Platform.TWITCH to LurkError.RateLimited(5.seconds),
+                Platform.KICK to LurkError.RateLimited(9.seconds),
+            ),
+        )
+        rule.onAllNodesWithTag(ErrorTags.BANNER).assertCountEquals(2)
     }
 
     @Test
