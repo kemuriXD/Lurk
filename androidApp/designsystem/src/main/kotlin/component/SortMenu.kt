@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.kemurixd.lurk.designsystem.R
 
@@ -48,7 +49,7 @@ fun <T> SortMenu(
         ) {
             Icon(painterResource(R.drawable.ic_sort), contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.size(8.dp))
-            Text(currentLabel)
+            Text(currentLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         // Figma Sort menu: surface-container card, 8 dp radius, level 2 shadow, 48 dp rows with a 24 dp check slot.
         DropdownMenu(

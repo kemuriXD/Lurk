@@ -71,11 +71,11 @@ fun SectionHeader(
                 )
             }
         }
-        // Half the width at most, so a wide action never squeezes the title below its words.
+        // Three fifths of the width at most, so a wide action never squeezes the title below its words.
         if (trailing != null) {
             Box(
                 Modifier.layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth / 2))
+                    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth * 3 / 5))
                     layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
                 },
             ) { trailing() }

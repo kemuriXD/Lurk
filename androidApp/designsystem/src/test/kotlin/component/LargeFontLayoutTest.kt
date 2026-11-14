@@ -67,4 +67,26 @@ class LargeFontLayoutTest {
         }
         assertWrapsWholeWords("Live channels", rule.onNodeWithText("Live channels").textLayout())
     }
+
+    @Test
+    fun aLongSortLabelStaysOnOneLineInsteadOfBreakingMidWord() {
+        rule.setContent {
+            LurkTheme(dynamicColor = false) {
+                LayoutHost(Phone, 2f) {
+                    SectionHeader("Live channels") {
+                        SortMenu(
+                            selected = "Recommended for you",
+                            options = listOf("Recommended for you", "Recent"),
+                            label = { it },
+                            description = { "Sort: $it" },
+                            onSelect = {},
+                        )
+                    }
+                }
+            }
+        }
+        val layout = rule.onNodeWithText("Recommended for you", useUnmergedTree = true).textLayout()
+        assertTrue("sort label wraps to ${layout.lineCount} lines", layout.lineCount == 1)
+        assertWrapsWholeWords("Live channels", rule.onNodeWithText("Live channels").textLayout())
+    }
 }

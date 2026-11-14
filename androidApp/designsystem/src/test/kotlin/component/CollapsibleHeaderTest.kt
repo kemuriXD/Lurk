@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
@@ -53,6 +57,68 @@ class CollapsibleHeaderTest {
     @Test
     fun aHeaderThatIsNotCollapsibleStaysPut() {
         show(collapsible = false)
+        rule.onNodeWithTag("list").performTouchInput { swipeUp() }
+        rule.onNodeWithTag("header").assertIsDisplayed()
+    }
+
+    private var collapsible by mutableStateOf(true)
+    private var canScroll by mutableStateOf(true)
+    private var resetKey by mutableIntStateOf(0)
+
+    private fun showWithFlags() {
+        rule.setContent {
+            CollapsibleHeader(
+                collapsible = collapsible,
+                canScroll = canScroll,
+                resetKey = resetKey,
+                header = { Box(Modifier.fillMaxWidth().height(120.dp).testTag("header")) { Text("Header") } },
+            ) {
+                LazyColumn(Modifier.weight(1f).testTag("list")) {
+                    items((1..40).toList()) { Text("Row $it", Modifier.height(48.dp)) }
+                }
+            }
+        }
+    }
+
+    private fun collapse() {
+        rule.onNodeWithTag("list").performTouchInput { swipeUp() }
+        rule.onNodeWithTag("header").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun aCollapsedHeaderComesBackWhenTheContentStopsScrolling() {
+        showWithFlags()
+        collapse()
+        canScroll = false
+        rule.waitForIdle()
+        rule.onNodeWithTag("header").assertIsDisplayed()
+    }
+
+    @Test
+    fun aCollapsedHeaderComesBackWhenTheWindowIsNoLongerCompactAndStaysBackAfterwards() {
+        showWithFlags()
+        collapse()
+        collapsible = false
+        rule.waitForIdle()
+        rule.onNodeWithTag("header").assertIsDisplayed()
+        collapsible = true
+        rule.waitForIdle()
+        rule.onNodeWithTag("header").assertIsDisplayed()
+    }
+
+    @Test
+    fun aCollapsedHeaderComesBackWhenTheKeyChanges() {
+        showWithFlags()
+        collapse()
+        resetKey = 1
+        rule.waitForIdle()
+        rule.onNodeWithTag("header").assertIsDisplayed()
+    }
+
+    @Test
+    fun aHeaderStaysCollapsedWhileTheListHasNoRoomToScroll() {
+        canScroll = false
+        showWithFlags()
         rule.onNodeWithTag("list").performTouchInput { swipeUp() }
         rule.onNodeWithTag("header").assertIsDisplayed()
     }
