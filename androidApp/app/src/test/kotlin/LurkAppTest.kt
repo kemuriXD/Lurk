@@ -1,6 +1,9 @@
 package io.github.kemurixd.lurk
 
 import android.app.Application
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
@@ -19,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.Lifecycle
 import androidx.navigation3.runtime.NavKey
 import io.github.kemurixd.lurk.auth.SessionRepository
 import io.github.kemurixd.lurk.core.common.DispatcherProvider
@@ -77,6 +81,7 @@ import org.koin.core.context.stopKoin
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -570,6 +575,43 @@ class LurkAppTest {
             assertEquals(listOf(BrowseRoute, category), navigator.stack(TopLevel.BROWSE).toList())
         }
         compose.onNodeWithTag(ChannelTestTags.BACK).assertIsDisplayed()
+    }
+
+    private fun webViewIn(view: View): WebView? =
+        when (view) {
+            is WebView -> view
+            is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { webViewIn(view.getChildAt(it)) }
+            else -> null
+        }
+
+    @Test
+    fun afterRecreationBackOnTheLoginStillGoesBackInThePageFirst() {
+        val restore = StateRestorationTester(compose)
+        lateinit var navigator: Navigator
+        restore.setContent {
+            navigator = rememberNavigator(TopLevel.BROWSE)
+            LurkTheme { LurkApp(navigator) }
+        }
+        compose.runOnIdle { navigator.push(LoginRoute(Platform.TWITCH)) }
+        compose.onNodeWithTag(LoginTestTags.CANCEL).assertIsDisplayed()
+
+        // The process comes back with the login on top: its back handler is composed before the shell's, and both are
+        // added to the dispatcher when the activity starts.
+        restore.emulateSavedInstanceStateRestore()
+        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        compose.onNodeWithTag(LoginTestTags.CANCEL).assertIsDisplayed()
+        val page = compose.runOnIdle { checkNotNull(webViewIn(compose.activity.window.decorView)) }
+        compose.runOnIdle { shadowOf(page).setCanGoBack(true) }
+
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+
+        compose.runOnIdle {
+            assertEquals(1, shadowOf(page).goBackInvocations)
+            assertEquals(LoginRoute(Platform.TWITCH), navigator.currentStack.last())
+        }
+        compose.onNodeWithTag(LoginTestTags.CANCEL).assertIsDisplayed()
     }
 
     private companion object {

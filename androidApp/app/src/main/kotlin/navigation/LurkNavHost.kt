@@ -63,8 +63,13 @@ fun LurkNavHost(
     )
     // A plain back callback, registered after the display's, so the system calls it on release and the page plays
     // the same pop slide as the back button. Without it the display previews the swipe, seeking the page under the
-    // finger. At the start tab's root there is nothing to go back to, so the system's own back-to-home runs.
-    BackHandler(enabled = navigator.canGoBack, onBack = navigator::back)
+    // finger. At the start tab's root there is nothing to go back to, so the system's own back-to-home runs. The login
+    // handles back itself (back in the page first, then Cancel), so this one stands aside there rather than relying on
+    // which handler was registered last, which a restore after process death can reverse.
+    BackHandler(
+        enabled = navigator.canGoBack && navigator.currentStack.lastOrNull() !is LoginRoute,
+        onBack = navigator::back,
+    )
 }
 
 private fun routes(navigator: Navigator): (NavKey) -> NavEntry<NavKey> =
