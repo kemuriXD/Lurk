@@ -138,7 +138,7 @@ private fun RunLoginSession(
 }
 
 @Composable
-private fun LoginBar(
+internal fun LoginBar(
     platform: Platform,
     onCancel: () -> Unit,
 ) {
@@ -154,7 +154,7 @@ private fun LoginBar(
             text = stringResource(R.string.title_login, stringResource(platform.labelRes)),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
